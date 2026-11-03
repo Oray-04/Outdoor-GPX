@@ -3,7 +3,7 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { Badge, DemoBadge } from "@/components/ui/badge";
 import { Logo } from "@/components/ui/logo";
 import { RouteCard } from "@/components/ui/route-card";
-import { DEMO_ROUTES } from "@/lib/demo-data";
+import { DEMO_VMS } from "@/lib/route-model";
 
 export const metadata = { title: "Charte graphique" };
 
@@ -45,7 +45,7 @@ export default function Page() {
 
       <Block title="Badges"><div className="flex flex-wrap gap-2"><Badge>Neutre</Badge><Badge tone="pine">Pin</Badge><Badge tone="ember">Braise</Badge><Badge tone="glacier">Glacier</Badge><DemoBadge /></div></Block>
 
-      <Block title="Carte de parcours"><div className="max-w-xs"><RouteCard route={DEMO_ROUTES[0]} /></div></Block>
+      <Block title="Carte de parcours"><div className="max-w-xs"><RouteCard route={DEMO_VMS[0]} /></div></Block>
     </div>
   );
 }

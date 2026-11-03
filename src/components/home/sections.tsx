@@ -1,5 +1,6 @@
 import { MapPin, Route as RouteIcon, FileUp, LineChart, Users, Check } from "lucide-react";
 import { DEMO_ROUTES, DEMO_EVENTS, DESTINATIONS } from "@/lib/demo-data";
+import { DEMO_VMS } from "@/lib/route-model";
 import { SPORTS, type Sport } from "@/lib/sports";
 import { RouteCard, TopoPattern } from "@/components/ui/route-card";
 import { Badge, DemoBadge } from "@/components/ui/badge";
@@ -21,12 +22,12 @@ export function SportChips() {
 }
 
 export function Popular() {
-  return <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">{DEMO_ROUTES.slice(0, 4).map((r) => <RouteCard key={r.id} route={r} />)}</div>;
+  return <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">{DEMO_VMS.slice(0, 4).map((r) => <RouteCard key={r.id} route={r} />)}</div>;
 }
 
 const features = [
   { icon: RouteIcon, title: "Éditeur de parcours", text: "Tracé sur chemins, points de passage, boucles, fusion, annuler/rétablir.", href: "/creer", step: 4 },
-  { icon: FileUp, title: "GPX, KML, GeoJSON, TCX", text: "Import, vérification, conversion et export de vos fichiers.", href: "/creer", step: 5 },
+  { icon: FileUp, title: "GPX, KML, GeoJSON, TCX", text: "Import, vérification, conversion et export de vos fichiers.", href: "/fichiers", step: 5 },
   { icon: LineChart, title: "Profil altimétrique lié à la carte", text: "Pentes, kilométrage, ravitos et points d'eau, export image et PDF.", href: "/parcours", step: 6 },
   { icon: Users, title: "Outils organisateurs", text: "Ravitaillements, barrières horaires, bénévoles, temps de passage.", href: "/organisateurs", step: 7 },
 ];
@@ -39,7 +40,7 @@ export function Features() {
           <span className="grid size-11 place-items-center rounded-xl bg-pine-100 text-pine-700 transition group-hover:bg-pine-600 group-hover:text-white"><I className="size-5" /></span>
           <h3 className="mt-4 text-lg font-semibold">{title}</h3>
           <p className="mt-1.5 text-sm leading-relaxed text-ink-500">{text}</p>
-          <Badge tone="neutral" className="mt-4">Étape {step} · en développement</Badge>
+          <Badge tone="neutral" className="mt-4">Étape {step} </Badge>
         </Link>
       ))}
     </div>

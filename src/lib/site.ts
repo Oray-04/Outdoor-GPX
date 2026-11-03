@@ -12,7 +12,6 @@ export const NAV = [
 
 /** Feuille de route : source unique pour les pages « en développement ». */
 export const MODULES: Record<string, { step: number; title: string; summary: string; items: string[] }> = {
-  parcours: { step: 6, title: "Bibliothèque et fiches parcours", summary: "Catalogue filtrable (liste et carte) et fiche détaillée avec profil altimétrique interactif.", items: ["Filtres sport, région, distance, D+", "Vue liste et vue carte", "Profil lié à la carte", "Favoris, notes, commentaires"] },
   evenements: { step: 7, title: "Calendrier des événements", summary: "Calendrier sportif avec formats de course, règlement, cartographie et liens d'inscription.", items: ["Recherche par date, sport, région, distance", "Plusieurs formats par événement", "Parcours détaillés"] },
   organisateurs: { step: 7, title: "Espace organisateurs", summary: "Outils logistiques : ravitaillements, barrières horaires, bénévoles, secours, exports PDF.", items: ["Points de contrôle et barrières", "Fiches bénévoles", "Temps de passage", "Rôles et permissions"] },
   communaute: { step: 8, title: "Communauté", summary: "Profils sportifs, abonnements, collections, challenges et classements.", items: ["Profils et abonnements", "Collections", "Challenges et classements"] },
