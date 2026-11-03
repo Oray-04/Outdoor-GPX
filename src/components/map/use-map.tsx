@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Map as MLMap } from "maplibre-gl";
 import { BASEMAPS, buildStyle } from "@/lib/basemaps";
+import { BASE } from "@/lib/url";
 
 export type ML = typeof import("maplibre-gl");
 
@@ -17,7 +18,7 @@ export function useMap(opts: { center?: [number, number]; zoom?: number; scale?:
     let dead = false;
     (async () => {
       const ml = await import("maplibre-gl");
-      ml.setWorkerUrl(`${location.origin}/maplibre/maplibre-gl-worker.mjs`);
+      ml.setWorkerUrl(`${location.origin}${BASE}/maplibre/maplibre-gl-worker.mjs`);
       if (dead || !el.current) return;
       mlRef.current = ml;
       const m = new ml.Map({ container: el.current, style: buildStyle(), center: o.current.center ?? [2.5, 46.6], zoom: o.current.zoom ?? 5.3, attributionControl: { compact: true }, doubleClickZoom: false, canvasContextAttributes: { preserveDrawingBuffer: !!o.current.preserveBuffer } });

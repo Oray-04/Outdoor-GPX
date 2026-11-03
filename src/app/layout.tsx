@@ -3,6 +3,7 @@ import "./globals.css";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { Announcement } from "@/components/layout/announcement";
+import { CSP } from "@/lib/csp";
 import { GeoProvider } from "@/components/home/geo-context";
 
 export const metadata: Metadata = {
@@ -14,6 +15,10 @@ export const viewport: Viewport = { themeColor: "#0d1b17", width: "device-width"
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr">
+      <head>
+        <meta httpEquiv="Content-Security-Policy" content={CSP} />
+        <meta name="referrer" content="strict-origin-when-cross-origin" />
+      </head>
       <body>
         <a href="#contenu" className="sr-only focus:not-sr-only focus:absolute focus:z-[60] focus:m-2 focus:rounded-lg focus:bg-white focus:px-4 focus:py-2">Aller au contenu</a>
         <GeoProvider>

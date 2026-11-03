@@ -5,13 +5,14 @@ import { SPORTS, DIFFICULTY_LABEL } from "@/lib/sports";
 import { hueOf, sparkOf, type RouteVM } from "@/lib/route-model";
 import { Badge, DemoBadge } from "./badge";
 import { ElevationSpark } from "./elevation-spark";
+import { routeHref } from "@/lib/url";
 
 const diffTone = { facile: "pine", modere: "glacier", difficile: "ember", expert: "dark" } as const;
 
 export function RouteCard({ route, note, verified }: { route: RouteVM; note?: string; verified?: boolean }) {
   const s = route.stats, hue = hueOf(route.id);
   return (
-    <Link href={`/parcours/${route.id}`} className="group block overflow-hidden rounded-[var(--radius-card)] bg-white shadow-card ring-1 ring-ink-100 transition duration-300 hover:-translate-y-1 hover:shadow-lift">
+    <Link href={routeHref(route.id)} className="group block overflow-hidden rounded-[var(--radius-card)] bg-white shadow-card ring-1 ring-ink-100 transition duration-300 hover:-translate-y-1 hover:shadow-lift">
       <article>
         <div className="relative h-36 overflow-hidden" style={{ background: `linear-gradient(135deg, hsl(${hue} 45% 22%), hsl(${hue} 55% 38%))` }}>
           <TopoPattern />

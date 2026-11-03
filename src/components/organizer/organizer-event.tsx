@@ -13,6 +13,7 @@ import { trackStats, bboxOf } from "@/lib/geo";
 import { download, safeName } from "@/lib/formats";
 import { passagePdf, volunteersPdf, mapPdf } from "@/lib/pdf";
 import { uid } from "@/lib/types";
+import { eventHref } from "@/lib/url";
 
 type Tab = "infos" | "courses" | "logistique" | "benevoles" | "passages" | "equipe";
 const TABS: [Tab, string][] = [["infos", "Infos"], ["courses", "Courses"], ["logistique", "Logistique"], ["benevoles", "Bénévoles"], ["passages", "Temps de passage"], ["equipe", "Équipe"]];
@@ -26,7 +27,7 @@ export function OrganizerEvent({ id }: { id: string }) {
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
       <Link href="/organisateurs" className="inline-flex items-center gap-1.5 text-sm text-ink-500 hover:text-ink-900"><ArrowLeft className="size-4" />Espace organisateurs</Link>
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl font-extrabold sm:text-3xl">{ev.name}</h1><Link href={`/evenements/${ev.id}`} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-ink-200 bg-white px-3 text-sm font-semibold hover:bg-ink-50"><Eye className="size-4" />Voir la page publique</Link></div>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl font-extrabold sm:text-3xl">{ev.name}</h1><Link href={eventHref(ev.id)} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-ink-200 bg-white px-3 text-sm font-semibold hover:bg-ink-50"><Eye className="size-4" />Voir la page publique</Link></div>
       <div className="mt-4 flex overflow-x-auto border-b border-ink-100" role="tablist">{TABS.map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={clsx("shrink-0 px-4 py-2.5 text-sm font-semibold", tab === k ? "border-b-2 border-pine-600 text-pine-700" : "text-ink-500")}>{l}</button>)}</div>
       <div className="mt-6">
         {tab === "infos" && <Infos ev={ev} save={save} />}

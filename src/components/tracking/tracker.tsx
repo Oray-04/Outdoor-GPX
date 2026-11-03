@@ -12,6 +12,7 @@ import { HINT_LABEL, OffRouteDetector, acceptFix, angleDiff, bearing, cumOf, nav
 import { bboxOf, fmtKm, fmtM } from "@/lib/geo";
 import { SPORTS, type Sport } from "@/lib/sports";
 import { uid } from "@/lib/types";
+import { withBase } from "@/lib/url";
 
 const fmtT = (s: number) => `${Math.floor(s / 3600)}:${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
@@ -113,7 +114,7 @@ export function Tracker({ initialRouteId }: { initialRouteId?: string }) {
     const st = recordingStats(f);
     const name = prompt("Nom de l'activité", `${SPORTS[sport].label} du ${new Date(f[0].t).toLocaleDateString("fr-FR")}`) ?? "";
     const res = activitiesRepo.upsert({ id: uid(), name: name.trim() || "Activité", sport, startedAt: f[0].t, durationS: st.durationS, distanceM: st.distM, gainM: st.gainM, coords: f.map((x) => [x.lng, x.lat, x.ele, x.t]), routeId: route?.origin === "mine" ? route.id : undefined });
-    if (res.ok) location.assign("/compte#activites"); else setErr(res.error ?? "Enregistrement impossible.");
+    if (res.ok) location.assign(withBase("/compte/#activites")); else setErr(res.error ?? "Enregistrement impossible.");
   }
 
   const st = useMemo(() => recordingStats(fixes), [fixes]);

@@ -5,6 +5,7 @@ import { useMap } from "@/components/map/use-map";
 import { bboxOf } from "@/lib/geo";
 import { fmtKm, fmtM } from "@/lib/geo";
 import type { RouteVM } from "@/lib/route-model";
+import { routeHref, withBase } from "@/lib/url";
 
 export function RoutesMap({ routes }: { routes: RouteVM[] }) {
   const { el, map, ml, ready } = useMap();
@@ -22,7 +23,7 @@ export function RoutesMap({ routes }: { routes: RouteVM[] }) {
       m.on("click", "rs-line", (e) => {
         const p = e.features?.[0]?.properties as { id: string; name: string; km: number; gain: number } | undefined; if (!p) return;
         const box = document.createElement("div");
-        const a = document.createElement("a"); a.href = `/parcours/${p.id}`; a.textContent = p.name; a.className = "font-semibold underline";
+        const a = document.createElement("a"); a.href = withBase(routeHref(p.id)); a.textContent = p.name; a.className = "font-semibold underline";
         const s = document.createElement("div"); s.textContent = `${fmtKm(p.km)} · ${fmtM(p.gain)} D+`;
         box.append(a, s);
         new lib.Popup({ closeButton: false }).setLngLat(e.lngLat).setDOMContent(box).addTo(m);

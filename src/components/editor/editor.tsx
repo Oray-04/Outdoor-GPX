@@ -14,6 +14,7 @@ import { SPORTS, DIFFICULTY_LABEL, difficultyOf, estimateMinutes, type Sport } f
 import { trackStats, fmtKm, fmtM, fmtDuration, bboxOf, cumulative } from "@/lib/geo";
 import { buildProfile, distanceAlong } from "@/lib/profile";
 import { FORMATS, parseAny, serialize, download, safeName, GpsFileError, MAX_BYTES, type GpsFormat } from "@/lib/formats";
+import { editorHref, withBase } from "@/lib/url";
 
 type Tab = "trace" | "props" | "poi" | "fichiers";
 interface Meta { name: string; description: string; sport: Sport; visibility: Visibility; terrain: string[]; region: string; country: string }
@@ -111,7 +112,7 @@ export function Editor({ routeId }: { routeId?: string }) {
     setSaved("saving");
     const t = setTimeout(async () => {
       const rId = rid.current ?? uid();
-      if (!rid.current) { setId(rId); rid.current = rId; window.history.replaceState(null, "", `/creer?id=${rId}`); }
+      if (!rid.current) { setId(rId); rid.current = rId; window.history.replaceState(null, "", withBase(editorHref(rId))); }
       let { region, country } = meta;
       if (!region && !country) {
         try {
@@ -231,7 +232,7 @@ export function Editor({ routeId }: { routeId?: string }) {
     routesRepo.upsert({ id: nid, name, description: meta.description, sport: meta.sport, segs: state.segs, waypoints: state.waypoints, coords: pts, pois: state.pois, terrain: meta.terrain, visibility: meta.visibility, region: meta.region, country: meta.country, source: "creation", createdAt: Date.now(), updatedAt: Date.now() });
     return nid;
   }
-  const duplicate = async () => { setBusy(true); try { const nid = await saveSibling(st, `${meta.name || "Parcours"} (copie)`); window.location.assign(`/creer?id=${nid}`); } catch { setMsg({ kind: "err", text: "Duplication impossible (altitudes indisponibles)." }); } finally { setBusy(false); } };
+  const duplicate = async () => { setBusy(true); try { const nid = await saveSibling(st, `${meta.name || "Parcours"} (copie)`); window.location.assign(withBase(editorHref(nid))); } catch { setMsg({ kind: "err", text: "Duplication impossible (altitudes indisponibles)." }); } finally { setBusy(false); } };
   const split = async () => {
     if (sel == null) return; const parts = E.splitAt(st, sel);
     if (!parts) { setMsg({ kind: "warn", text: "Choisissez un point intermédiaire pour diviser le parcours." }); return; }

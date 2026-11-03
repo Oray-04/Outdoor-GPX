@@ -7,6 +7,7 @@ import { RouteMap } from "@/components/map/route-map";
 import { useAllEvents, routesRepo } from "@/lib/repo";
 import { POST_KINDS } from "@/lib/events";
 import { SPORTS } from "@/lib/sports";
+import { routeHref, manageHref } from "@/lib/url";
 
 const safeUrl = (u: string) => { try { const x = new URL(u); return x.protocol === "https:" || x.protocol === "http:" ? x.href : null; } catch { return null; } };
 
@@ -25,7 +26,7 @@ export function EventPage({ id }: { id: string }) {
           <p className="mt-1 text-sm text-ink-500">Organisé par {ev.organizer}</p></div>
         <div className="flex gap-2">
           {url && <a href={url} target="_blank" rel="noopener noreferrer nofollow" className="inline-flex h-11 items-center gap-2 rounded-xl bg-ember-500 px-5 font-semibold text-white hover:bg-ember-600"><ExternalLink className="size-4" />S'inscrire</a>}
-          {mine && <Link href={`/organisateurs/${ev.id}`} className="inline-flex h-11 items-center gap-2 rounded-xl border border-ink-200 bg-white px-5 font-semibold hover:bg-ink-50"><Settings className="size-4" />Gérer</Link>}
+          {mine && <Link href={manageHref(ev.id)} className="inline-flex h-11 items-center gap-2 rounded-xl border border-ink-200 bg-white px-5 font-semibold hover:bg-ink-50"><Settings className="size-4" />Gérer</Link>}
         </div>
       </header>
       {ev.description && <p className="mt-6 whitespace-pre-line text-ink-700">{ev.description}</p>}
@@ -36,7 +37,7 @@ export function EventPage({ id }: { id: string }) {
             <article key={r.id} className="rounded-2xl bg-white p-5 ring-1 ring-ink-100">
               <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-lg font-bold">{r.label}</h3><Badge tone="pine">{SPORTS[r.sport].label}</Badge></div>
               <p className="mt-1 text-sm text-ink-700">{r.distanceKm} km · {r.gainM} m D+ · départ {r.startTime} · temps limite {r.maxHours} h{r.fee ? ` · ${r.fee}` : ""}</p>
-              {rt && <div className="mt-3"><RouteMap coords={rt.coords} pois={rt.pois} className="h-64" /><Link href={`/parcours/${rt.id}`} className="mt-1 inline-block text-sm font-semibold text-pine-700 underline">Voir la fiche et le profil du parcours</Link></div>}
+              {rt && <div className="mt-3"><RouteMap coords={rt.coords} pois={rt.pois} className="h-64" /><Link href={routeHref(rt.id)} className="mt-1 inline-block text-sm font-semibold text-pine-700 underline">Voir la fiche et le profil du parcours</Link></div>}
               {posts.length > 0 && <ul className="mt-3 flex flex-wrap gap-2 text-xs">{posts.sort((a, b) => a.km - b.km).map((p) => <li key={p.id} className="rounded-full bg-ink-50 px-2.5 py-1">{POST_KINDS[p.kind].label} · km {p.km.toFixed(1)}{p.cutoffH != null ? ` · barrière ${p.cutoffH} h` : ""}</li>)}</ul>}
             </article>); })}</div>)}
       </section>

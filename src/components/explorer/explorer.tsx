@@ -13,6 +13,7 @@ import { DemoBadge } from "@/components/ui/badge";
 import { ElevationSpark } from "@/components/ui/elevation-spark";
 import { geocode } from "@/lib/geocode";
 import { useGeo } from "@/components/home/geo-context";
+import { BASE } from "@/lib/url";
 
 const COMPARE_COLORS = ["#f0612b", "#3ba6c9", "#7a4bd1"];
 const MAX_COMPARE = 3;
@@ -68,7 +69,7 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
     let dead = false;
     (async () => {
       const ml = await import("maplibre-gl");
-      ml.setWorkerUrl(`${location.origin}/maplibre/maplibre-gl-worker.mjs`);
+      ml.setWorkerUrl(`${location.origin}${BASE}/maplibre/maplibre-gl-worker.mjs`);
       if (dead || !el.current) return;
       mlRef.current = ml;
       const m = new ml.Map({ container: el.current, style: buildStyle(), center: initial ? [initial.lng, initial.lat] : [2.5, 46.6], zoom: initial ? 10 : 5.3, attributionControl: { compact: true } });

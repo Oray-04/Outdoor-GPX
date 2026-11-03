@@ -13,6 +13,7 @@ import { fromTrack } from "@/lib/editor-core";
 import { addElevation } from "@/lib/ign";
 import { trackStats, fmtKm, fmtM } from "@/lib/geo";
 import { uid, type Pt } from "@/lib/types";
+import { routeHref, editorHref } from "@/lib/url";
 
 interface Pending { key: string; file: string; parsed?: ParsedFile; coords?: Pt[]; error?: string; busy: boolean; note?: string }
 
@@ -108,13 +109,13 @@ export function FilesManager() {
             {mine.map((r) => { const v = fromSaved(r); return (
               <li key={r.id} className="flex flex-wrap items-center gap-3 rounded-xl bg-white p-3 ring-1 ring-ink-100">
                 <div className="min-w-0 flex-1">
-                  <Link href={`/parcours/${r.id}`} className="block truncate font-semibold hover:text-pine-700">{r.name}</Link>
+                  <Link href={routeHref(r.id)} className="block truncate font-semibold hover:text-pine-700">{r.name}</Link>
                   <p className="text-xs text-ink-500">{fmtKm(v.stats.distanceM)} · {fmtM(v.stats.gainM)} D+ · {r.coords.length} pts · <Badge tone={r.source === "import" ? "glacier" : "pine"}>{r.source === "import" ? `Importé${r.fileName ? " : " + r.fileName : ""}` : "Créé ici"}</Badge></p>
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
                   {(Object.keys(FORMATS) as GpsFormat[]).map((f) => <Button key={f} size="sm" variant="secondary" onClick={() => exportOne(r.id, f)} title={`Convertir et télécharger en ${FORMATS[f].label}`}><Download className="size-3.5" />{FORMATS[f].label}</Button>)}
                   <Button size="sm" variant="ghost" onClick={() => share(r.id)} aria-label="Partager"><Share2 className="size-4" /></Button>
-                  <Link href={`/creer?id=${r.id}`} className="grid size-9 place-items-center rounded-lg text-ink-700 hover:bg-ink-100" aria-label="Modifier dans l'éditeur" title="Modifier"><Pencil className="size-4" /></Link>
+                  <Link href={editorHref(r.id)} className="grid size-9 place-items-center rounded-lg text-ink-700 hover:bg-ink-100" aria-label="Modifier dans l'éditeur" title="Modifier"><Pencil className="size-4" /></Link>
                   <Button size="sm" variant="ghost" onClick={() => rename(r.id)}>Renommer</Button>
                   <Button size="sm" variant="ghost" onClick={() => del(r.id)} aria-label="Supprimer"><Trash2 className="size-4" /></Button>
                 </div>

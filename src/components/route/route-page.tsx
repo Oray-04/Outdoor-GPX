@@ -16,6 +16,7 @@ import { SPORTS, DIFFICULTY_LABEL } from "@/lib/sports";
 import { POI_TYPES, uid } from "@/lib/types";
 import { FORMATS, serialize, download, safeName, type GpsFormat } from "@/lib/formats";
 import { chartToPng, chartToPdf } from "@/lib/export-profile";
+import { editorHref, trackerHref, withBase } from "@/lib/url";
 
 export function RoutePage({ id }: { id: string }) {
   const all = useAllRoutes();
@@ -66,7 +67,7 @@ export function RoutePage({ id }: { id: string }) {
   };
   const sendReview = () => { if (!rating) { setMsg("Choisissez une note de 1 à 5."); return; } reviewsRepo.upsert({ id: uid(), routeId: route.id, rating, comment: comment.trim(), at: Date.now() }); setRating(0); setComment(""); setMsg("Avis enregistré sur cet appareil."); };
   const sendReport = () => { if (!report.trim()) return; reportsRepo.upsert({ id: uid(), routeId: route.id, routeName: route.name, message: report.trim(), at: Date.now(), status: "ouvert" }); setReport(""); setReporting(false); setMsg("Signalement enregistré : il apparaît dans l'administration."); };
-  const del = () => { if (confirm(`Supprimer « ${route.name} » ?`)) { routesRepo.remove(route.id); location.assign("/parcours"); } };
+  const del = () => { if (confirm(`Supprimer « ${route.name} » ?`)) { routesRepo.remove(route.id); location.assign(withBase("/parcours/")); } };
   const upPhoto = async (f?: File) => { if (!f) return; const r = await addPhoto(route.id, f); if (!r.ok) setMsg(r.error ?? "Ajout impossible."); };
 
   const Stat = ({ l, v }: { l: string; v: string }) => <div className="rounded-xl bg-white p-4 ring-1 ring-ink-100"><dt className="text-[11px] font-medium uppercase tracking-wide text-ink-400">{l}</dt><dd className="mt-0.5 font-display text-xl font-bold">{v}</dd></div>;
@@ -82,10 +83,10 @@ export function RoutePage({ id }: { id: string }) {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant={isFav ? "primary" : "secondary"} aria-pressed={isFav} onClick={() => toggleFavorite(route.id)}><Heart className={clsx("size-4", isFav && "fill-current")} />{isFav ? "Favori" : "Ajouter aux favoris"}</Button>
-          <Link href={`/suivi?route=${route.id}`} className="inline-flex h-11 items-center gap-2 rounded-xl border border-ink-200 bg-white px-5 text-[15px] font-semibold hover:bg-ink-50"><Navigation className="size-4" />Suivre</Link>
+          <Link href={trackerHref(route.id)} className="inline-flex h-11 items-center gap-2 rounded-xl border border-ink-200 bg-white px-5 text-[15px] font-semibold hover:bg-ink-50"><Navigation className="size-4" />Suivre</Link>
           <Button variant="secondary" onClick={() => exp("gpx")}><Download className="size-4" />GPX</Button>
           <Button variant="secondary" onClick={share}><Share2 className="size-4" />Partager</Button>
-          {mine && <Link href={`/creer?id=${route.id}`} className="inline-flex h-11 items-center gap-2 rounded-xl bg-pine-600 px-5 text-[15px] font-semibold text-white hover:bg-pine-700"><Pencil className="size-4" />Modifier</Link>}
+          {mine && <Link href={editorHref(route.id)} className="inline-flex h-11 items-center gap-2 rounded-xl bg-pine-600 px-5 text-[15px] font-semibold text-white hover:bg-pine-700"><Pencil className="size-4" />Modifier</Link>}
         </div>
       </header>
       {msg && <p role="status" className="mt-4 rounded-lg bg-pine-50 px-3 py-2 text-sm text-pine-700">{msg}</p>}

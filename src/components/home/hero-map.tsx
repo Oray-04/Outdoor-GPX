@@ -3,6 +3,7 @@ import { useEffect, useImperativeHandle, useRef, forwardRef } from "react";
 import type { Map as MLMap } from "maplibre-gl";
 import { BASEMAPS } from "@/lib/basemaps";
 import { DEMO_ROUTES } from "@/lib/demo-data";
+import { BASE } from "@/lib/url";
 
 export interface HeroMapHandle { flyTo: (lng: number, lat: number, zoom?: number) => void; setUserPos: (lng: number, lat: number) => void }
 
@@ -28,7 +29,7 @@ export const HeroMap = forwardRef<HeroMapHandle>(function HeroMap(_, ref) {
     let cancelled = false;
     (async () => {
       const ml = await import("maplibre-gl");
-      ml.setWorkerUrl(`${location.origin}/maplibre/maplibre-gl-worker.mjs`);
+      ml.setWorkerUrl(`${location.origin}${BASE}/maplibre/maplibre-gl-worker.mjs`);
       if (cancelled || !el.current) return;
       const m = new ml.Map({
         container: el.current,

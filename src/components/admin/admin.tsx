@@ -11,6 +11,7 @@ import { writeStore } from "@/lib/store";
 import { download } from "@/lib/formats";
 import { fmtKm } from "@/lib/geo";
 import { fromSaved } from "@/lib/route-model";
+import { routeHref, manageHref } from "@/lib/url";
 
 type Tab = "apercu" | "parcours" | "moderation" | "evenements" | "categories" | "editorial" | "donnees" | "membres";
 const TABS: [Tab, string][] = [["apercu", "Aperçu"], ["parcours", "Parcours"], ["moderation", "Modération"], ["evenements", "Événements"], ["categories", "Catégories"], ["editorial", "Contenus"], ["donnees", "Données"], ["membres", "Membres & abonnements"]];
@@ -45,7 +46,7 @@ function RoutesAdmin() {
   const toggleV = (id: string) => writeStore("verified", verified.includes(id) ? verified.filter((x) => x !== id) : [...verified, id]);
   if (!routes.length) return <p className="rounded-xl border border-dashed border-ink-200 p-6 text-sm text-ink-500">Aucun parcours enregistré.</p>;
   return <ul className="grid gap-2">{routes.map((r) => <li key={r.id} className="flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 ring-1 ring-ink-100">
-    <div className="min-w-0 flex-1"><Link href={`/parcours/${r.id}`} className="font-semibold hover:text-pine-700">{r.name}</Link><p className="text-xs text-ink-500">{fmtKm(fromSaved(r).stats.distanceM)} · {r.visibility === "prive" ? "privé" : "public"} · modifié le {new Date(r.updatedAt).toLocaleDateString("fr-FR")}</p></div>
+    <div className="min-w-0 flex-1"><Link href={routeHref(r.id)} className="font-semibold hover:text-pine-700">{r.name}</Link><p className="text-xs text-ink-500">{fmtKm(fromSaved(r).stats.distanceM)} · {r.visibility === "prive" ? "privé" : "public"} · modifié le {new Date(r.updatedAt).toLocaleDateString("fr-FR")}</p></div>
     <Button size="sm" variant={verified.includes(r.id) ? "brand" : "secondary"} aria-pressed={verified.includes(r.id)} onClick={() => toggleV(r.id)}><BadgeCheck className="size-4" />{verified.includes(r.id) ? "Officiel vérifié" : "Marquer vérifié"}</Button>
     <Button size="sm" variant="secondary" onClick={() => routesRepo.upsert({ ...r, visibility: r.visibility === "prive" ? "public" : "prive", updatedAt: Date.now() })}>{r.visibility === "prive" ? "Rendre public" : "Rendre privé"}</Button>
     <Button size="sm" variant="ghost" aria-label="Supprimer" onClick={() => confirm(`Supprimer « ${r.name} » ?`) && routesRepo.remove(r.id)}><Trash2 className="size-4" /></Button></li>)}</ul>;
@@ -56,7 +57,7 @@ function Moderation() {
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <section><h2 className="mb-2 flex items-center gap-2 text-lg font-bold"><AlertTriangle className="size-5 text-ember-500" />Signalements ({reports.length})</h2>
-        <ul className="grid gap-2">{reports.sort((a, b) => b.at - a.at).map((r) => <li key={r.id} className="rounded-xl bg-white p-3 ring-1 ring-ink-100"><div className="flex items-center justify-between gap-2"><Link href={`/parcours/${r.routeId}`} className="font-semibold hover:text-pine-700">{r.routeName}</Link><Badge tone={r.status === "ouvert" ? "ember" : "pine"}>{r.status === "ouvert" ? "Ouvert" : "Traité"}</Badge></div><p className="mt-1 text-sm">{r.message}</p><p className="text-xs text-ink-400">{new Date(r.at).toLocaleString("fr-FR")}</p>
+        <ul className="grid gap-2">{reports.sort((a, b) => b.at - a.at).map((r) => <li key={r.id} className="rounded-xl bg-white p-3 ring-1 ring-ink-100"><div className="flex items-center justify-between gap-2"><Link href={routeHref(r.routeId)} className="font-semibold hover:text-pine-700">{r.routeName}</Link><Badge tone={r.status === "ouvert" ? "ember" : "pine"}>{r.status === "ouvert" ? "Ouvert" : "Traité"}</Badge></div><p className="mt-1 text-sm">{r.message}</p><p className="text-xs text-ink-400">{new Date(r.at).toLocaleString("fr-FR")}</p>
           <div className="mt-2 flex gap-2"><Button size="sm" variant="secondary" onClick={() => reportsRepo.upsert({ ...r, status: r.status === "ouvert" ? "traite" : "ouvert" })}>{r.status === "ouvert" ? "Marquer traité" : "Rouvrir"}</Button><Button size="sm" variant="ghost" onClick={() => reportsRepo.remove(r.id)}>Supprimer</Button></div></li>)}{!reports.length && <li className="text-sm text-ink-500">Aucun signalement.</li>}</ul></section>
       <section><h2 className="mb-2 text-lg font-bold">Avis ({reviews.length})</h2>
         <ul className="grid gap-2">{reviews.sort((a, b) => b.at - a.at).map((r) => <li key={r.id} className="flex items-start gap-2 rounded-xl bg-white p-3 ring-1 ring-ink-100"><div className="min-w-0 flex-1"><p className="text-sm font-semibold">{"★".repeat(r.rating)}<span className="ml-2 font-normal text-ink-500">{routes.find((x) => x.id === r.routeId)?.name ?? "Parcours (démo ou supprimé)"}</span></p>{r.comment && <p className="text-sm">{r.comment}</p>}</div><Button size="sm" variant="ghost" aria-label="Supprimer l'avis" onClick={() => reviewsRepo.remove(r.id)}><Trash2 className="size-4" /></Button></li>)}{!reviews.length && <li className="text-sm text-ink-500">Aucun avis.</li>}</ul></section>
@@ -66,7 +67,7 @@ function Moderation() {
 
 function EventsAdmin() {
   const events = eventsRepo.useAll();
-  return events.length ? <ul className="grid gap-2">{events.map((e) => <li key={e.id} className="flex items-center gap-2 rounded-xl bg-white p-3 ring-1 ring-ink-100"><div className="min-w-0 flex-1"><Link href={`/organisateurs/${e.id}`} className="font-semibold hover:text-pine-700">{e.name}</Link><p className="text-xs text-ink-500">{e.date} · {e.organizer} · {e.races.length} course(s)</p></div><Button size="sm" variant="ghost" aria-label="Supprimer" onClick={() => confirm(`Supprimer « ${e.name} » ?`) && eventsRepo.remove(e.id)}><Trash2 className="size-4" /></Button></li>)}</ul> : <p className="rounded-xl border border-dashed border-ink-200 p-6 text-sm text-ink-500">Aucun événement créé. Les événements de démonstration ne sont pas modifiables.</p>;
+  return events.length ? <ul className="grid gap-2">{events.map((e) => <li key={e.id} className="flex items-center gap-2 rounded-xl bg-white p-3 ring-1 ring-ink-100"><div className="min-w-0 flex-1"><Link href={manageHref(e.id)} className="font-semibold hover:text-pine-700">{e.name}</Link><p className="text-xs text-ink-500">{e.date} · {e.organizer} · {e.races.length} course(s)</p></div><Button size="sm" variant="ghost" aria-label="Supprimer" onClick={() => confirm(`Supprimer « ${e.name} » ?`) && eventsRepo.remove(e.id)}><Trash2 className="size-4" /></Button></li>)}</ul> : <p className="rounded-xl border border-dashed border-ink-200 p-6 text-sm text-ink-500">Aucun événement créé. Les événements de démonstration ne sont pas modifiables.</p>;
 }
 
 function Categories() {

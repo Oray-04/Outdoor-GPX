@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { eventsRepo } from "@/lib/repo";
 import { ROLES, type EventModel } from "@/lib/events";
 import { uid } from "@/lib/types";
+import { eventHref, manageHref, withBase } from "@/lib/url";
 
 export function OrganizerHome() {
   const events = eventsRepo.useAll();
@@ -14,7 +15,7 @@ export function OrganizerHome() {
   const create = (e: React.FormEvent) => {
     e.preventDefault();
     const ev: EventModel = { id: uid(), ...f, name: f.name.trim(), description: "", rules: "", practical: "", registrationUrl: "", races: [], posts: [], volunteers: [], team: [], origin: "mine", createdAt: Date.now() };
-    eventsRepo.upsert(ev); location.assign(`/organisateurs/${ev.id}`);
+    eventsRepo.upsert(ev); location.assign(withBase(manageHref(ev.id)));
   };
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
@@ -32,8 +33,8 @@ export function OrganizerHome() {
       <section className="mt-8"><h2 className="text-xl font-bold">Mes événements ({events.length})</h2>
         {!events.length ? <p className="mt-3 rounded-xl border border-dashed border-ink-200 p-6 text-sm text-ink-500">Aucun événement pour l'instant.</p> : (
           <ul className="mt-3 grid gap-3">{events.map((e) => (
-            <li key={e.id} className="flex flex-wrap items-center gap-3 rounded-xl bg-white p-4 ring-1 ring-ink-100"><div className="min-w-0 flex-1"><Link href={`/evenements/${e.id}`} className="font-semibold hover:text-pine-700">{e.name}</Link><p className="text-sm text-ink-500">{e.date} · {e.place} · {e.races.length} course(s) · {e.posts.length} poste(s) · {e.volunteers.length} bénévole(s)</p></div>
-              <Link href={`/organisateurs/${e.id}`} className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-pine-600 px-3.5 text-sm font-semibold text-white hover:bg-pine-700"><Settings className="size-4" />Gérer</Link>
+            <li key={e.id} className="flex flex-wrap items-center gap-3 rounded-xl bg-white p-4 ring-1 ring-ink-100"><div className="min-w-0 flex-1"><Link href={eventHref(e.id)} className="font-semibold hover:text-pine-700">{e.name}</Link><p className="text-sm text-ink-500">{e.date} · {e.place} · {e.races.length} course(s) · {e.posts.length} poste(s) · {e.volunteers.length} bénévole(s)</p></div>
+              <Link href={manageHref(e.id)} className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-pine-600 px-3.5 text-sm font-semibold text-white hover:bg-pine-700"><Settings className="size-4" />Gérer</Link>
               <Button size="sm" variant="ghost" aria-label="Supprimer" onClick={() => confirm(`Supprimer « ${e.name} » ?`) && eventsRepo.remove(e.id)}><Trash2 className="size-4" /></Button></li>))}</ul>)}
       </section>
       <section className="mt-10 rounded-2xl bg-white p-5 ring-1 ring-ink-100"><h2 className="flex items-center gap-2 text-lg font-bold"><ShieldCheck className="size-5 text-pine-600" />Rôles et permissions</h2>

@@ -10,6 +10,7 @@ import { activitiesRepo, collectionsRepo, reviewsRepo, useFavorites, useProfile 
 import { SPORTS } from "@/lib/sports";
 import { fmtKm, fmtM } from "@/lib/geo";
 import { uid } from "@/lib/types";
+import { routeHref } from "@/lib/url";
 
 export function Community() {
   const routes = useAllRoutes();
@@ -56,7 +57,7 @@ export function Community() {
           <ul className="mt-4 grid gap-3">{cols.map((c) => (
             <li key={c.id} className="rounded-xl bg-ink-50 p-3"><div className="flex items-center justify-between"><p className="font-semibold">{c.name} <Badge>{c.routeIds.length}</Badge></p><Button size="sm" variant="ghost" aria-label="Supprimer la collection" onClick={() => confirm(`Supprimer « ${c.name} » ?`) && collectionsRepo.remove(c.id)}><Trash2 className="size-4" /></Button></div>
               <details className="mt-1"><summary className="cursor-pointer text-sm font-medium text-pine-700">Choisir les parcours</summary><ul className="mt-2 grid max-h-52 gap-1 overflow-y-auto">{routes.map((r) => <li key={r.id}><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={c.routeIds.includes(r.id)} onChange={() => toggle(c.id, r.id)} className="accent-[var(--color-pine-600)]" />{r.name}{favs.includes(r.id) && " ♥"}</label></li>)}</ul></details>
-              {c.routeIds.length > 0 && <ul className="mt-2 flex flex-wrap gap-1.5">{c.routeIds.map((id) => { const r = routes.find((x) => x.id === id); return r ? <li key={id}><Link href={`/parcours/${id}`} className="rounded-full bg-white px-2.5 py-1 text-xs font-medium ring-1 ring-ink-200 hover:ring-pine-400">{r.name}</Link></li> : null; })}</ul>}
+              {c.routeIds.length > 0 && <ul className="mt-2 flex flex-wrap gap-1.5">{c.routeIds.map((id) => { const r = routes.find((x) => x.id === id); return r ? <li key={id}><Link href={routeHref(id)} className="rounded-full bg-white px-2.5 py-1 text-xs font-medium ring-1 ring-ink-200 hover:ring-pine-400">{r.name}</Link></li> : null; })}</ul>}
             </li>))}{!cols.length && <li className="text-sm text-ink-500">Aucune collection.</li>}</ul></Card>
       </div>
     </div>

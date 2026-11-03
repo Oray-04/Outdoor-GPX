@@ -15,6 +15,25 @@ npm run typecheck
 
 Aucune clé ni variable d'environnement n'est nécessaire.
 
+## Publier sur GitHub Pages
+
+Le site est exporté en fichiers statiques (`output: "export"`) : aucun serveur n'est nécessaire.
+
+1. Fusionnez la branche dans `master` (le workflow se déclenche sur `master`/`main`).
+2. Dans le dépôt GitHub : **Settings > Pages > Build and deployment > Source : GitHub Actions** (à faire une seule fois).
+3. L'onglet **Actions** lance « Publier sur GitHub Pages » (tests, build, déploiement). Le site est ensuite à `https://<compte>.github.io/<nom-du-dépôt>/`.
+
+Construire et tester en local comme sur GitHub Pages :
+```bash
+NEXT_PUBLIC_BASE_PATH=/<nom-du-dépôt> npm run build   # produit le dossier out/
+```
+Sans `NEXT_PUBLIC_BASE_PATH`, le site est construit pour la racine d'un domaine (`npm run build` puis servir `out/`).
+
+Particularités de l'hébergement statique :
+- les fiches utilisent des paramètres d'adresse : `/parcours/voir/?id=…`, `/evenements/voir/?id=…`, `/organisateurs/gerer/?id=…` ;
+- la politique de sécurité (CSP) est posée par une balise `<meta>` (`src/lib/csp.ts`), car GitHub Pages n'autorise pas d'en-têtes HTTP personnalisés. Conséquence : pas de protection anti-intégration en iframe (`frame-ancestors`) ;
+- les données restent dans le navigateur, **séparées pour chaque adresse** (localhost, GitHub Pages…).
+
 ## Où sont les données ?
 
 L'étape 2 (comptes + base de données) est **reportée**. En attendant, tout est enregistré **dans le navigateur** (localStorage) derrière une couche unique (`src/lib/store.ts`, `src/lib/repo.ts`) : l'application est utilisable seule, et la base de données pourra remplacer cette couche sans réécrire les écrans.
@@ -63,7 +82,7 @@ Position temps réel, enregistrement (filtre de précision), guidage sur parcour
 **Limites physiques d'un site web** : le suivi s'arrête si la page n'est plus visible/active et ne tourne pas écran éteint ; une application mobile native serait nécessaire pour cela. Cartes hors ligne et synchronisation entre appareils : non disponibles.
 
 ## Sécurité
-- En-têtes : CSP stricte avec liste blanche des services (IGN, OSM, Nominatim, Overpass), `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy` (géolocalisation limitée au site).
+- CSP stricte avec liste blanche des services (IGN, OSM, Nominatim, Overpass), posée par balise `<meta>` et politique de référent. Les en-têtes HTTP (`X-Frame-Options`, `Permissions-Policy`…) ne sont pas disponibles sur GitHub Pages.
 - Contenus utilisateur affichés via React (échappés) ; liens d'inscription limités à http(s) avec `rel="noopener noreferrer nofollow"`.
 - Fichiers GPS : taille limitée, analyse défensive, aucune exécution.
 - **À faire avant une mise en ligne publique** : comptes + règles d'accès côté serveur (étape 2), protection de `/admin`, fournisseur de tuiles sous contrat pour le repli OSM, relecture des licences des couches IGN utilisées.
