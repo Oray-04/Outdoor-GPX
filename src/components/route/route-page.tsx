@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Heart, Download, Share2, Pencil, Flag, Star, MapPin, Copy, Camera, Trash2, ExternalLink, ImageDown, FileText, BadgeCheck, ArrowLeft } from "lucide-react";
+import { Heart, Navigation, Download, Share2, Pencil, Flag, Star, MapPin, Copy, Camera, Trash2, ExternalLink, ImageDown, FileText, BadgeCheck, ArrowLeft } from "lucide-react";
 import clsx from "clsx";
 import { RouteMap } from "@/components/map/route-map";
 import { ElevationChart, type ChartMarker } from "./elevation-chart";
@@ -82,6 +82,7 @@ export function RoutePage({ id }: { id: string }) {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant={isFav ? "primary" : "secondary"} aria-pressed={isFav} onClick={() => toggleFavorite(route.id)}><Heart className={clsx("size-4", isFav && "fill-current")} />{isFav ? "Favori" : "Ajouter aux favoris"}</Button>
+          <Link href={`/suivi?route=${route.id}`} className="inline-flex h-11 items-center gap-2 rounded-xl border border-ink-200 bg-white px-5 text-[15px] font-semibold hover:bg-ink-50"><Navigation className="size-4" />Suivre</Link>
           <Button variant="secondary" onClick={() => exp("gpx")}><Download className="size-4" />GPX</Button>
           <Button variant="secondary" onClick={share}><Share2 className="size-4" />Partager</Button>
           {mine && <Link href={`/creer?id=${route.id}`} className="inline-flex h-11 items-center gap-2 rounded-xl bg-pine-600 px-5 text-[15px] font-semibold text-white hover:bg-pine-700"><Pencil className="size-4" />Modifier</Link>}

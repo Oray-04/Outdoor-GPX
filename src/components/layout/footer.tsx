@@ -3,9 +3,9 @@ import { Logo } from "@/components/ui/logo";
 import { SITE } from "@/lib/site";
 
 const cols = [
-  { title: "Produit", links: [["Explorer", "/explorer"], ["Créer un parcours", "/creer"], ["Bibliothèque", "/parcours"], ["Tarifs", "/tarifs"]] },
+  { title: "Produit", links: [["Explorer", "/explorer"], ["Créer un parcours", "/creer"], ["Bibliothèque", "/parcours"], ["Mes fichiers GPS", "/fichiers"], ["Suivi GPS", "/suivi"], ["Tarifs", "/tarifs"]] },
   { title: "Compétitions", links: [["Calendrier", "/evenements"], ["Espace organisateurs", "/organisateurs"]] },
-  { title: "Communauté", links: [["Communauté", "/communaute"], ["Mon espace", "/compte"], ["Connexion", "/connexion"]] },
+  { title: "Communauté", links: [["Communauté", "/communaute"], ["Mon espace", "/compte"]] },
   { title: "Projet", links: [["Charte graphique", "/charte"], ["Feuille de route", "/feuille-de-route"], ["Données & licences", "/licences"]] },
 ] as const;
 

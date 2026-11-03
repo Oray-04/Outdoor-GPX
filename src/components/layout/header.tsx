@@ -34,7 +34,7 @@ export function Header() {
           ))}
         </nav>
         <div className="ml-auto hidden items-center gap-2 lg:flex">
-          <ButtonLink href="/connexion" variant="ghost" size="sm"><User className="size-4" />Connexion</ButtonLink>
+          <ButtonLink href="/compte" variant="ghost" size="sm"><User className="size-4" />Mon espace</ButtonLink>
           <ButtonLink href="/creer" size="sm">Créer un parcours</ButtonLink>
         </div>
         <button className="ml-auto grid size-10 place-items-center rounded-lg hover:bg-ink-100 lg:hidden" aria-label={open ? "Fermer le menu" : "Ouvrir le menu"} aria-expanded={open} onClick={() => setOpen((v) => !v)}>
@@ -49,7 +49,7 @@ export function Header() {
             ))}
           </ul>
           <div className="mt-4 grid grid-cols-2 gap-2">
-            <ButtonLink href="/connexion" variant="secondary">Connexion</ButtonLink>
+            <ButtonLink href="/compte" variant="secondary">Mon espace</ButtonLink>
             <ButtonLink href="/creer">Créer</ButtonLink>
           </div>
         </nav>

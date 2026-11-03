@@ -12,11 +12,8 @@ export const NAV = [
 
 /** Feuille de route : source unique pour les pages « en développement ». */
 export const MODULES: Record<string, { step: number; title: string; summary: string; items: string[] }> = {
-  communaute: { step: 8, title: "Communauté", summary: "Profils sportifs, abonnements, collections, challenges et classements.", items: ["Profils et abonnements", "Collections", "Challenges et classements"] },
   connexion: { step: 2, title: "Connexion et inscription", summary: "Authentification et base de données (Supabase / PostgreSQL + PostGIS).", items: ["Compte e-mail", "Row Level Security", "Confidentialité des traces"] },
-  compte: { step: 2, title: "Espace personnel", summary: "Tableau de bord : parcours, favoris, activités, statistiques, fichiers GPS.", items: ["Mes parcours et favoris", "Mes fichiers GPS", "Mes statistiques"] },
   admin: { step: 9, title: "Administration", summary: "Back-office : membres, modération, signalements, abonnements, contenus éditoriaux.", items: ["Modération", "Signalements", "Statistiques"] },
-  mobile: { step: 8, title: "Navigation mobile", summary: "Suivi GPS, alertes de sortie de parcours, cartes hors ligne.", items: ["Géolocalisation continue", "Hors ligne selon licences"] },
 };
 
 export const ROADMAP = [
