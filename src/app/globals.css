@@ -1,0 +1,72 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/sora";
+@import "maplibre-gl/dist/maplibre-gl.css";
+
+/* ───────── Charte graphique « Crête » ───────── */
+@theme {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Sora Variable", "Inter Variable", ui-sans-serif, sans-serif;
+
+  /* Encre : neutres vert-gris profond */
+  --color-ink-950: #08130f;
+  --color-ink-900: #0d1b17;
+  --color-ink-800: #152a23;
+  --color-ink-700: #20372f;
+  --color-ink-600: #36504a;
+  --color-ink-500: #4b6359;
+  --color-ink-400: #74897f;
+  --color-ink-300: #9db0a7;
+  --color-ink-200: #cdd9d3;
+  --color-ink-100: #e4ebe7;
+  --color-ink-50: #f0f4f1;
+  --color-paper: #f7f6f1;
+
+  /* Pin : couleur de marque */
+  --color-pine-700: #145a42;
+  --color-pine-600: #1e7a58;
+  --color-pine-500: #2a9170;
+  --color-pine-400: #4fb08f;
+  --color-pine-100: #ddf1e8;
+  --color-pine-50: #eef8f3;
+
+  /* Braise : accent d'action */
+  --color-ember-600: #d44d1a;
+  --color-ember-500: #f0612b;
+  --color-ember-400: #ff8556;
+  --color-ember-100: #fde6db;
+
+  /* Glacier : données / altitude */
+  --color-glacier-600: #247f9f;
+  --color-glacier-500: #3ba6c9;
+  --color-glacier-100: #dff1f8;
+
+  --color-warn: #c98a0b;
+  --color-danger: #c8372d;
+
+  --radius-card: 1.25rem;
+  --shadow-card: 0 1px 2px rgb(13 27 23 / 0.06), 0 8px 24px -12px rgb(13 27 23 / 0.18);
+  --shadow-lift: 0 2px 4px rgb(13 27 23 / 0.08), 0 20px 40px -16px rgb(13 27 23 / 0.28);
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+html { scroll-behavior: smooth; }
+body {
+  background: var(--color-paper);
+  color: var(--color-ink-900);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: -0.02em; }
+:focus-visible { outline: 2px solid var(--color-ember-500); outline-offset: 2px; border-radius: 6px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+
+@keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+.rise { animation: rise 0.7s var(--ease-out-soft) both; }
+.rise-2 { animation-delay: 0.08s; }
+.rise-3 { animation-delay: 0.16s; }
+
+.maplibregl-ctrl-attrib { font-size: 10px; }

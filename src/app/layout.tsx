@@ -1,0 +1,26 @@
+import type { Metadata, Viewport } from "next";
+import "./globals.css";
+import { Header } from "@/components/layout/header";
+import { Footer } from "@/components/layout/footer";
+import { GeoProvider } from "@/components/home/geo-context";
+
+export const metadata: Metadata = {
+  title: { default: "Crête — Plateforme outdoor : parcours GPS, trail, randonnée, vélo", template: "%s · Crête" },
+  description: "Créez, explorez et partagez vos parcours de trail, running, randonnée et vélo. Outils de cartographie et de gestion d'événements.",
+};
+export const viewport: Viewport = { themeColor: "#0d1b17", width: "device-width", initialScale: 1 };
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="fr">
+      <body>
+        <a href="#contenu" className="sr-only focus:not-sr-only focus:absolute focus:z-[60] focus:m-2 focus:rounded-lg focus:bg-white focus:px-4 focus:py-2">Aller au contenu</a>
+        <GeoProvider>
+          <Header />
+          <main id="contenu">{children}</main>
+          <Footer />
+        </GeoProvider>
+      </body>
+    </html>
+  );
+}
