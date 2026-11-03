@@ -1,12 +1,14 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { GeoJSONSource, Marker } from "maplibre-gl";
 import { useMap } from "./use-map";
-import { bboxOf } from "@/lib/geo";
+import { bboxOf, trackStats, fmtKm, fmtM } from "@/lib/geo";
+import { MapFrame, StatBanner } from "./map-frame";
 import { POI_TYPES, type Poi, type Pt } from "@/lib/types";
 
 /** Carte en lecture seule : trace, départ/arrivée, POI, position active (survol du profil). */
-export function RouteMap({ coords, pois = [], activeIndex, className = "h-80", onTrackHover }: { coords: Pt[]; pois?: Poi[]; activeIndex?: number | null; className?: string; onTrackHover?: (i: number | null) => void }) {
+export function RouteMap({ coords, pois = [], activeIndex, className = "h-80", onTrackHover, title }: { coords: Pt[]; pois?: Poi[]; activeIndex?: number | null; className?: string; onTrackHover?: (i: number | null) => void; title?: string }) {
+  const st = useMemo(() => (coords.length > 1 ? trackStats(coords, 3) : null), [coords]);
   const { el, map, ml, ready } = useMap();
   const marks = useRef<Marker[]>([]);
   const active = useRef<Marker | null>(null);
@@ -50,5 +52,9 @@ export function RouteMap({ coords, pois = [], activeIndex, className = "h-80", o
     else active.current.setLngLat([c[0], c[1]]);
   }, [activeIndex, coords, ready, map, ml]);
 
-  return <div className={`relative overflow-hidden rounded-2xl ring-1 ring-ink-100 ${className}`}><div className="absolute inset-0"><div ref={el} className="size-full" role="region" aria-label="Carte du parcours" /></div></div>;
+  return (
+    <MapFrame className={`overflow-hidden rounded-2xl ring-1 ring-ink-100 ${className}`} banner={<StatBanner title={title} items={st ? [{ label: "Distance", value: fmtKm(st.distanceM) }, { label: "D+", value: fmtM(st.gainM) }, { label: "D−", value: fmtM(st.lossM) }, { label: "Alt. min", value: fmtM(st.minEle) }, { label: "Alt. max", value: fmtM(st.maxEle) }] : [{ label: "Distance", value: "—" }]} />}>
+      <div className="absolute inset-0"><div ref={el} className="size-full" role="region" aria-label="Carte du parcours" /></div>
+    </MapFrame>
+  );
 }

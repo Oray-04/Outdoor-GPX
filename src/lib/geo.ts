@@ -114,3 +114,7 @@ export const bboxOf = (pts: readonly (readonly number[])[]): [number, number, nu
   for (const p of pts) { w = Math.min(w, p[0]); e = Math.max(e, p[0]); s = Math.min(s, p[1]); n = Math.max(n, p[1]); }
   return [w, s, e, n];
 };
+
+/** Emprise approximative de la France métropolitaine (Corse incluse). Exclut les territoires d'outre-mer ; déborde légèrement sur les pays voisins. */
+export const FRANCE_BBOX: [number, number, number, number] = [-5.5, 41.2, 9.8, 51.2];
+export const inFrance = (lng: number, lat: number) => lng >= FRANCE_BBOX[0] && lng <= FRANCE_BBOX[2] && lat >= FRANCE_BBOX[1] && lat <= FRANCE_BBOX[3];

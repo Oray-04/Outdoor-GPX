@@ -4,6 +4,7 @@ import type { GeoJSONSource } from "maplibre-gl";
 import { useMap } from "@/components/map/use-map";
 import { bboxOf } from "@/lib/geo";
 import { fmtKm, fmtM } from "@/lib/geo";
+import { MapFrame, StatBanner } from "@/components/map/map-frame";
 import type { RouteVM } from "@/lib/route-model";
 import { routeHref, withBase } from "@/lib/url";
 
@@ -36,5 +37,11 @@ export function RoutesMap({ routes }: { routes: RouteVM[] }) {
     if (all.length) { const b = bboxOf(all); m.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 60, maxZoom: 12, duration: 0 }); }
   }, [routes, ready, map, ml]);
 
-  return <div className="relative h-[70vh] min-h-[24rem] overflow-hidden rounded-2xl ring-1 ring-ink-100"><div className="absolute inset-0"><div ref={el} className="size-full" role="region" aria-label="Carte des parcours" /></div><p className="pointer-events-none absolute bottom-8 left-3 rounded bg-white/90 px-2 py-1 text-[11px]"><b className="text-ember-600">Orange</b> : démo · <b className="text-pine-600">vert</b> : vos parcours</p></div>;
+  const km = routes.reduce((s, r) => s + r.stats.distanceM, 0), gain = routes.reduce((s, r) => s + r.stats.gainM, 0);
+  return (
+    <MapFrame className="h-[70vh] min-h-[24rem] overflow-hidden rounded-2xl ring-1 ring-ink-100" banner={<StatBanner title="Parcours affichés" items={[{ label: "Parcours", value: String(routes.length) }, { label: "Distance cumulée", value: fmtKm(km) }, { label: "D+ cumulé", value: fmtM(gain) }]} />}>
+      <div className="absolute inset-0"><div ref={el} className="size-full" role="region" aria-label="Carte des parcours" /></div>
+      <p className="pointer-events-none absolute bottom-8 left-3 rounded bg-white/90 px-2 py-1 text-[11px]"><b className="text-ember-600">Orange</b> : démo · <b className="text-pine-600">vert</b> : vos parcours</p>
+    </MapFrame>
+  );
 }

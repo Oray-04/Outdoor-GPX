@@ -4,11 +4,12 @@ import type { Marker, GeoJSONSource } from "maplibre-gl";
 import { Undo2, Redo2, Route as RouteIcon, MousePointer2, ArrowLeftRight, Repeat, Trash2, Copy, Scissors, Flag, Upload, Download, MapPin, Loader2, Check, AlertTriangle, Plus, Merge, LocateFixed } from "lucide-react";
 import clsx from "clsx";
 import { useMap, setBasemap, BasemapPicker } from "@/components/map/use-map";
+import { MapFrame, StatBanner } from "@/components/map/map-frame";
 import { ElevationChart, type ChartMarker } from "@/components/route/elevation-chart";
 import { Button } from "@/components/ui/button";
 import * as E from "@/lib/editor-core";
 import { routeOnPaths, addElevation } from "@/lib/ign";
-import { routesRepo, useTerrains } from "@/lib/repo";
+import { routesRepo, useLayers, useTerrains } from "@/lib/repo";
 import { POI_TYPES, uid, type Poi, type PoiType, type Pt, type SavedRoute, type Visibility } from "@/lib/types";
 import { SPORTS, DIFFICULTY_LABEL, difficultyOf, estimateMinutes, type Sport } from "@/lib/sports";
 import { trackStats, fmtKm, fmtM, fmtDuration, bboxOf, cumulative } from "@/lib/geo";
@@ -17,12 +18,13 @@ import { FORMATS, parseAny, serialize, download, safeName, GpsFileError, MAX_BYT
 import { editorHref, withBase } from "@/lib/url";
 
 type Tab = "trace" | "props" | "poi" | "fichiers";
-interface Meta { name: string; description: string; sport: Sport; visibility: Visibility; terrain: string[]; region: string; country: string }
-const DEFAULT_META: Meta = { name: "", description: "", sport: "trail", visibility: "prive", terrain: [], region: "", country: "" };
+interface Meta { name: string; description: string; sport: Sport; visibility: Visibility; terrain: string[]; region: string; country: string; layer: string; sourceUrl: string }
+const DEFAULT_META: Meta = { name: "", description: "", sport: "trail", visibility: "prive", terrain: [], region: "", country: "", layer: "mine", sourceUrl: "" };
 const SEG_COLOR = "#f0612b";
 
 export function Editor({ routeId }: { routeId?: string }) {
   const terrains = useTerrains();
+  const layers = useLayers();
   const { el, map, ml, ready } = useMap();
   const [hist, setHist] = useState<E.EState[]>([E.emptyState()]);
   const [hi, setHi] = useState(0);
@@ -73,7 +75,7 @@ export function Editor({ routeId }: { routeId?: string }) {
     const r = routesRepo.get(routeId);
     if (!r) { setMsg({ kind: "err", text: "Parcours introuvable sur cet appareil." }); setLoaded(true); return; }
     createdAt.current = r.createdAt; sourceKind.current = r.source; fileName.current = r.fileName;
-    setMeta({ name: r.name, description: r.description, sport: r.sport, visibility: r.visibility, terrain: r.terrain, region: r.region, country: r.country });
+    setMeta({ name: r.name, description: r.description, sport: r.sport, visibility: r.visibility, terrain: r.terrain, region: r.region, country: r.country, layer: r.layer ?? "mine", sourceUrl: r.sourceUrl ?? "" });
     setHist([{ waypoints: r.waypoints, segs: r.segs, pois: r.pois }]); setHi(0);
     setCoords(r.coords); setElev("ok"); setLoaded(true);
   }, [routeId]);
@@ -121,7 +123,7 @@ export function Editor({ routeId }: { routeId?: string }) {
           if (r.ok) { const j = (await r.json()) as { address?: { state?: string; country?: string } }; region = j.address?.state ?? ""; country = j.address?.country ?? ""; setMeta((m) => ({ ...m, region, country })); }
         } catch { /* optionnel */ }
       }
-      const route: SavedRoute = { id: rId, name: meta.name.trim() || "Parcours sans titre", description: meta.description, sport: meta.sport, segs: st.segs, waypoints: st.waypoints, coords, pois: st.pois, terrain: meta.terrain, visibility: meta.visibility, region, country, source: sourceKind.current, fileName: fileName.current, createdAt: createdAt.current, updatedAt: Date.now() };
+      const route: SavedRoute = { id: rId, name: meta.name.trim() || "Parcours sans titre", description: meta.description, sport: meta.sport, segs: st.segs, waypoints: st.waypoints, coords, pois: st.pois, terrain: meta.terrain, visibility: meta.visibility, region, country, layer: meta.layer, sourceUrl: /^https?:\/\//.test(meta.sourceUrl) ? meta.sourceUrl : undefined, source: sourceKind.current, fileName: fileName.current, createdAt: createdAt.current, updatedAt: Date.now() };
       const res = routesRepo.upsert(route);
       setSaved(res.ok ? "saved" : "error");
       if (!res.ok) setMsg({ kind: "err", text: res.error ?? "Enregistrement impossible." });
@@ -229,7 +231,7 @@ export function Editor({ routeId }: { routeId?: string }) {
   async function saveSibling(state: E.EState, name: string): Promise<string> {
     const pts = await addElevation(E.trackLL(state));
     const nid = uid();
-    routesRepo.upsert({ id: nid, name, description: meta.description, sport: meta.sport, segs: state.segs, waypoints: state.waypoints, coords: pts, pois: state.pois, terrain: meta.terrain, visibility: meta.visibility, region: meta.region, country: meta.country, source: "creation", createdAt: Date.now(), updatedAt: Date.now() });
+    routesRepo.upsert({ id: nid, name, description: meta.description, sport: meta.sport, segs: state.segs, waypoints: state.waypoints, coords: pts, pois: state.pois, terrain: meta.terrain, visibility: meta.visibility, region: meta.region, country: meta.country, layer: meta.layer, source: "creation", createdAt: Date.now(), updatedAt: Date.now() });
     return nid;
   }
   const duplicate = async () => { setBusy(true); try { const nid = await saveSibling(st, `${meta.name || "Parcours"} (copie)`); window.location.assign(withBase(editorHref(nid))); } catch { setMsg({ kind: "err", text: "Duplication impossible (altitudes indisponibles)." }); } finally { setBusy(false); } };
@@ -264,7 +266,7 @@ export function Editor({ routeId }: { routeId?: string }) {
   return (
     <div className="grid h-[calc(100dvh-4rem)] min-h-[40rem] grid-rows-[auto_1fr] lg:grid-cols-[1fr_22rem] lg:grid-rows-1">
       <div className="flex min-h-0 flex-col">
-        <div className="relative min-h-[18rem] flex-1">
+        <MapFrame className="min-h-[18rem] flex-1" banner={<StatBanner title={meta.name || "Parcours en cours"} items={[{ label: "Distance", value: stats ? fmtKm(stats.distanceM) : "—" }, { label: "D+", value: stats ? fmtM(stats.gainM) : "—" }, { label: "D−", value: stats ? fmtM(stats.lossM) : "—" }, { label: "Alt. min", value: stats ? fmtM(stats.minEle) : "—" }, { label: "Alt. max", value: stats ? fmtM(stats.maxEle) : "—" }, { label: "Durée est.", value: stats ? fmtDuration(durationMin) : "—" }]} />}>
           <div className="absolute inset-0"><div ref={el} className="size-full" role="application" aria-label="Carte de l'éditeur : cliquez pour ajouter des points" /></div>
           <div className="absolute left-3 top-3 flex flex-wrap items-center gap-1 rounded-xl bg-white/95 p-1 shadow-card">
             <div className="flex rounded-lg bg-ink-100 p-0.5 text-xs font-semibold" role="group" aria-label="Mode de tracé">
@@ -285,7 +287,7 @@ export function Editor({ routeId }: { routeId?: string }) {
             {msg && <span role="status" className={clsx("pointer-events-auto max-w-sm rounded-lg px-2.5 py-1.5 text-xs shadow", msg.kind === "err" ? "bg-danger text-white" : msg.kind === "warn" ? "bg-warn text-white" : "bg-pine-600 text-white")}>{msg.text}</span>}
             {!st.waypoints.length && loaded && <span className="rounded-lg bg-white/95 px-2.5 py-1.5 text-xs shadow">Cliquez sur la carte pour poser le départ, puis les points suivants.</span>}
           </div>
-        </div>
+        </MapFrame>
         <div className="border-t border-ink-100 bg-white p-3">
           <div className="mb-1 flex items-center justify-between text-xs text-ink-500">
             <span className="font-semibold text-ink-700">Profil altimétrique</span>
@@ -340,6 +342,8 @@ export function Editor({ routeId }: { routeId?: string }) {
             <label className="grid gap-1 text-sm font-medium">Discipline<select className={field} value={meta.sport} onChange={(e) => setMeta({ ...meta, sport: e.target.value as Sport })}>{Object.entries(SPORTS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></label>
             <fieldset><legend className="mb-1 text-sm font-medium">Types de terrain (déclarés)</legend><div className="flex flex-wrap gap-1.5">{terrains.map((t) => { const on = meta.terrain.includes(t); return <button key={t} type="button" aria-pressed={on} onClick={() => setMeta({ ...meta, terrain: on ? meta.terrain.filter((x) => x !== t) : [...meta.terrain, t] })} className={clsx("rounded-full border px-3 py-1 text-xs font-medium", on ? "border-pine-600 bg-pine-600 text-white" : "border-ink-200")}>{t}</button>; })}</div></fieldset>
             <div className="grid grid-cols-2 gap-2"><label className="grid gap-1 text-sm font-medium">Région<input className={field} value={meta.region} onChange={(e) => setMeta({ ...meta, region: e.target.value })} /></label><label className="grid gap-1 text-sm font-medium">Pays<input className={field} value={meta.country} onChange={(e) => setMeta({ ...meta, country: e.target.value })} /></label></div>
+            <label className="grid gap-1 text-sm font-medium">Calque<select className={field} value={meta.layer} onChange={(e) => setMeta({ ...meta, layer: e.target.value })}>{layers.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label>
+            <label className="grid gap-1 text-sm font-medium">Lien source (optionnel)<input className={field} value={meta.sourceUrl} onChange={(e) => setMeta({ ...meta, sourceUrl: e.target.value })} placeholder="https://…" /></label>
             <label className="grid gap-1 text-sm font-medium">Visibilité<select className={field} value={meta.visibility} onChange={(e) => setMeta({ ...meta, visibility: e.target.value as Visibility })}><option value="prive">Privé</option><option value="public">Public</option></select></label>
             <p className="text-xs text-ink-400">La visibilité « Public » sera effective avec les comptes (étape 2). Pour l'instant tout reste sur cet appareil.</p>
           </>)}

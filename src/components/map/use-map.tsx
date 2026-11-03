@@ -16,6 +16,7 @@ export function useMap(opts: { center?: [number, number]; zoom?: number; scale?:
 
   useEffect(() => {
     let dead = false;
+    let ro: ResizeObserver | null = null;
     (async () => {
       const ml = await import("maplibre-gl");
       ml.setWorkerUrl(`${location.origin}${BASE}/maplibre/maplibre-gl-worker.mjs`);
@@ -26,8 +27,10 @@ export function useMap(opts: { center?: [number, number]; zoom?: number; scale?:
       if (o.current.scale !== false) m.addControl(new ml.ScaleControl({ unit: "metric" }), "bottom-left");
       m.on("style.load", () => { if (!dead) setReady(true); });
       mapRef.current = m;
+      ro = new ResizeObserver(() => m.resize());
+      ro.observe(el.current);
     })();
-    return () => { dead = true; mapRef.current?.remove(); mapRef.current = null; setReady(false); };
+    return () => { dead = true; ro?.disconnect(); mapRef.current?.remove(); mapRef.current = null; setReady(false); };
   }, []);
 
   return { el, map: mapRef, ml: mlRef, ready };

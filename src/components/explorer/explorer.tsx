@@ -1,7 +1,8 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type { Map as MLMap, Marker } from "maplibre-gl";
-import { Search, LocateFixed, Loader2, Layers, Filter, Eye, EyeOff, X, MapPin } from "lucide-react";
+import { Search, LocateFixed, Loader2, Layers, Filter, Eye, EyeOff, X, MapPin, Plus, Trash2, Layers3 } from "lucide-react";
+import Link from "next/link";
 import clsx from "clsx";
 import { useAllRoutes } from "@/lib/route-vm";
 import { sparkOf, type RouteVM } from "@/lib/route-model";
@@ -12,6 +13,9 @@ import { fmtKm, fmtM, fmtDuration } from "@/lib/geo";
 import { DemoBadge } from "@/components/ui/badge";
 import { ElevationSpark } from "@/components/ui/elevation-spark";
 import { geocode } from "@/lib/geocode";
+import { MapFrame, StatBanner } from "@/components/map/map-frame";
+import { DEMO_LAYER, deleteLayer, saveLayers, useLayers } from "@/lib/repo";
+import { uid } from "@/lib/types";
 import { useGeo } from "@/components/home/geo-context";
 import { BASE } from "@/lib/url";
 
@@ -46,14 +50,19 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
   const [q, setQ] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [panel, setPanel] = useState<"routes" | "layers">("routes");
+  const [panel, setPanel] = useState<"routes" | "calques" | "layers">("routes");
   const geo = useGeo();
   const allRoutes = useAllRoutes();
+  const routeLayers = useLayers();
+  const layerList = useMemo(() => [...routeLayers, DEMO_LAYER], [routeLayers]);
+  const colorOfLayer = useMemo(() => new Map(layerList.map((l) => [l.id, l.color])), [layerList]);
+  const [layerOff, setLayerOff] = useState<Set<string>>(new Set());
+  const [newLayer, setNewLayer] = useState({ name: "", color: "#7a4bd1" });
   const BOXES = useMemo(() => new Map(allRoutes.map((r) => [r.id, routeBox(r)])), [allRoutes]);
 
   const visibleRoutes = useMemo(
-    () => allRoutes.filter((r) => (sport === "all" || r.sport === sport) && r.stats.distanceM / 1000 <= maxKm && (!inView || !bounds || intersects(BOXES.get(r.id)!, bounds))),
-    [allRoutes, BOXES, sport, maxKm, inView, bounds],
+    () => allRoutes.filter((r) => !layerOff.has(r.layer) && (sport === "all" || r.sport === sport) && r.stats.distanceM / 1000 <= maxKm && (!inView || !bounds || intersects(BOXES.get(r.id)!, bounds))),
+    [allRoutes, BOXES, layerOff, sport, maxKm, inView, bounds],
   );
   const shown = useMemo(() => visibleRoutes.filter((r) => !hidden.has(r.id)), [visibleRoutes, hidden]);
   const compared = useMemo(() => selected.map((id) => allRoutes.find((r) => r.id === id)!).filter(Boolean), [selected, allRoutes]);
@@ -111,7 +120,7 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
       type: "FeatureCollection",
       features: shown.map((r) => {
         const i = selected.indexOf(r.id);
-        return { type: "Feature", properties: { id: r.id, sel: i >= 0, color: i >= 0 ? COMPARE_COLORS[i] : "#f0612b" }, geometry: { type: "LineString", coordinates: r.coords.map((c) => [c[0], c[1]]) } };
+        return { type: "Feature", properties: { id: r.id, sel: i >= 0, color: i >= 0 ? COMPARE_COLORS[i] : colorOfLayer.get(r.layer) ?? "#f0612b" }, geometry: { type: "LineString", coordinates: r.coords.map((c) => [c[0], c[1]]) } };
       }),
     });
   }, [shown, selected, ready]);
@@ -188,6 +197,19 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
     }, setMsg);
   }
 
+  const banner = compared.length ? (
+    <div role="status" aria-label="Résumé" className="shrink-0 border-t border-ink-100 bg-white px-4 py-2.5">
+      <ul className="grid gap-1">{compared.map((r, i) => (
+        <li key={r.id} className="flex flex-wrap items-baseline gap-x-5 gap-y-0.5 text-sm">
+          <span className="inline-flex items-center gap-1.5 font-semibold"><span className="inline-block size-2.5 rounded-full" style={{ background: COMPARE_COLORS[i] }} />{r.name.replace(" (démo)", "")}</span>
+          <span><b className="font-display">{fmtKm(r.stats.distanceM)}</b> <span className="text-ink-400">distance</span></span>
+          <span><b className="font-display">{fmtM(r.stats.gainM)}</b> <span className="text-ink-400">D+</span></span>
+          <span><b className="font-display">{fmtM(r.stats.lossM)}</b> <span className="text-ink-400">D−</span></span>
+          <span className="text-ink-500">{fmtDuration(r.durationMin)} · {fmtM(r.stats.minEle)}–{fmtM(r.stats.maxEle)}</span>
+        </li>))}</ul>
+    </div>
+  ) : <StatBanner title="Parcours visibles sur la carte" items={[{ label: "Parcours", value: String(shown.length) }, { label: "Distance cumulée", value: fmtKm(shown.reduce((a, r) => a + r.stats.distanceM, 0)) }, { label: "D+ cumulé", value: fmtM(shown.reduce((a, r) => a + r.stats.gainM, 0)) }]} />;
+
   const chip = "rounded-full border px-3 py-1.5 text-sm font-medium transition";
   return (
     <div className="flex h-[calc(100dvh-4rem)] min-h-[34rem] flex-col lg:flex-row">
@@ -202,13 +224,30 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
         </form>
         {msg && <p className="border-b border-ink-100 px-3 py-2 text-xs text-ink-600" aria-live="polite">{msg}</p>}
         <div className="flex border-b border-ink-100 text-sm font-semibold" role="tablist">
-          {([["routes", "Parcours", Filter], ["layers", "Fonds & POI", Layers]] as const).map(([id, l, I]) => (
+          {([["routes", "Parcours", Filter], ["calques", "Calques", Layers3], ["layers", "Fonds & POI", Layers]] as const).map(([id, l, I]) => (
             <button key={id} role="tab" aria-selected={panel === id} onClick={() => setPanel(id)} className={clsx("flex flex-1 items-center justify-center gap-1.5 py-2.5", panel === id ? "border-b-2 border-pine-600 text-pine-700" : "text-ink-500")}><I className="size-4" />{l}</button>
           ))}
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
-          {panel === "layers" ? (
+          {panel === "calques" ? (
+            <div className="grid gap-4">
+              <p className="text-xs text-ink-500">Un calque regroupe des parcours (les vôtres, ceux d'une organisation, un import personnel…). Affichez ou masquez-les, chacun a sa couleur.</p>
+              <ul className="grid gap-2">{layerList.map((l) => { const n = allRoutes.filter((r) => r.layer === l.id).length; const on = !layerOff.has(l.id); return (
+                <li key={l.id} className="flex items-center gap-2 rounded-xl border border-ink-100 p-2.5">
+                  <input aria-label={`Afficher ${l.name}`} type="checkbox" checked={on} onChange={() => setLayerOff((s) => { const x = new Set(s); if (x.has(l.id)) x.delete(l.id); else x.add(l.id); return x; })} className="size-4 accent-[var(--color-pine-600)]" />
+                  <span className="size-3.5 shrink-0 rounded-full ring-1 ring-black/10" style={{ background: l.color }} />
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium">{l.name}</span><span className="text-xs text-ink-500">{n}</span>
+                  {!l.builtin && <button aria-label={`Supprimer le calque ${l.name}`} className="grid size-7 place-items-center rounded hover:bg-ink-100" onClick={() => confirm(`Supprimer le calque « ${l.name} » ? Ses parcours sont conservés dans « Mes parcours ».`) && deleteLayer(l.id)}><Trash2 className="size-4" /></button>}
+                </li>); })}</ul>
+              <form className="grid gap-2 rounded-xl bg-ink-50 p-3" onSubmit={(e) => { e.preventDefault(); const name = newLayer.name.trim(); if (!name) return; saveLayers([...routeLayers, { id: `c-${uid().slice(0, 8)}`, name, color: newLayer.color }]); setNewLayer({ ...newLayer, name: "" }); }}>
+                <p className="text-xs font-bold uppercase tracking-wider text-ink-400">Nouveau calque</p>
+                <div className="flex gap-2"><input aria-label="Nom du calque" className="h-10 min-w-0 flex-1 rounded-lg border border-ink-200 px-3 text-sm" placeholder="Ex. Trails de la région" maxLength={60} value={newLayer.name} onChange={(e) => setNewLayer({ ...newLayer, name: e.target.value })} /><input aria-label="Couleur du calque" type="color" className="h-10 w-12 rounded-lg border border-ink-200 bg-white p-1" value={newLayer.color} onChange={(e) => setNewLayer({ ...newLayer, color: e.target.value })} /></div>
+                <button className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-pine-600 text-sm font-semibold text-white hover:bg-pine-700"><Plus className="size-4" />Créer le calque</button>
+              </form>
+              <p className="text-xs text-ink-500">Pour remplir un calque : <Link href="/fichiers/" className="font-semibold text-pine-700 underline">importez un fichier</Link> en choisissant le calque, ou changez le calque d'un parcours dans l'éditeur (onglet Infos).</p>
+            </div>
+          ) : panel === "layers" ? (
             <div className="grid gap-5">
               <fieldset><legend className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-400">Fond de carte</legend>
                 <div className="grid gap-2">{BASEMAPS.map((b) => (
@@ -266,7 +305,7 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
         </div>
       </aside>
 
-      <div className="relative order-1 min-h-[16rem] flex-1 lg:order-2">
+      <MapFrame className="order-1 min-h-[16rem] flex-1 lg:order-2" banner={banner}>
         <div className="absolute inset-0"><div ref={el} className="size-full" role="region" aria-label="Carte interactive" /></div>
         {compared.length > 0 && (
           <div className="absolute inset-x-2 bottom-8 z-10 max-h-[55%] overflow-auto rounded-xl bg-white/95 p-3 shadow-lift backdrop-blur lg:inset-x-auto lg:left-3 lg:w-[34rem]">
@@ -283,7 +322,7 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
             <p className="mt-1.5 flex items-center gap-1 text-[11px] text-ink-400"><MapPin className="size-3" />D = départ, A = arrivée, D/A = boucle.</p>
           </div>
         )}
-      </div>
+      </MapFrame>
     </div>
   );
 }

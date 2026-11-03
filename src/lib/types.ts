@@ -37,6 +37,10 @@ export interface SavedRoute {
   country: string;
   source: "creation" | "import";
   fileName?: string;
+  /** Calque d'appartenance (par défaut « mine ») */
+  layer?: string;
+  /** Lien vers la source d'origine (optionnel) */
+  sourceUrl?: string;
   createdAt: number;
   updatedAt: number;
 }

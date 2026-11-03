@@ -8,7 +8,7 @@ import { ElevationChart, type ChartMarker } from "./elevation-chart";
 import { Button } from "@/components/ui/button";
 import { Badge, DemoBadge } from "@/components/ui/badge";
 import { useAllRoutes, useVerified } from "@/lib/route-vm";
-import { routesRepo, reviewsRepo, reportsRepo, useFavorites, toggleFavorite } from "@/lib/repo";
+import { routesRepo, reviewsRepo, reportsRepo, useFavorites, toggleFavorite, useLayers, DEMO_LAYER } from "@/lib/repo";
 import { usePhotos, addPhoto, removePhoto } from "@/lib/photos";
 import { buildProfile, distanceAlong } from "@/lib/profile";
 import { cumulative, fmtKm, fmtM, fmtDuration } from "@/lib/geo";
@@ -22,6 +22,7 @@ export function RoutePage({ id }: { id: string }) {
   const all = useAllRoutes();
   const route = all.find((r) => r.id === id);
   const favs = useFavorites();
+  const layerName = [...useLayers(), DEMO_LAYER].find((l) => l.id === route?.layer)?.name;
   const verified = useVerified();
   const photos = usePhotos(id);
   const reviews = reviewsRepo.useAll().filter((r) => r.routeId === id);
@@ -77,7 +78,7 @@ export function RoutePage({ id }: { id: string }) {
       <Link href="/parcours" className="inline-flex items-center gap-1.5 text-sm text-ink-500 hover:text-ink-900"><ArrowLeft className="size-4" />Bibliothèque</Link>
       <header className="mt-3 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="flex flex-wrap gap-1.5"><Badge tone="pine">{SPORTS[route.sport].label}</Badge>{route.origin === "demo" && <DemoBadge />}{verified.includes(route.id) && <Badge tone="glacier"><BadgeCheck className="size-3" />Officiel vérifié</Badge>}{mine && <Badge>{route.visibility === "prive" ? "Privé" : "Public (local)"}</Badge>}{route.loop && <Badge>Boucle</Badge>}</div>
+          <div className="flex flex-wrap gap-1.5"><Badge tone="pine">{SPORTS[route.sport].label}</Badge>{route.origin === "demo" && <DemoBadge />}{verified.includes(route.id) && <Badge tone="glacier"><BadgeCheck className="size-3" />Officiel vérifié</Badge>}{mine && <Badge>{route.visibility === "prive" ? "Privé" : "Public (local)"}</Badge>}{route.loop && <Badge>Boucle</Badge>}{layerName && route.layer !== "mine" && <Badge tone="glacier">{layerName}</Badge>}</div>
           <h1 className="mt-2 text-3xl font-extrabold sm:text-4xl">{route.name}</h1>
           <p className="mt-1 flex items-center gap-1.5 text-ink-600"><MapPin className="size-4" />{[route.region, route.country].filter(Boolean).join(", ") || "Lieu non renseigné"}{reviews.length > 0 && <span className="ml-3 inline-flex items-center gap-1"><Star className="size-4 fill-ember-400 text-ember-400" />{avg.toFixed(1).replace(".", ",")} ({reviews.length})</span>}</p>
         </div>
@@ -96,7 +97,7 @@ export function RoutePage({ id }: { id: string }) {
         <Stat l="Alt. min" v={fmtM(s.minEle)} /><Stat l="Alt. max" v={fmtM(s.maxEle)} /><Stat l="Durée est." v={fmtDuration(route.durationMin)} /><Stat l="Terrain" v={route.terrain.length ? route.terrain.join(", ") : "—"} />
       </dl>
 
-      <div className="mt-6"><RouteMap coords={route.coords} pois={route.pois} activeIndex={hover} onTrackHover={setHover} className="h-[26rem]" /></div>
+      <div className="mt-6"><RouteMap coords={route.coords} pois={route.pois} activeIndex={hover} onTrackHover={setHover} className="h-[26rem]" title={route.name} /></div>
 
       <section className="mt-6 rounded-2xl bg-white p-4 ring-1 ring-ink-100" aria-label="Profil altimétrique">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-bold">Profil altimétrique</h2>
@@ -121,7 +122,7 @@ export function RoutePage({ id }: { id: string }) {
         </div>
         <div className="grid content-start gap-6">
           <section className="rounded-2xl bg-white p-5 ring-1 ring-ink-100"><h2 className="text-lg font-bold">Informations pratiques</h2>
-            <dl className="mt-3 grid gap-2 text-sm"><div><dt className="text-ink-400">Départ</dt><dd className="font-medium">{start[1].toFixed(5)}, {start[0].toFixed(5)} · {fmtM(start[2])}</dd></div><div><dt className="text-ink-400">Type</dt><dd className="font-medium">{route.loop ? "Boucle" : "Aller simple"}</dd></div><div><dt className="text-ink-400">Durée estimée</dt><dd className="font-medium">{fmtDuration(route.durationMin)} (estimation, non contractuelle)</dd></div></dl>
+            <dl className="mt-3 grid gap-2 text-sm"><div><dt className="text-ink-400">Départ</dt><dd className="font-medium">{start[1].toFixed(5)}, {start[0].toFixed(5)} · {fmtM(start[2])}</dd></div>{route.sourceUrl && <div><dt className="text-ink-400">Source</dt><dd className="font-medium"><a className="inline-flex items-center gap-1 text-pine-700 underline" href={route.sourceUrl} target="_blank" rel="noopener noreferrer nofollow"><ExternalLink className="size-3.5" />Page d'origine du parcours</a></dd></div>}<div><dt className="text-ink-400">Type</dt><dd className="font-medium">{route.loop ? "Boucle" : "Aller simple"}</dd></div><div><dt className="text-ink-400">Durée estimée</dt><dd className="font-medium">{fmtDuration(route.durationMin)} (estimation, non contractuelle)</dd></div></dl>
             <div className="mt-3 flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={() => { navigator.clipboard?.writeText(`${start[1].toFixed(5)}, ${start[0].toFixed(5)}`); setMsg("Coordonnées copiées."); }}><Copy className="size-4" />Copier</Button>
               <a className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-ink-200 bg-white px-3.5 text-sm font-semibold hover:bg-ink-50" target="_blank" rel="noreferrer" href={`https://www.openstreetmap.org/directions?to=${start[1]},${start[0]}`}><ExternalLink className="size-4" />Itinéraire d'accès</a></div></section>
           <section className="rounded-2xl bg-white p-5 ring-1 ring-ink-100"><h2 className="text-lg font-bold">Points d'intérêt</h2>

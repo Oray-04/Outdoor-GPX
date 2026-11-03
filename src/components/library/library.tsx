@@ -8,7 +8,7 @@ import { RoutesMap } from "./routes-map";
 import { useAllRoutes, useVerified } from "@/lib/route-vm";
 import { DEFAULT_FILTERS, filterRoutes, type Filters } from "@/lib/route-model";
 import { SPORTS, DIFFICULTY_LABEL } from "@/lib/sports";
-import { useTerrains } from "@/lib/repo";
+import { DEMO_LAYER, useLayers, useTerrains } from "@/lib/repo";
 
 const SORTS = { recent: "Plus récents", km: "Distance", gain: "Dénivelé +", name: "Nom" } as const;
 const toggle = (a: string[], v: string) => (a.includes(v) ? a.filter((x) => x !== v) : [...a, v]);
@@ -16,6 +16,7 @@ const toggle = (a: string[], v: string) => (a.includes(v) ? a.filter((x) => x !=
 export function Library({ initialSport }: { initialSport?: string }) {
   const all = useAllRoutes();
   const terrains = useTerrains();
+  const allLayers = [...useLayers(), DEMO_LAYER];
   const verified = useVerified();
   const [f, setF] = useState<Filters>({ ...DEFAULT_FILTERS, sports: initialSport && initialSport in SPORTS ? [initialSport] : [] });
   const [view, setView] = useState<"list" | "map">("list");
@@ -54,6 +55,7 @@ export function Library({ initialSport }: { initialSport?: string }) {
       <label className="grid gap-1 text-sm font-medium">Durée max : {f.maxHours} h<input type="range" min={1} max={24} step={1} value={f.maxHours} onChange={(e) => setF({ ...f, maxHours: +e.target.value })} className="accent-[var(--color-pine-600)]" /></label>
       <fieldset><legend className="mb-2 text-sm font-medium">Difficulté</legend><div className="flex flex-wrap gap-1.5">{Object.entries(DIFFICULTY_LABEL).map(([k, v]) => <button key={k} aria-pressed={f.difficulties.includes(k)} className={chip(f.difficulties.includes(k))} onClick={() => setF({ ...f, difficulties: toggle(f.difficulties, k) })}>{v}</button>)}</div></fieldset>
       <fieldset><legend className="mb-2 text-sm font-medium">Terrain (déclaré par l'auteur)</legend><div className="flex flex-wrap gap-1.5">{terrains.map((t) => <button key={t} aria-pressed={f.terrains.includes(t)} className={chip(f.terrains.includes(t))} onClick={() => setF({ ...f, terrains: toggle(f.terrains, t) })}>{t}</button>)}</div></fieldset>
+      <fieldset><legend className="mb-2 text-sm font-medium">Calques</legend><div className="flex flex-wrap gap-1.5">{allLayers.map((l) => <button key={l.id} aria-pressed={f.layers.includes(l.id)} className={chip(f.layers.includes(l.id))} onClick={() => setF({ ...f, layers: toggle(f.layers, l.id) })}><span className="mr-1.5 inline-block size-2 rounded-full" style={{ background: l.color }} />{l.name}</button>)}</div></fieldset>
       <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={f.loopOnly} onChange={(e) => setF({ ...f, loopOnly: e.target.checked })} className="accent-[var(--color-pine-600)]" />Parcours en boucle uniquement</label>
       <label className="grid gap-1 text-sm font-medium">Catalogue<select className={sel} value={f.scope} onChange={(e) => setF({ ...f, scope: e.target.value as Filters["scope"] })}><option value="all">Tous</option><option value="public">Mes parcours publics</option><option value="private">Mes parcours privés</option><option value="verified">Officiels vérifiés</option><option value="demo">Démonstration</option></select></label>
       {dirty && <Button variant="secondary" size="sm" onClick={() => setF(DEFAULT_FILTERS)}><X className="size-4" />Réinitialiser</Button>}
