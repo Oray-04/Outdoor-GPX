@@ -12,7 +12,7 @@ export default function Page() {
           <li key={s.step} className="flex items-center gap-4 rounded-xl bg-white p-4 ring-1 ring-ink-100">
             {s.status === "done" ? <CheckCircle2 className="size-6 text-pine-600" /> : <Circle className="size-6 text-ink-300" />}
             <div className="flex-1"><p className="text-xs font-semibold uppercase tracking-wider text-ink-400">Étape {s.step}</p><p className="font-semibold">{s.title}</p></div>
-            <span className={`text-sm font-medium ${s.status === "done" ? "text-pine-600" : "text-ink-400"}`}>{s.status === "done" ? "Livrée" : "À venir"}</span>
+            <span className={`text-sm font-medium ${s.status === "done" ? "text-pine-600" : "text-ink-400"}`}>{s.status === "done" ? "Livrée" : s.status === "deferred" ? "Reportée" : "À venir"}</span>
           </li>
         ))}
       </ol>

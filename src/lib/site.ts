@@ -12,7 +12,6 @@ export const NAV = [
 
 /** Feuille de route : source unique pour les pages « en développement ». */
 export const MODULES: Record<string, { step: number; title: string; summary: string; items: string[] }> = {
-  explorer: { step: 3, title: "Explorateur cartographique", summary: "Carte plein écran avec fonds multiples, traces, points d'intérêt, comparaison de parcours et géolocalisation.", items: ["Fonds de carte sous licence", "Recherche de lieux", "Couches sentiers, routes, relief", "Comparaison de plusieurs parcours"] },
   creer: { step: 4, title: "Créateur d'itinéraires GPS", summary: "Éditeur avec tracé automatique sur chemins, points de passage, annuler/rétablir, boucles, fusion et division.", items: ["Tracé sur les chemins", "Annuler / rétablir", "Statistiques et profil en temps réel", "Enregistrement automatique"] },
   parcours: { step: 6, title: "Bibliothèque et fiches parcours", summary: "Catalogue filtrable (liste et carte) et fiche détaillée avec profil altimétrique interactif.", items: ["Filtres sport, région, distance, D+", "Vue liste et vue carte", "Profil lié à la carte", "Favoris, notes, commentaires"] },
   evenements: { step: 7, title: "Calendrier des événements", summary: "Calendrier sportif avec formats de course, règlement, cartographie et liens d'inscription.", items: ["Recherche par date, sport, région, distance", "Plusieurs formats par événement", "Parcours détaillés"] },
@@ -26,8 +25,8 @@ export const MODULES: Record<string, { step: number; title: string; summary: str
 
 export const ROADMAP = [
   { step: 1, title: "Identité visuelle et interface", status: "done" },
-  { step: 2, title: "Authentification et base de données", status: "todo" },
-  { step: 3, title: "Cartographie interactive", status: "todo" },
+  { step: 2, title: "Authentification et base de données", status: "deferred" },
+  { step: 3, title: "Cartographie interactive", status: "done" },
   { step: 4, title: "Éditeur de parcours GPS", status: "todo" },
   { step: 5, title: "Import et export GPS", status: "todo" },
   { step: 6, title: "Fiches parcours et profils altimétriques", status: "todo" },

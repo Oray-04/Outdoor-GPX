@@ -17,8 +17,8 @@ npm run typecheck
 | # | Étape | Statut |
 |---|-------|--------|
 | 1 | Identité visuelle et interface | **Livrée** |
-| 2 | Authentification et base de données | À venir |
-| 3 | Cartographie interactive | À venir |
+| 2 | Authentification et base de données | Reportée |
+| 3 | Cartographie interactive | **Livrée** |
 | 4 | Éditeur de parcours GPS | À venir |
 | 5 | Import / export GPS | À venir |
 | 6 | Fiches parcours et profils altimétriques | À venir |
@@ -47,3 +47,14 @@ npm run typecheck
 ### Licences et limites connues
 - Le fond OpenStreetMap utilise les tuiles publiques, **non autorisées en production** : un fournisseur sous contrat sera configuré aux étapes 3 et 10. Détails dans `/licences`.
 - Le worker MapLibre est copié dans `public/maplibre/` par `scripts/copy-maplibre-worker.mjs` (postinstall/dev/build).
+
+## Étape 3 — explorateur cartographique (`/explorer`)
+
+- Carte plein écran : zoom, déplacement, échelle, fonds **Plan** et **Relief** (basculables). Satellite : en attente d'un fournisseur sous licence.
+- Recherche d'adresses et de lieux (Nominatim) avec cadrage sur la zone trouvée ; géolocalisation sur clic.
+- Traces des parcours (démo), clic pour sélectionner, **comparaison de 1 à 3 parcours** (tableau + profils), marqueurs de départ/arrivée (D, A, D/A pour une boucle), masquage individuel d'une trace.
+- Filtres : discipline, distance max, « seulement dans la zone visible ».
+- Points d'intérêt **réels** (points d'eau, sommets, abris, points de vue) via Overpass/OpenStreetMap, chargés sous zoom 11+.
+- `/explorer?lng=..&lat=..` centre la carte (utilisé par les destinations de l'accueil).
+- Non fait : affichage de reliefs 3D (nécessite un fournisseur de modèle d'élévation) ; sentiers/routes sont ceux du fond de carte.
+- Les tuiles publiques OSM/OpenTopoMap restent réservées au développement.
