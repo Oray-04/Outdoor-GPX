@@ -50,11 +50,12 @@ npm run typecheck
 
 ## Étape 3 — explorateur cartographique (`/explorer`)
 
-- Carte plein écran : zoom, déplacement, échelle, fonds **Plan** et **Relief** (basculables). Satellite : en attente d'un fournisseur sous licence.
-- Recherche d'adresses et de lieux (Nominatim) avec cadrage sur la zone trouvée ; géolocalisation sur clic.
+- Carte plein écran : zoom, déplacement, échelle, fonds **Plan IGN**, **Photo aérienne** et **OpenStreetMap** (hors France), plus la surcouche **Pentes de montagne** (Géoplateforme IGN, `data.geopf.fr`, services testés).
+- Recherche d'adresses et de lieux (géocodage Géoplateforme, repli Nominatim hors France) avec cadrage sur la zone trouvée ; géolocalisation sur clic.
 - Traces des parcours (démo), clic pour sélectionner, **comparaison de 1 à 3 parcours** (tableau + profils), marqueurs de départ/arrivée (D, A, D/A pour une boucle), masquage individuel d'une trace.
 - Filtres : discipline, distance max, « seulement dans la zone visible ».
 - Points d'intérêt **réels** (points d'eau, sommets, abris, points de vue) via Overpass/OpenStreetMap, chargés sous zoom 11+.
 - `/explorer?lng=..&lat=..` centre la carte (utilisé par les destinations de l'accueil).
 - Non fait : affichage de reliefs 3D (nécessite un fournisseur de modèle d'élévation) ; sentiers/routes sont ceux du fond de carte.
-- Les tuiles publiques OSM/OpenTopoMap restent réservées au développement.
+- Seules les tuiles OSM (repli hors France) restent réservées au développement.
+- Services Géoplateforme testés mais pas encore branchés : altimétrie (`/altimetrie/1.0/calcul/alti/rest/elevation.json`, étape 6) et routage piéton (`/navigation/itineraire`, ressource `bdtopo-valhalla`, étape 4).

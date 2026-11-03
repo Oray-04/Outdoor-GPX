@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useImperativeHandle, useRef, forwardRef } from "react";
 import type { Map as MLMap } from "maplibre-gl";
+import { BASEMAPS } from "@/lib/basemaps";
 import { DEMO_ROUTES } from "@/lib/demo-data";
 
 export interface HeroMapHandle { flyTo: (lng: number, lat: number, zoom?: number) => void; setUserPos: (lng: number, lat: number) => void }
@@ -33,8 +34,8 @@ export const HeroMap = forwardRef<HeroMapHandle>(function HeroMap(_, ref) {
         container: el.current,
         style: {
           version: 8,
-          sources: { osm: { type: "raster", tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], tileSize: 256, maxzoom: 19, attribution: "© contributeurs OpenStreetMap" } },
-          layers: [{ id: "bg", type: "background", paint: { "background-color": "#dfe7e2" } }, { id: "osm", type: "raster", source: "osm", paint: { "raster-saturation": -0.35, "raster-brightness-max": 0.95 } }],
+          sources: { base: { type: "raster", tiles: BASEMAPS[0].tiles, tileSize: 256, maxzoom: BASEMAPS[0].maxzoom, attribution: BASEMAPS[0].attribution } },
+          layers: [{ id: "bg", type: "background", paint: { "background-color": "#dfe7e2" } }, { id: "base", type: "raster", source: "base", paint: { "raster-saturation": -0.3 } }],
         },
         center: [4.2, 45.6], zoom: 4.6, attributionControl: { compact: true },
         cooperativeGestures: true,

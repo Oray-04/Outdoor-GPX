@@ -4,12 +4,13 @@ import type { Map as MLMap, Marker } from "maplibre-gl";
 import { Search, LocateFixed, Loader2, Layers, Filter, Eye, EyeOff, X, MapPin } from "lucide-react";
 import clsx from "clsx";
 import { DEMO_ROUTES, type DemoRoute } from "@/lib/demo-data";
-import { BASEMAPS, buildStyle } from "@/lib/basemaps";
+import { BASEMAPS, OVERLAYS, buildStyle } from "@/lib/basemaps";
 import { POI_KINDS, fetchPois, type PoiKind, type PoiFeature } from "@/lib/poi";
 import { SPORTS, DIFFICULTY_LABEL, type Sport } from "@/lib/sports";
 import { fmtKm, fmtM, fmtDuration } from "@/lib/geo";
 import { DemoBadge } from "@/components/ui/badge";
 import { ElevationSpark } from "@/components/ui/elevation-spark";
+import { geocode } from "@/lib/geocode";
 import { useGeo } from "@/components/home/geo-context";
 
 const COMPARE_COLORS = ["#f0612b", "#3ba6c9", "#7a4bd1"];
@@ -37,6 +38,7 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
   const [maxKm, setMaxKm] = useState(60);
   const [inView, setInView] = useState(false);
   const [basemap, setBasemap] = useState(BASEMAPS[0].id);
+  const [overlays, setOverlays] = useState<string[]>([]);
   const [poiKinds, setPoiKinds] = useState<PoiKind[]>([]);
   const [poiState, setPoiState] = useState<{ status: "idle" | "loading" | "error" | "zoom"; count?: number }>({ status: "idle" });
   const [q, setQ] = useState("");
@@ -66,7 +68,7 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
       ml.setWorkerUrl(`${location.origin}/maplibre/maplibre-gl-worker.mjs`);
       if (dead || !el.current) return;
       mlRef.current = ml;
-      const m = new ml.Map({ container: el.current, style: buildStyle(), center: initial ? [initial.lng, initial.lat] : [4.2, 45.6], zoom: initial ? 10 : 5, attributionControl: { compact: true } });
+      const m = new ml.Map({ container: el.current, style: buildStyle(), center: initial ? [initial.lng, initial.lat] : [2.5, 46.6], zoom: initial ? 10 : 5.3, attributionControl: { compact: true } });
       m.addControl(new ml.NavigationControl(), "top-right");
       m.addControl(new ml.ScaleControl({ unit: "metric" }), "bottom-left");
       m.on("style.load", () => {
@@ -133,6 +135,11 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
     for (const b of BASEMAPS) m.setLayoutProperty(`base-${b.id}`, "visibility", b.id === basemap ? "visible" : "none");
   }, [basemap, ready]);
 
+  useEffect(() => {
+    const m = mapRef.current; if (!m || !ready) return;
+    for (const o of OVERLAYS) m.setLayoutProperty(`ovl-${o.id}`, "visibility", overlays.includes(o.id) ? "visible" : "none");
+  }, [overlays, ready]);
+
   // Points d'intérêt (données OSM via Overpass), rechargés après chaque déplacement
   useEffect(() => {
     const m = mapRef.current; if (!m || !ready) return;
@@ -158,13 +165,10 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
     e.preventDefault(); if (!q.trim()) return;
     setBusy(true); setMsg(null);
     try {
-      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=fr&q=${encodeURIComponent(q.trim())}`);
-      if (!r.ok) throw new Error();
-      const [hit] = (await r.json()) as { lat: string; lon: string; display_name: string; boundingbox: string[] }[];
+      const hit = await geocode(q);
       if (!hit) { setMsg("Aucun lieu trouvé."); return; }
-      const [s, n, w, ea] = hit.boundingbox.map(Number);
-      mapRef.current?.fitBounds([[w, s], [ea, n]], { padding: 40, maxZoom: 14 });
-      setMsg(hit.display_name);
+      mapRef.current?.flyTo({ center: [hit.lng, hit.lat], zoom: hit.zoom });
+      setMsg(hit.label);
     } catch { setMsg("Recherche indisponible pour le moment."); } finally { setBusy(false); }
   }
 
@@ -209,7 +213,8 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
                     <p className="mt-1 text-xs text-ink-500">{b.note}</p>
                   </label>))}
                 </div>
-                <p className="mt-2 text-xs text-ink-400">Imagerie satellite : en attente d'un fournisseur sous licence.</p>
+                <div className="mt-3 grid gap-2">{OVERLAYS.map((o) => (
+                  <label key={o.id} className="cursor-pointer rounded-lg border border-ink-200 p-3 text-sm"><input type="checkbox" className="mr-2 accent-[var(--color-pine-600)]" checked={overlays.includes(o.id)} onChange={(e) => setOverlays((s) => (e.target.checked ? [...s, o.id] : s.filter((x) => x !== o.id)))} /><b>{o.label}</b><p className="mt-1 text-xs text-ink-500">{o.note}</p></label>))}</div>
               </fieldset>
               <fieldset><legend className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-400">Points d'intérêt (OpenStreetMap)</legend>
                 <div className="flex flex-wrap gap-2">{(Object.keys(POI_KINDS) as PoiKind[]).map((k) => {

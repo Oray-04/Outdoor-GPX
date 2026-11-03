@@ -5,6 +5,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TopoPattern } from "@/components/ui/route-card";
 import { HeroMap, type HeroMapHandle } from "./hero-map";
+import { geocode } from "@/lib/geocode";
 import { useGeo } from "./geo-context";
 
 export function Hero() {
@@ -19,11 +20,9 @@ export function Hero() {
     if (!q.trim()) return;
     setBusy(true); setMsg(null);
     try {
-      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=fr&q=${encodeURIComponent(q.trim())}`);
-      if (!r.ok) throw new Error(String(r.status));
-      const [hit] = (await r.json()) as { lat: string; lon: string; display_name: string }[];
+      const hit = await geocode(q);
       if (!hit) setMsg("Aucun lieu trouvé. Essayez une autre orthographe.");
-      else { map.current?.flyTo(+hit.lon, +hit.lat, 11); setMsg(hit.display_name); }
+      else { map.current?.flyTo(hit.lng, hit.lat, hit.zoom); setMsg(hit.label); }
     } catch {
       setMsg("Recherche indisponible pour le moment. Réessayez dans un instant.");
     } finally { setBusy(false); }
