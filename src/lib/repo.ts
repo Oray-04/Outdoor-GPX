@@ -47,3 +47,12 @@ export function useAllEvents(): EventModel[] {
   const mine = eventsRepo.useAll();
   return useMemo(() => [...mine, ...DEMO_EVENT_MODELS], [mine]);
 }
+
+import { TERRAINS } from "./types";
+/** Catégories administrables : types de terrain proposés dans l'éditeur et les filtres. */
+export const useTerrains = (): string[] => { const s = useStore<string[] | null>("categories:terrains", null); return s ?? [...TERRAINS]; };
+export const saveTerrains = (t: string[]) => writeStore("categories:terrains", t);
+
+export interface Editorial { announcement: string; announcementOn: boolean }
+export const useEditorial = () => useStore<Editorial>("editorial", { announcement: "", announcementOn: false });
+export const saveEditorial = (e: Editorial) => writeStore("editorial", e);

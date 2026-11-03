@@ -12,19 +12,18 @@ export const NAV = [
 
 /** Feuille de route : source unique pour les pages « en développement ». */
 export const MODULES: Record<string, { step: number; title: string; summary: string; items: string[] }> = {
-  connexion: { step: 2, title: "Connexion et inscription", summary: "Authentification et base de données (Supabase / PostgreSQL + PostGIS).", items: ["Compte e-mail", "Row Level Security", "Confidentialité des traces"] },
-  admin: { step: 9, title: "Administration", summary: "Back-office : membres, modération, signalements, abonnements, contenus éditoriaux.", items: ["Modération", "Signalements", "Statistiques"] },
+  connexion: { step: 2, title: "Comptes et connexion", summary: "Authentification et base de données partagée (Supabase / PostgreSQL + PostGIS). Reportée : en attendant, tout est enregistré sur votre appareil.", items: ["Comptes e-mail", "Sécurité par ligne (RLS)", "Confidentialité des traces", "Synchronisation entre appareils"] },
 };
 
 export const ROADMAP = [
   { step: 1, title: "Identité visuelle et interface", status: "done" },
-  { step: 2, title: "Authentification et base de données", status: "deferred" },
-  { step: 3, title: "Cartographie interactive", status: "done" },
-  { step: 4, title: "Éditeur de parcours GPS", status: "todo" },
-  { step: 5, title: "Import et export GPS", status: "todo" },
-  { step: 6, title: "Fiches parcours et profils altimétriques", status: "todo" },
-  { step: 7, title: "Événements et espace organisateurs", status: "todo" },
-  { step: 8, title: "Communauté et abonnements", status: "todo" },
-  { step: 9, title: "Administration", status: "todo" },
-  { step: 10, title: "Tests, sécurité, performance, production", status: "todo" },
+  { step: 2, title: "Authentification et base de données (comptes, partage entre membres)", status: "deferred" },
+  { step: 3, title: "Cartographie interactive (cartes IGN)", status: "done" },
+  { step: 4, title: "Éditeur de parcours GPS", status: "done" },
+  { step: 5, title: "Import et export GPS", status: "done" },
+  { step: 6, title: "Fiches parcours et profils altimétriques", status: "done" },
+  { step: 7, title: "Événements et espace organisateurs", status: "done" },
+  { step: 8, title: "Communauté locale, espace personnel, suivi GPS", status: "done" },
+  { step: 9, title: "Administration locale", status: "done" },
+  { step: 10, title: "Tests, sécurité, performance (mise en production : à faire avec l'étape 2)", status: "partial" },
 ] as const;

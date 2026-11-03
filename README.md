@@ -1,61 +1,78 @@
 # Crête — plateforme outdoor
 
 Plateforme web pour le trail, la course, la randonnée, le vélo et les organisateurs d'événements.
-Stack cible : Next.js · Tailwind CSS · MapLibre GL · Supabase (PostgreSQL + PostGIS).
+Next.js 16 · Tailwind CSS 4 · MapLibre GL · cartes et services de la Géoplateforme (IGN).
 
 ## Démarrer
 
 ```bash
 npm install
-npm run dev      # http://localhost:3000
+npm run dev          # http://localhost:3000
 npm run build && npm start
+npm test             # tests unitaires (vitest)
 npm run typecheck
 ```
 
-## Livraison par étapes
+Aucune clé ni variable d'environnement n'est nécessaire.
+
+## Où sont les données ?
+
+L'étape 2 (comptes + base de données) est **reportée**. En attendant, tout est enregistré **dans le navigateur** (localStorage) derrière une couche unique (`src/lib/store.ts`, `src/lib/repo.ts`) : l'application est utilisable seule, et la base de données pourra remplacer cette couche sans réécrire les écrans.
+
+Conséquences à connaître :
+- les données sont propres à un appareil et un navigateur ; les vider efface tout → **Administration > Données** permet d'exporter/restaurer une sauvegarde JSON ;
+- pas de partage entre utilisateurs, pas de profils publics, pas de rôles réellement appliqués ;
+- le stockage local est limité (~5 Mo) : les très gros fichiers ou beaucoup de photos peuvent le saturer (message d'erreur explicite).
+
+Les paiements et abonnements sont volontairement hors périmètre ; `/tarifs` décrit seulement les trois niveaux.
+
+## Fonctionnalités par étape
 
 | # | Étape | Statut |
 |---|-------|--------|
-| 1 | Identité visuelle et interface | **Livrée** |
-| 2 | Authentification et base de données | Reportée |
-| 3 | Cartographie interactive | **Livrée** |
-| 4 | Éditeur de parcours GPS | À venir |
-| 5 | Import / export GPS | À venir |
-| 6 | Fiches parcours et profils altimétriques | À venir |
-| 7 | Événements et espace organisateurs | À venir |
-| 8 | Communauté et abonnements | À venir |
-| 9 | Administration | À venir |
-| 10 | Tests, sécurité, performance, production | À venir |
+| 1 | Identité visuelle, design system, accueil | Livrée |
+| 2 | Comptes et base de données | **Reportée** |
+| 3 | Cartographie (`/explorer`) | Livrée |
+| 4 | Éditeur de parcours (`/creer`) | Livrée |
+| 5 | Import/export GPS (`/fichiers`) | Livrée |
+| 6 | Bibliothèque et fiches (`/parcours`) | Livrée |
+| 7 | Événements et organisateurs (`/evenements`, `/organisateurs`) | Livrée |
+| 8 | Espace perso, communauté locale, suivi GPS (`/compte`, `/communaute`, `/suivi`) | Livrée (version locale) |
+| 9 | Administration (`/admin`) | Livrée (version locale, sans authentification) |
+| 10 | Tests, sécurité, performance | En cours : voir ci-dessous |
 
-## Étape 1 — contenu
+### Cartographie — `/explorer`
+Fonds Plan IGN, Photo aérienne, OpenStreetMap (hors France), surcouche pentes de montagne ; recherche de lieux (géocodage Géoplateforme, repli Nominatim) ; géolocalisation sur clic ; traces (vos parcours + démo), comparaison de 3 parcours, filtres ; points d'intérêt réels (eau, sommets, abris, points de vue) via Overpass.
 
-- **Charte** (`/charte`) : jetons de couleurs, typographies (Sora, Inter), boutons, badges, cartes. Définis dans `src/app/globals.css`.
-- **Page d'accueil** (`/`) : header responsive, recherche géographique, hero avec carte MapLibre, disciplines, parcours à la une, recommandations par position, fonctionnalités, compétitions, destinations, statistiques, offres, footer.
-- `/tarifs`, `/feuille-de-route`, `/licences` : pages de contenu.
-- Modules des étapes 2 à 9 (`/explorer`, `/creer`, `/parcours`, `/evenements`, `/organisateurs`, `/communaute`, `/connexion`, `/compte`, `/admin`) : pages explicitement marquées « en développement », sans fonctionnalité simulée. Source : `src/lib/site.ts`.
+### Éditeur — `/creer`
+Clic pour poser des points, tracé automatique **sur les chemins** (service d'itinéraire piéton de l'IGN, repli en ligne droite signalé), mode libre, déplacement/suppression/insertion de points, annuler/rétablir (Ctrl+Z / Ctrl+Y), inversion, fermeture de boucle, changement du départ, division, fusion, duplication, points d'intérêt, enregistrement automatique. Distance, D+, D−, altitudes min/max, durée estimée et profil en direct (altitudes IGN RGE ALTI).
+Limites : le routage utilise le profil piéton (pas de profil vélo) ; les types de terrain sont déclarés par l'auteur, pas détectés.
 
-### Ce qui fonctionne réellement
-- Recherche de lieux (géocodage Nominatim, sur envoi du formulaire) qui déplace la carte.
-- Géolocalisation (« Autour de moi », « Utiliser ma position ») sur action explicite ; la position reste dans le navigateur. Elle classe les parcours de démo par distance.
-- Carte interactive avec tracés de démo cliquables.
-- Statistiques (distance, D+, durée, difficulté) calculées depuis les coordonnées (`src/lib/geo.ts`, `src/lib/sports.ts`).
-- Menu mobile, navigation clavier, lien d'accès au contenu, `prefers-reduced-motion`.
+### Fichiers GPS — `/fichiers`
+GPX, KML, GeoJSON, TCX : détection du format, validation (XML/JSON mal formé, coordonnées invalides, tracé trop court, fichier > 25 Mo), avertissements, prévisualisation sur carte avant enregistrement, altitudes recalculées si absentes, conversion et export dans les 4 formats, partage (Web Share si disponible, sinon téléchargement).
 
-### Données de démonstration
-`src/lib/demo-data.ts` génère des tracés **synthétiques** autour de régions réelles. Ils ne sont pas des sentiers, parcours officiels ou événements réels et sont badgés « Démo » dans l'interface. Ils seront remplacés par la base de données à l'étape 2.
+### Fiches et profil — `/parcours`, `/parcours/[id]`
+Filtres (discipline, pays, région, distance, D+, difficulté, durée, terrain, boucle, catalogue), vue liste et vue carte. Fiche : statistiques, carte, profil altimétrique avec pente, km, points de passage, POI ; **survol du profil ↔ position sur la carte** ; export du profil en PNG et PDF ; favoris, notes, commentaires, signalement d'erreur, photos, téléchargement multi-formats.
+La « difficulté » est une estimation (km + D+/100), les durées sont indicatives.
 
-### Licences et limites connues
-- Le fond OpenStreetMap utilise les tuiles publiques, **non autorisées en production** : un fournisseur sous contrat sera configuré aux étapes 3 et 10. Détails dans `/licences`.
-- Le worker MapLibre est copié dans `public/maplibre/` par `scripts/copy-maplibre-worker.mjs` (postinstall/dev/build).
+### Événements — `/evenements`, `/organisateurs`
+Calendrier filtrable (date, sport, région, distance). Espace organisateurs : événements, courses/variantes liées à vos parcours (distance et D+ repris), postes (ravitos, contrôles, secours, signaleurs…) posés sur la trace avec **kilomètre calculé**, barrières horaires, fiches bénévoles, couverture des postes, tableau des temps de passage par scénario (réparti selon l'effort) avec détection des dépassements de barrière ; exports PDF (carte, fiches bénévoles, passages). Rôles définis mais **non appliqués** sans comptes.
 
-## Étape 3 — explorateur cartographique (`/explorer`)
+### Suivi GPS — `/suivi`
+Position temps réel, enregistrement (filtre de précision), guidage sur parcours (distance restante, indication de direction), **alerte de sortie de parcours** (vibration, bip, bandeau), écran maintenu allumé (Wake Lock), enregistrement d'activités. Installable comme application (manifeste).
+**Limites physiques d'un site web** : le suivi s'arrête si la page n'est plus visible/active et ne tourne pas écran éteint ; une application mobile native serait nécessaire pour cela. Cartes hors ligne et synchronisation entre appareils : non disponibles.
 
-- Carte plein écran : zoom, déplacement, échelle, fonds **Plan IGN**, **Photo aérienne** et **OpenStreetMap** (hors France), plus la surcouche **Pentes de montagne** (Géoplateforme IGN, `data.geopf.fr`, services testés).
-- Recherche d'adresses et de lieux (géocodage Géoplateforme, repli Nominatim hors France) avec cadrage sur la zone trouvée ; géolocalisation sur clic.
-- Traces des parcours (démo), clic pour sélectionner, **comparaison de 1 à 3 parcours** (tableau + profils), marqueurs de départ/arrivée (D, A, D/A pour une boucle), masquage individuel d'une trace.
-- Filtres : discipline, distance max, « seulement dans la zone visible ».
-- Points d'intérêt **réels** (points d'eau, sommets, abris, points de vue) via Overpass/OpenStreetMap, chargés sous zoom 11+.
-- `/explorer?lng=..&lat=..` centre la carte (utilisé par les destinations de l'accueil).
-- Non fait : affichage de reliefs 3D (nécessite un fournisseur de modèle d'élévation) ; sentiers/routes sont ceux du fond de carte.
-- Seules les tuiles OSM (repli hors France) restent réservées au développement.
-- Services Géoplateforme testés mais pas encore branchés : altimétrie (`/altimetrie/1.0/calcul/alti/rest/elevation.json`, étape 6) et routage piéton (`/navigation/itineraire`, ressource `bdtopo-valhalla`, étape 4).
+## Sécurité
+- En-têtes : CSP stricte avec liste blanche des services (IGN, OSM, Nominatim, Overpass), `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy` (géolocalisation limitée au site).
+- Contenus utilisateur affichés via React (échappés) ; liens d'inscription limités à http(s) avec `rel="noopener noreferrer nofollow"`.
+- Fichiers GPS : taille limitée, analyse défensive, aucune exécution.
+- **À faire avant une mise en ligne publique** : comptes + règles d'accès côté serveur (étape 2), protection de `/admin`, fournisseur de tuiles sous contrat pour le repli OSM, relecture des licences des couches IGN utilisées.
+
+## Qualité
+`npm test` : 48 tests (formats GPS aller-retour et cas d'erreur, calculs de distance/D+/pente, opérations de l'éditeur, navigation et alerte hors parcours, temps de passage, filtres). Les parcours ont aussi été testés de bout en bout dans un navigateur (éditeur, import/export, fiches, organisateurs, suivi GPS simulé, administration), sur ordinateur et mobile.
+
+## Données de démonstration
+`src/lib/demo-data.ts` génère des tracés et événements **synthétiques** (badge « Démo »), sans lien avec des sentiers ou événements réels.
+
+## Services externes utilisés
+Géoplateforme IGN (`data.geopf.fr`) : tuiles, altimétrie, itinéraire piéton, géocodage. OpenStreetMap : tuiles de repli (usage développement), Nominatim, Overpass. Voir `/licences`.

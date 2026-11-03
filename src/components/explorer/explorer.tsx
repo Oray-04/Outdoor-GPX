@@ -3,7 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import type { Map as MLMap, Marker } from "maplibre-gl";
 import { Search, LocateFixed, Loader2, Layers, Filter, Eye, EyeOff, X, MapPin } from "lucide-react";
 import clsx from "clsx";
-import { DEMO_ROUTES, type DemoRoute } from "@/lib/demo-data";
+import { useAllRoutes } from "@/lib/route-vm";
+import { sparkOf, type RouteVM } from "@/lib/route-model";
 import { BASEMAPS, OVERLAYS, buildStyle } from "@/lib/basemaps";
 import { POI_KINDS, fetchPois, type PoiKind, type PoiFeature } from "@/lib/poi";
 import { SPORTS, DIFFICULTY_LABEL, type Sport } from "@/lib/sports";
@@ -17,11 +18,11 @@ const COMPARE_COLORS = ["#f0612b", "#3ba6c9", "#7a4bd1"];
 const MAX_COMPARE = 3;
 type Bounds = [number, number, number, number];
 
+type DemoRoute = RouteVM;
 const routeBox = (r: DemoRoute): Bounds => {
   const xs = r.coords.map((c) => c[0]), ys = r.coords.map((c) => c[1]);
   return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
 };
-const BOXES = new Map(DEMO_ROUTES.map((r) => [r.id, routeBox(r)]));
 const intersects = (a: Bounds, b: Bounds) => a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
 
 export function Explorer({ initial }: { initial?: { lng: number; lat: number } }) {
@@ -46,13 +47,15 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
   const [busy, setBusy] = useState(false);
   const [panel, setPanel] = useState<"routes" | "layers">("routes");
   const geo = useGeo();
+  const allRoutes = useAllRoutes();
+  const BOXES = useMemo(() => new Map(allRoutes.map((r) => [r.id, routeBox(r)])), [allRoutes]);
 
   const visibleRoutes = useMemo(
-    () => DEMO_ROUTES.filter((r) => (sport === "all" || r.sport === sport) && r.stats.distanceM / 1000 <= maxKm && (!inView || !bounds || intersects(BOXES.get(r.id)!, bounds))),
-    [sport, maxKm, inView, bounds],
+    () => allRoutes.filter((r) => (sport === "all" || r.sport === sport) && r.stats.distanceM / 1000 <= maxKm && (!inView || !bounds || intersects(BOXES.get(r.id)!, bounds))),
+    [allRoutes, BOXES, sport, maxKm, inView, bounds],
   );
   const shown = useMemo(() => visibleRoutes.filter((r) => !hidden.has(r.id)), [visibleRoutes, hidden]);
-  const compared = useMemo(() => selected.map((id) => DEMO_ROUTES.find((r) => r.id === id)!).filter(Boolean), [selected]);
+  const compared = useMemo(() => selected.map((id) => allRoutes.find((r) => r.id === id)!).filter(Boolean), [selected, allRoutes]);
 
   const toggleSelect = useCallback((id: string) => {
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : s.length >= MAX_COMPARE ? [...s.slice(1), id] : [...s, id]));
@@ -256,7 +259,7 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
                 })}
                 {!visibleRoutes.length && <li className="rounded-xl border border-dashed border-ink-200 p-4 text-sm text-ink-500">Aucun parcours ne correspond à ces filtres.</li>}
               </ul>
-              <p className="flex items-center gap-1.5 text-xs text-ink-400"><DemoBadge />Tous les parcours sont des données de démonstration.</p>
+              <p className="flex items-center gap-1.5 text-xs text-ink-400"><DemoBadge />Les parcours « (démo) » sont des données de démonstration ; vos parcours enregistrés apparaissent aussi ici.</p>
             </div>
           )}
         </div>
@@ -273,7 +276,7 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
               <tbody>{compared.map((r, i) => (
                 <tr key={r.id} className="border-t border-ink-100 align-middle">
                   <td className="py-1.5 pr-2"><span className="mr-1.5 inline-block size-2.5 rounded-full" style={{ background: COMPARE_COLORS[i] }} /><b>{r.name.replace(" (démo)", "")}</b>
-                    <ElevationSpark values={r.profile} stroke={COMPARE_COLORS[i]} className="mt-1 h-6 w-24" /></td>
+                    <ElevationSpark values={sparkOf(r.coords)} stroke={COMPARE_COLORS[i]} className="mt-1 h-6 w-24" /></td>
                   <td>{fmtKm(r.stats.distanceM)}</td><td>{fmtM(r.stats.gainM)}</td><td>{fmtM(r.stats.lossM)}</td><td>{fmtM(r.stats.minEle)} / {fmtM(r.stats.maxEle)}</td><td>{fmtDuration(r.durationMin)}</td><td>{DIFFICULTY_LABEL[r.difficulty]}</td>
                 </tr>))}</tbody></table></div>
             <p className="mt-1.5 flex items-center gap-1 text-[11px] text-ink-400"><MapPin className="size-3" />D = départ, A = arrivée, D/A = boucle.</p>

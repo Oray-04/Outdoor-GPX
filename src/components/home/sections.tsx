@@ -26,21 +26,21 @@ export function Popular() {
 }
 
 const features = [
-  { icon: RouteIcon, title: "Éditeur de parcours", text: "Tracé sur chemins, points de passage, boucles, fusion, annuler/rétablir.", href: "/creer", step: 4 },
-  { icon: FileUp, title: "GPX, KML, GeoJSON, TCX", text: "Import, vérification, conversion et export de vos fichiers.", href: "/fichiers", step: 5 },
-  { icon: LineChart, title: "Profil altimétrique lié à la carte", text: "Pentes, kilométrage, ravitos et points d'eau, export image et PDF.", href: "/parcours", step: 6 },
-  { icon: Users, title: "Outils organisateurs", text: "Ravitaillements, barrières horaires, bénévoles, temps de passage.", href: "/organisateurs", step: 7 },
+  { icon: RouteIcon, title: "Éditeur de parcours", text: "Tracé sur chemins, points de passage, boucles, fusion, annuler/rétablir.", href: "/creer" },
+  { icon: FileUp, title: "GPX, KML, GeoJSON, TCX", text: "Import, vérification, conversion et export de vos fichiers.", href: "/fichiers" },
+  { icon: LineChart, title: "Profil altimétrique lié à la carte", text: "Pentes, kilométrage, ravitos et points d'eau, export image et PDF.", href: "/parcours" },
+  { icon: Users, title: "Outils organisateurs", text: "Ravitaillements, barrières horaires, bénévoles, temps de passage.", href: "/organisateurs" },
 ];
 
 export function Features() {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {features.map(({ icon: I, title, text, href, step }) => (
+      {features.map(({ icon: I, title, text, href }) => (
         <Link key={title} href={href} className="group rounded-[var(--radius-card)] border border-ink-100 bg-paper p-6 transition hover:-translate-y-1 hover:border-pine-400 hover:shadow-card">
           <span className="grid size-11 place-items-center rounded-xl bg-pine-100 text-pine-700 transition group-hover:bg-pine-600 group-hover:text-white"><I className="size-5" /></span>
           <h3 className="mt-4 text-lg font-semibold">{title}</h3>
           <p className="mt-1.5 text-sm leading-relaxed text-ink-500">{text}</p>
-          <Badge tone="neutral" className="mt-4">Étape {step} </Badge>
+          <Badge tone="pine" className="mt-4">Disponible</Badge>
         </Link>
       ))}
     </div>
@@ -104,7 +104,7 @@ export function Stats() {
           <div key={l} className="bg-ink-800 p-6"><dd className="font-display text-3xl font-bold text-white sm:text-4xl">{v}</dd><dt className="mt-1 text-sm text-ink-300">{l}</dt></div>
         ))}
       </dl>
-      <p className="mt-3 text-xs text-ink-400">Calculé à partir des données de démonstration. Les statistiques communautaires réelles seront branchées à l'étape 8.</p>
+      <p className="mt-3 text-xs text-ink-400">Calculé à partir des données de démonstration. Les statistiques de la communauté réelle viendront avec les comptes (étape 2).</p>
     </div>
   );
 }

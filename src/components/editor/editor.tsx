@@ -8,8 +8,8 @@ import { ElevationChart, type ChartMarker } from "@/components/route/elevation-c
 import { Button } from "@/components/ui/button";
 import * as E from "@/lib/editor-core";
 import { routeOnPaths, addElevation } from "@/lib/ign";
-import { routesRepo } from "@/lib/repo";
-import { POI_TYPES, TERRAINS, uid, type Poi, type PoiType, type Pt, type SavedRoute, type Visibility } from "@/lib/types";
+import { routesRepo, useTerrains } from "@/lib/repo";
+import { POI_TYPES, uid, type Poi, type PoiType, type Pt, type SavedRoute, type Visibility } from "@/lib/types";
 import { SPORTS, DIFFICULTY_LABEL, difficultyOf, estimateMinutes, type Sport } from "@/lib/sports";
 import { trackStats, fmtKm, fmtM, fmtDuration, bboxOf, cumulative } from "@/lib/geo";
 import { buildProfile, distanceAlong } from "@/lib/profile";
@@ -21,6 +21,7 @@ const DEFAULT_META: Meta = { name: "", description: "", sport: "trail", visibili
 const SEG_COLOR = "#f0612b";
 
 export function Editor({ routeId }: { routeId?: string }) {
+  const terrains = useTerrains();
   const { el, map, ml, ready } = useMap();
   const [hist, setHist] = useState<E.EState[]>([E.emptyState()]);
   const [hi, setHi] = useState(0);
@@ -336,7 +337,7 @@ export function Editor({ routeId }: { routeId?: string }) {
             <label className="grid gap-1 text-sm font-medium">Nom<input className={field} value={meta.name} onChange={(e) => setMeta({ ...meta, name: e.target.value })} placeholder="Ex. Boucle du lac" maxLength={120} /></label>
             <label className="grid gap-1 text-sm font-medium">Description<textarea className={field} rows={4} value={meta.description} onChange={(e) => setMeta({ ...meta, description: e.target.value })} maxLength={2000} /></label>
             <label className="grid gap-1 text-sm font-medium">Discipline<select className={field} value={meta.sport} onChange={(e) => setMeta({ ...meta, sport: e.target.value as Sport })}>{Object.entries(SPORTS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></label>
-            <fieldset><legend className="mb-1 text-sm font-medium">Types de terrain (déclarés)</legend><div className="flex flex-wrap gap-1.5">{TERRAINS.map((t) => { const on = meta.terrain.includes(t); return <button key={t} type="button" aria-pressed={on} onClick={() => setMeta({ ...meta, terrain: on ? meta.terrain.filter((x) => x !== t) : [...meta.terrain, t] })} className={clsx("rounded-full border px-3 py-1 text-xs font-medium", on ? "border-pine-600 bg-pine-600 text-white" : "border-ink-200")}>{t}</button>; })}</div></fieldset>
+            <fieldset><legend className="mb-1 text-sm font-medium">Types de terrain (déclarés)</legend><div className="flex flex-wrap gap-1.5">{terrains.map((t) => { const on = meta.terrain.includes(t); return <button key={t} type="button" aria-pressed={on} onClick={() => setMeta({ ...meta, terrain: on ? meta.terrain.filter((x) => x !== t) : [...meta.terrain, t] })} className={clsx("rounded-full border px-3 py-1 text-xs font-medium", on ? "border-pine-600 bg-pine-600 text-white" : "border-ink-200")}>{t}</button>; })}</div></fieldset>
             <div className="grid grid-cols-2 gap-2"><label className="grid gap-1 text-sm font-medium">Région<input className={field} value={meta.region} onChange={(e) => setMeta({ ...meta, region: e.target.value })} /></label><label className="grid gap-1 text-sm font-medium">Pays<input className={field} value={meta.country} onChange={(e) => setMeta({ ...meta, country: e.target.value })} /></label></div>
             <label className="grid gap-1 text-sm font-medium">Visibilité<select className={field} value={meta.visibility} onChange={(e) => setMeta({ ...meta, visibility: e.target.value as Visibility })}><option value="prive">Privé</option><option value="public">Public</option></select></label>
             <p className="text-xs text-ink-400">La visibilité « Public » sera effective avec les comptes (étape 2). Pour l'instant tout reste sur cet appareil.</p>

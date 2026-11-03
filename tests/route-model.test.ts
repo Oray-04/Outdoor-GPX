@@ -1,0 +1,22 @@
+import { describe, it, expect } from "vitest";
+import { DEMO_VMS, DEFAULT_FILTERS, filterRoutes, isClosedTrack } from "../src/lib/route-model";
+import { difficultyOf, estimateMinutes } from "../src/lib/sports";
+
+describe("catalogue", () => {
+  it("sans filtre : tout le catalogue", () => expect(filterRoutes(DEMO_VMS, DEFAULT_FILTERS, [])).toHaveLength(DEMO_VMS.length));
+  it("filtre discipline + distance", () => {
+    const r = filterRoutes(DEMO_VMS, { ...DEFAULT_FILTERS, sports: ["rando"], maxKm: 26 }, []);
+    expect(r.length).toBeGreaterThan(0); expect(r.every((x) => x.sport === "rando" && x.stats.distanceM <= 26000)).toBe(true);
+  });
+  it("recherche insensible aux accents et à la casse", () => expect(filterRoutes(DEMO_VMS, { ...DEFAULT_FILTERS, q: "PYRENEES" }, []).length).toBeGreaterThan(0));
+  it("boucles uniquement", () => expect(filterRoutes(DEMO_VMS, { ...DEFAULT_FILTERS, loopOnly: true }, []).every((r) => r.loop)).toBe(true));
+  it("officiels vérifiés = liste fournie", () => {
+    expect(filterRoutes(DEMO_VMS, { ...DEFAULT_FILTERS, scope: "verified" }, [])).toHaveLength(0);
+    expect(filterRoutes(DEMO_VMS, { ...DEFAULT_FILTERS, scope: "verified" }, [DEMO_VMS[0].id])).toHaveLength(1);
+  });
+  it("détection de boucle", () => { expect(isClosedTrack([[1, 1, 0], [2, 2, 0], [1, 1, 0]])).toBe(true); expect(isClosedTrack([[1, 1, 0], [2, 2, 0], [3, 3, 0]])).toBe(false); });
+  it("durée et difficulté croissent avec l'effort", () => {
+    expect(estimateMinutes("trail", 20000, 1500)).toBeGreaterThan(estimateMinutes("trail", 20000, 0));
+    expect(difficultyOf(5000, 100)).toBe("facile"); expect(difficultyOf(50000, 3000)).toBe("expert");
+  });
+});

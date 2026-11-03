@@ -6,7 +6,7 @@ const cols = [
   { title: "Produit", links: [["Explorer", "/explorer"], ["Créer un parcours", "/creer"], ["Bibliothèque", "/parcours"], ["Mes fichiers GPS", "/fichiers"], ["Suivi GPS", "/suivi"], ["Tarifs", "/tarifs"]] },
   { title: "Compétitions", links: [["Calendrier", "/evenements"], ["Espace organisateurs", "/organisateurs"]] },
   { title: "Communauté", links: [["Communauté", "/communaute"], ["Mon espace", "/compte"]] },
-  { title: "Projet", links: [["Charte graphique", "/charte"], ["Feuille de route", "/feuille-de-route"], ["Données & licences", "/licences"]] },
+  { title: "Projet", links: [["Charte graphique", "/charte"], ["Feuille de route", "/feuille-de-route"], ["Données & licences", "/licences"], ["Administration", "/admin"]] },
 ] as const;
 
 export function Footer() {
