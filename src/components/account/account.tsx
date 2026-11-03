@@ -6,6 +6,7 @@ import { RouteCard } from "@/components/ui/route-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ProfileForm, MonthlyChart, activityTotals, fmtAct } from "./shared";
+import { CloudCard } from "./cloud-card";
 import { useAllRoutes, useVerified } from "@/lib/route-vm";
 import { activitiesRepo, collectionsRepo, eventsRepo, useFavorites, useProfile } from "@/lib/repo";
 import { SPORTS } from "@/lib/sports";
@@ -42,6 +43,7 @@ export function Account() {
       <p className="mt-2 text-ink-600">Vos données sont enregistrées sur cet appareil (navigateur). Pensez à exporter vos parcours importants.</p>
       <nav aria-label="Sections" className="sticky top-16 z-20 -mx-4 mt-4 flex gap-1 overflow-x-auto bg-paper/90 px-4 py-2 backdrop-blur">{nav.map(([id, l]) => <a key={id} href={`#${id}`} className="shrink-0 rounded-full border border-ink-200 bg-white px-3 py-1.5 text-sm font-medium hover:border-pine-400">{l}</a>)}</nav>
       <div className="mt-4 grid gap-6">
+        <Section id="compte" title="Compte et synchronisation"><CloudCard /></Section>
         <Section id="profil" title="Profil"><ProfileForm /></Section>
         <Section id="parcours" title={`Mes parcours (${mine.length})`} action={<Link href="/creer" className="text-sm font-semibold text-pine-700 underline">Créer</Link>}>
           {mine.length ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{mine.map((r) => <RouteCard key={r.id} route={r} verified={verified.includes(r.id)} />)}</div> : <Empty>Aucun parcours. <Link className="font-semibold text-pine-700 underline" href="/creer">Créez-en un</Link> ou <Link className="font-semibold text-pine-700 underline" href="/fichiers">importez un fichier</Link>.</Empty>}</Section>

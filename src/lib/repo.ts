@@ -5,17 +5,50 @@ import type { SavedRoute } from "./types";
 /** Dépôts de données. Tous les accès passent ici. */
 const EMPTY: never[] = [];
 
+/** Notifications de modification locale (la synchronisation s'y abonne). */
+const changeListeners = new Set<(key: string) => void>();
+export const onLocalChange = (cb: (key: string) => void) => { changeListeners.add(cb); return () => { changeListeners.delete(cb); }; };
+let applying = false;
+/** Exécute `fn` sans déclencher de notification (application de données venues du cloud). */
+export const withApplying = <T,>(fn: () => T): T => { applying = true; try { return fn(); } finally { applying = false; } };
+const emit = (key: string) => { if (!applying) changeListeners.forEach((cb) => cb(key)); };
+
+export const tombKey = (key: string) => `tomb:${key}`;
+
 export function listKey<T extends { id: string }>(key: string) {
   const get = () => readStore<T[]>(key, EMPTY as T[]);
   return {
     useAll: () => useStore<T[]>(key, EMPTY as T[]),
     getAll: get,
     get: (id: string) => get().find((x) => x.id === id),
-    upsert: (item: T) => { const all = get(); const i = all.findIndex((x) => x.id === item.id); const next = i >= 0 ? all.map((x) => (x.id === item.id ? item : x)) : [item, ...all]; return writeStore(key, next); },
-    remove: (id: string) => writeStore(key, get().filter((x) => x.id !== id)),
+    /** Enregistre l'élément en l'horodatant (`_u`) pour la résolution des conflits de synchronisation. */
+    upsert: (item: T) => {
+      const stamped = { ...item, _u: Date.now() } as unknown as T;
+      const all = get(); const i = all.findIndex((x) => x.id === item.id);
+      const r = writeStore(key, i >= 0 ? all.map((x) => (x.id === item.id ? stamped : x)) : [stamped, ...all]);
+      if (r.ok) emit(key);
+      return r;
+    },
+    /** Supprime l'élément et garde une « pierre tombale » pour propager la suppression. */
+    remove: (id: string) => {
+      const r = writeStore(key, get().filter((x) => x.id !== id));
+      writeStore(tombKey(key), { ...readStore<Record<string, number>>(tombKey(key), {}), [id]: Date.now() });
+      if (r.ok) emit(key);
+      return r;
+    },
     replaceAll: (items: T[]) => writeStore(key, items),
   };
 }
+
+const SINGLE_META = "sync:single";
+/** Écriture d'une valeur unique (favoris, profil…) avec horodatage de synchronisation. */
+export function writeSingle<T>(key: string, value: T) {
+  const r = writeStore(key, value);
+  if (r.ok) { writeStore(SINGLE_META, { ...readStore<Record<string, number>>(SINGLE_META, {}), [key]: Date.now() }); emit(key); }
+  return r;
+}
+export const singleMeta = () => readStore<Record<string, number>>(SINGLE_META, {});
+export const setSingleMeta = (key: string, ts: number) => writeStore(SINGLE_META, { ...singleMeta(), [key]: ts });
 
 export const routesRepo = listKey<SavedRoute>("routes");
 
@@ -32,12 +65,12 @@ export interface Report { id: string; routeId: string; routeName: string; messag
 export const reportsRepo = listKey<Report>("reports");
 
 export const useFavorites = () => useStore<string[]>("favorites", EMPTY as string[]);
-export const toggleFavorite = (id: string) => { const f = readStore<string[]>("favorites", []); writeStore("favorites", f.includes(id) ? f.filter((x) => x !== id) : [...f, id]); };
+export const toggleFavorite = (id: string) => { const f = readStore<string[]>("favorites", []); writeSingle("favorites", f.includes(id) ? f.filter((x) => x !== id) : [...f, id]); };
 
 export interface Profile { name: string; bio: string; sports: string[]; goalKmMonth: number }
 export const DEFAULT_PROFILE: Profile = { name: "", bio: "", sports: [], goalKmMonth: 100 };
 export const useProfile = () => useStore<Profile>("profile", DEFAULT_PROFILE);
-export const saveProfile = (p: Profile) => writeStore("profile", p);
+export const saveProfile = (p: Profile) => writeSingle("profile", p);
 
 import type { EventModel } from "./events";
 import { DEMO_EVENT_MODELS } from "./events";
@@ -51,7 +84,7 @@ export function useAllEvents(): EventModel[] {
 import { TERRAINS } from "./types";
 /** Catégories administrables : types de terrain proposés dans l'éditeur et les filtres. */
 export const useTerrains = (): string[] => { const s = useStore<string[] | null>("categories:terrains", null); return s ?? [...TERRAINS]; };
-export const saveTerrains = (t: string[]) => writeStore("categories:terrains", t);
+export const saveTerrains = (t: string[]) => writeSingle("categories:terrains", t);
 
 export interface Editorial { announcement: string; announcementOn: boolean }
 export const useEditorial = () => useStore<Editorial>("editorial", { announcement: "", announcementOn: false });
@@ -65,7 +98,7 @@ export const DEFAULT_LAYERS: RouteLayer[] = [
 ];
 export const DEMO_LAYER: RouteLayer = { id: "demo", name: "Démonstration", color: "#f0612b", builtin: true };
 export const useLayers = (): RouteLayer[] => { const s = useStore<RouteLayer[] | null>("layers", null); return s ?? DEFAULT_LAYERS; };
-export const saveLayers = (l: RouteLayer[]) => writeStore("layers", l);
+export const saveLayers = (l: RouteLayer[]) => writeSingle("layers", l);
 export function deleteLayer(id: string) {
   const cur = readStore<RouteLayer[] | null>("layers", null) ?? DEFAULT_LAYERS;
   saveLayers(cur.filter((l) => l.id !== id || l.builtin));

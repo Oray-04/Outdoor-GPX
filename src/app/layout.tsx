@@ -5,6 +5,8 @@ import { Footer } from "@/components/layout/footer";
 import { Announcement } from "@/components/layout/announcement";
 import { CSP } from "@/lib/csp";
 import { GeoProvider } from "@/components/home/geo-context";
+import { AuthProvider } from "@/lib/auth";
+import { SyncProvider } from "@/lib/sync";
 
 export const metadata: Metadata = {
   title: { default: "Crête — Plateforme outdoor : parcours GPS, trail, randonnée, vélo", template: "%s · Crête" },
@@ -21,12 +23,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <a href="#contenu" className="sr-only focus:not-sr-only focus:absolute focus:z-[60] focus:m-2 focus:rounded-lg focus:bg-white focus:px-4 focus:py-2">Aller au contenu</a>
+        <AuthProvider><SyncProvider>
         <GeoProvider>
           <Announcement />
           <Header />
           <main id="contenu">{children}</main>
           <Footer />
         </GeoProvider>
+        </SyncProvider></AuthProvider>
       </body>
     </html>
   );

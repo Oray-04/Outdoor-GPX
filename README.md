@@ -34,9 +34,16 @@ Particularités de l'hébergement statique :
 - la politique de sécurité (CSP) est posée par une balise `<meta>` (`src/lib/csp.ts`), car GitHub Pages n'autorise pas d'en-têtes HTTP personnalisés. Conséquence : pas de protection anti-intégration en iframe (`frame-ancestors`) ;
 - les données restent dans le navigateur, **séparées pour chaque adresse** (localhost, GitHub Pages…).
 
+## Comptes et base de données (étape 2)
+
+Le code est prêt, mais **inactif tant que vous n'avez pas connecté un projet Supabase** (voir [docs/supabase.md](docs/supabase.md), pas à pas). Sans cela, le site reste en mode local.
+Une fois activé : comptes (e-mail + mot de passe, lien magique), synchronisation entre appareils (la modification la plus récente gagne), publication des parcours « Public » visibles de tous, calque « Communauté », modération par un administrateur.
+- Schéma et règles d'accès : `supabase/migrations/` (PostgreSQL + PostGIS, RLS). Vérifiés par `bash supabase/tests/rls.sh` (30 contrôles sur une base locale).
+- Logique de synchronisation testée (`npm test`) ; requêtes du client testées contre une API **simulée**. **Pas encore essayé contre un vrai projet Supabase** : à valider lors de la première connexion.
+
 ## Où sont les données ?
 
-L'étape 2 (comptes + base de données) est **reportée**. En attendant, tout est enregistré **dans le navigateur** (localStorage) derrière une couche unique (`src/lib/store.ts`, `src/lib/repo.ts`) : l'application est utilisable seule, et la base de données pourra remplacer cette couche sans réécrire les écrans.
+Sans Supabase connecté, tout est enregistré **dans le navigateur** (localStorage) derrière une couche unique (`src/lib/store.ts`, `src/lib/repo.ts`) : l'application est utilisable seule, et la base de données pourra remplacer cette couche sans réécrire les écrans.
 
 Conséquences à connaître :
 - les données sont propres à un appareil et un navigateur ; les vider efface tout → **Administration > Données** permet d'exporter/restaurer une sauvegarde JSON ;
@@ -50,7 +57,7 @@ Les paiements et abonnements sont volontairement hors périmètre ; `/tarifs` d�
 | # | Étape | Statut |
 |---|-------|--------|
 | 1 | Identité visuelle, design system, accueil | Livrée |
-| 2 | Comptes et base de données | **Reportée** |
+| 2 | Comptes et base de données | **Préparée** : à activer avec [docs/supabase.md](docs/supabase.md) (sinon mode local) |
 | 3 | Cartographie (`/explorer`) | Livrée |
 | 4 | Éditeur de parcours (`/creer`) | Livrée |
 | 5 | Import/export GPS (`/fichiers`) | Livrée |
@@ -62,6 +69,12 @@ Les paiements et abonnements sont volontairement hors périmètre ; `/tarifs` d�
 
 ### Cartographie — `/explorer`
 Fonds Plan IGN, Photo aérienne, OpenStreetMap (hors France), surcouche pentes de montagne ; recherche de lieux (géocodage Géoplateforme, repli Nominatim) ; géolocalisation sur clic ; traces (vos parcours + démo), comparaison de 3 parcours, filtres ; points d'intérêt réels (eau, sommets, abris, points de vue) via Overpass.
+
+### Fonds de carte, surcouches et calques
+- **Fonds** : Plan IGN, Photo aérienne, **Topographique** (OpenTopoMap, monde), État-major 1820-1866, OpenStreetMap (repli hors France). **Surcouches** : **Cadastre** (parcelles IGN, visible à fort zoom), pentes de montagne.
+- **Calques de parcours** : « Mes parcours », « Parcours FKT (import personnel) », « Parcours d'organisations », « Démonstration », « Communauté » (si comptes actifs), et **vos propres calques** (nom + couleur). Chaque calque s'affiche/masque dans l'explorateur ; un parcours change de calque dans l'éditeur (onglet Infos) ou à l'import (`/fichiers`). Filtre par calque dans la bibliothèque. Lien « source » optionnel par parcours.
+- **Calque FKT** : limité à la France (emprise métropolitaine approximative). Il n'est alimenté **que par vos imports personnels** : les conditions d'utilisation du site FKT interdisent la collecte automatisée et la republication, donc aucune donnée n'en est aspirée ni embarquée dans ce dépôt.
+- **Plein écran** : bouton sur chaque carte (explorateur, éditeur, fiche, bibliothèque, suivi GPS). En plein écran, un **bandeau sous la carte** affiche distance, D+, D−, altitudes, durée (parcours sélectionnés dans l'explorateur, valeurs en direct dans l'éditeur). Repli CSS sur iPhone.
 
 ### Éditeur — `/creer`
 Clic pour poser des points, tracé automatique **sur les chemins** (service d'itinéraire piéton de l'IGN, repli en ligne droite signalé), mode libre, déplacement/suppression/insertion de points, annuler/rétablir (Ctrl+Z / Ctrl+Y), inversion, fermeture de boucle, changement du départ, division, fusion, duplication, points d'intérêt, enregistrement automatique. Distance, D+, D−, altitudes min/max, durée estimée et profil en direct (altitudes IGN RGE ALTI).
@@ -88,7 +101,7 @@ Position temps réel, enregistrement (filtre de précision), guidage sur parcour
 - **À faire avant une mise en ligne publique** : comptes + règles d'accès côté serveur (étape 2), protection de `/admin`, fournisseur de tuiles sous contrat pour le repli OSM, relecture des licences des couches IGN utilisées.
 
 ## Qualité
-`npm test` : 48 tests (formats GPS aller-retour et cas d'erreur, calculs de distance/D+/pente, opérations de l'éditeur, navigation et alerte hors parcours, temps de passage, filtres). Les parcours ont aussi été testés de bout en bout dans un navigateur (éditeur, import/export, fiches, organisateurs, suivi GPS simulé, administration), sur ordinateur et mobile.
+`npm test` : plus de 60 tests (formats GPS aller-retour et cas d'erreur, calculs de distance/D+/pente, opérations de l'éditeur, navigation et alerte hors parcours, temps de passage, filtres). Les parcours ont aussi été testés de bout en bout dans un navigateur (éditeur, import/export, fiches, organisateurs, suivi GPS simulé, administration), sur ordinateur et mobile.
 
 ## Données de démonstration
 `src/lib/demo-data.ts` génère des tracés et événements **synthétiques** (badge « Démo »), sans lien avec des sentiers ou événements réels.

@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Heart, Navigation, Download, Share2, Pencil, Flag, Star, MapPin, Copy, Camera, Trash2, ExternalLink, ImageDown, FileText, BadgeCheck, ArrowLeft } from "lucide-react";
 import clsx from "clsx";
@@ -16,11 +16,23 @@ import { SPORTS, DIFFICULTY_LABEL } from "@/lib/sports";
 import { POI_TYPES, uid } from "@/lib/types";
 import { FORMATS, serialize, download, safeName, type GpsFormat } from "@/lib/formats";
 import { chartToPng, chartToPdf } from "@/lib/export-profile";
+import { cloudEnabled } from "@/lib/cloud";
+import { communityRoute } from "@/lib/community";
+import type { RouteVM } from "@/lib/route-model";
 import { editorHref, trackerHref, withBase } from "@/lib/url";
 
 export function RoutePage({ id }: { id: string }) {
   const all = useAllRoutes();
-  const route = all.find((r) => r.id === id);
+  const local = all.find((r) => r.id === id);
+  const [cloudRoute, setCloudRoute] = useState<RouteVM | null | undefined>(undefined);
+  useEffect(() => {
+    if (!cloudEnabled || local || !id) return;
+    let dead = false;
+    communityRoute(id).then((r) => { if (!dead) setCloudRoute(r); }).catch(() => { if (!dead) setCloudRoute(null); });
+    return () => { dead = true; };
+  }, [id, local]);
+  const route = local ?? cloudRoute ?? undefined;
+  const loadingCloud = cloudEnabled && !local && !!id && cloudRoute === undefined;
   const favs = useFavorites();
   const layerName = [...useLayers(), DEMO_LAYER].find((l) => l.id === route?.layer)?.name;
   const verified = useVerified();
@@ -44,6 +56,7 @@ export function RoutePage({ id }: { id: string }) {
     return ms;
   }, [route, cum]);
 
+  if (!route && loadingCloud) return <div className="grid min-h-[40vh] place-items-center text-ink-500">Chargement du parcours…</div>;
   if (!route) return (
     <div className="mx-auto max-w-xl px-4 py-24 text-center"><h1 className="text-3xl font-bold">Parcours introuvable</h1><p className="mt-3 text-ink-600">Ce parcours n'existe pas sur cet appareil. Les parcours enregistrés sont locaux à votre navigateur.</p><Link href="/parcours" className="mt-6 inline-block font-semibold text-pine-700 underline">Retour à la bibliothèque</Link></div>
   );

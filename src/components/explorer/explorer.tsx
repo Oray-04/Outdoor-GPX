@@ -16,6 +16,9 @@ import { geocode } from "@/lib/geocode";
 import { MapFrame, StatBanner } from "@/components/map/map-frame";
 import { DEMO_LAYER, deleteLayer, saveLayers, useLayers } from "@/lib/repo";
 import { uid } from "@/lib/types";
+import { cloudEnabled } from "@/lib/cloud";
+import { communityInBbox } from "@/lib/community";
+import { routeHref, withBase } from "@/lib/url";
 import { useGeo } from "@/components/home/geo-context";
 import { BASE } from "@/lib/url";
 
@@ -54,7 +57,9 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
   const geo = useGeo();
   const allRoutes = useAllRoutes();
   const routeLayers = useLayers();
-  const layerList = useMemo(() => [...routeLayers, DEMO_LAYER], [routeLayers]);
+  const COMMUNITY = { id: "community", name: "Communauté (parcours publics)", color: "#c98a0b", builtin: true };
+  const layerList = useMemo(() => [...routeLayers, DEMO_LAYER, ...(cloudEnabled ? [COMMUNITY] : [])], [routeLayers]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [communityCount, setCommunityCount] = useState<number | null>(null);
   const colorOfLayer = useMemo(() => new Map(layerList.map((l) => [l.id, l.color])), [layerList]);
   const [layerOff, setLayerOff] = useState<Set<string>>(new Set());
   const [newLayer, setNewLayer] = useState({ name: "", color: "#7a4bd1" });
@@ -112,6 +117,38 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
     })();
     return () => { dead = true; mapRef.current?.remove(); mapRef.current = null; };
   }, [initial]);
+
+  // Calque « Communauté » : parcours publiés par les membres (base de données), chargés selon l'emprise visible
+  useEffect(() => {
+    const m = mapRef.current, lib = mlRef.current; if (!m || !lib || !ready || !cloudEnabled || m.getSource("community")) return;
+    m.addSource("community", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    m.addLayer({ id: "community-casing", type: "line", source: "community", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#fff", "line-width": 6 } });
+    m.addLayer({ id: "community-line", type: "line", source: "community", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": COMMUNITY.color, "line-width": 3.5 } });
+    m.on("click", "community-line", (e) => {
+      const p = e.features?.[0]?.properties as { id: string; name: string; km: number; gain: number } | undefined; if (!p) return;
+      const box = document.createElement("div"); const a = document.createElement("a"); a.href = withBase(routeHref(p.id)); a.textContent = p.name; a.className = "font-semibold underline";
+      const s = document.createElement("div"); s.textContent = `${fmtKm(p.km)} · ${fmtM(p.gain)} D+ · publié par un membre`; box.append(a, s);
+      new lib.Popup({ closeButton: false }).setLngLat(e.lngLat).setDOMContent(box).addTo(m);
+    });
+    m.on("mouseenter", "community-line", () => (m.getCanvas().style.cursor = "pointer"));
+    m.on("mouseleave", "community-line", () => (m.getCanvas().style.cursor = ""));
+  }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const m = mapRef.current; if (!m || !ready || !cloudEnabled || !m.getSource("community")) return;
+    const off = layerOff.has("community");
+    for (const l of ["community-casing", "community-line"]) m.setLayoutProperty(l, "visibility", off ? "none" : "visible");
+    if (off || !bounds || m.getZoom() < 8) return;
+    const ctrl = new AbortController();
+    const t = setTimeout(async () => {
+      try {
+        const rows = await communityInBbox(bounds, ctrl.signal);
+        (m.getSource("community") as import("maplibre-gl").GeoJSONSource).setData({ type: "FeatureCollection", features: rows.map((r) => ({ type: "Feature", properties: { id: r.id, name: r.name, km: r.distance_m, gain: r.gain_m }, geometry: r.geometry })) });
+        setCommunityCount(rows.length);
+      } catch { /* hors ligne ou base indisponible : le calque reste vide */ }
+    }, 500);
+    return () => { clearTimeout(t); ctrl.abort(); };
+  }, [bounds, layerOff, ready]);
 
   // Tracés
   useEffect(() => {
@@ -233,7 +270,7 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
           {panel === "calques" ? (
             <div className="grid gap-4">
               <p className="text-xs text-ink-500">Un calque regroupe des parcours (les vôtres, ceux d'une organisation, un import personnel…). Affichez ou masquez-les, chacun a sa couleur.</p>
-              <ul className="grid gap-2">{layerList.map((l) => { const n = allRoutes.filter((r) => r.layer === l.id).length; const on = !layerOff.has(l.id); return (
+              <ul className="grid gap-2">{layerList.map((l) => { const n = l.id === "community" ? (communityCount ?? 0) : allRoutes.filter((r) => r.layer === l.id).length; const on = !layerOff.has(l.id); return (
                 <li key={l.id} className="flex items-center gap-2 rounded-xl border border-ink-100 p-2.5">
                   <input aria-label={`Afficher ${l.name}`} type="checkbox" checked={on} onChange={() => setLayerOff((s) => { const x = new Set(s); if (x.has(l.id)) x.delete(l.id); else x.add(l.id); return x; })} className="size-4 accent-[var(--color-pine-600)]" />
                   <span className="size-3.5 shrink-0 rounded-full ring-1 ring-black/10" style={{ background: l.color }} />

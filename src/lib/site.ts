@@ -10,11 +10,6 @@ export const NAV = [
   { href: "/tarifs", label: "Tarifs" },
 ] as const;
 
-/** Feuille de route : source unique pour les pages « en développement ». */
-export const MODULES: Record<string, { step: number; title: string; summary: string; items: string[] }> = {
-  connexion: { step: 2, title: "Comptes et connexion", summary: "Authentification et base de données partagée (Supabase / PostgreSQL + PostGIS). Reportée : en attendant, tout est enregistré sur votre appareil.", items: ["Comptes e-mail", "Sécurité par ligne (RLS)", "Confidentialité des traces", "Synchronisation entre appareils"] },
-};
-
 export const ROADMAP = [
   { step: 1, title: "Identité visuelle et interface", status: "done" },
   { step: 2, title: "Authentification et base de données (comptes, partage entre membres)", status: "deferred" },

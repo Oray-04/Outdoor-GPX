@@ -7,11 +7,13 @@ import clsx from "clsx";
 import { Logo } from "@/components/ui/logo";
 import { ButtonLink } from "@/components/ui/button";
 import { NAV } from "@/lib/site";
+import { useAuth } from "@/lib/auth";
 
 export function Header() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const path = usePathname();
+  const auth = useAuth();
 
   useEffect(() => setOpen(false), [path]);
   useEffect(() => {
@@ -34,7 +36,8 @@ export function Header() {
           ))}
         </nav>
         <div className="ml-auto hidden items-center gap-2 lg:flex">
-          <ButtonLink href="/compte" variant="ghost" size="sm"><User className="size-4" />Mon espace</ButtonLink>
+          {auth.enabled && !auth.user && <ButtonLink href="/connexion" variant="ghost" size="sm">Connexion</ButtonLink>}
+          <ButtonLink href="/compte" variant="ghost" size="sm"><User className="size-4" />{auth.user ? (auth.user.email ?? "Mon espace").split("@")[0] : "Mon espace"}</ButtonLink>
           <ButtonLink href="/creer" size="sm">Créer un parcours</ButtonLink>
         </div>
         <button className="ml-auto grid size-10 place-items-center rounded-lg hover:bg-ink-100 lg:hidden" aria-label={open ? "Fermer le menu" : "Ouvrir le menu"} aria-expanded={open} onClick={() => setOpen((v) => !v)}>
@@ -49,7 +52,7 @@ export function Header() {
             ))}
           </ul>
           <div className="mt-4 grid grid-cols-2 gap-2">
-            <ButtonLink href="/compte" variant="secondary">Mon espace</ButtonLink>
+            <ButtonLink href={auth.enabled && !auth.user ? "/connexion" : "/compte"} variant="secondary">{auth.enabled && !auth.user ? "Connexion" : "Mon espace"}</ButtonLink>
             <ButtonLink href="/creer">Créer</ButtonLink>
           </div>
         </nav>

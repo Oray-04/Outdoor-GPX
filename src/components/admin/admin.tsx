@@ -11,10 +11,12 @@ import { writeStore } from "@/lib/store";
 import { download } from "@/lib/formats";
 import { fmtKm } from "@/lib/geo";
 import { fromSaved } from "@/lib/route-model";
+import { useAuth } from "@/lib/auth";
+import { cloud } from "@/lib/cloud";
 import { routeHref, manageHref } from "@/lib/url";
 
 type Tab = "apercu" | "parcours" | "moderation" | "evenements" | "categories" | "editorial" | "donnees" | "membres";
-const TABS: [Tab, string][] = [["apercu", "Aperçu"], ["parcours", "Parcours"], ["moderation", "Modération"], ["evenements", "Événements"], ["categories", "Catégories"], ["editorial", "Contenus"], ["donnees", "Données"], ["membres", "Membres & abonnements"]];
+const TABS: [Tab, string][] = [["apercu", "Aperçu"], ["parcours", "Parcours"], ["moderation", "Modération"], ["evenements", "Événements"], ["categories", "Catégories"], ["editorial", "Contenus"], ["donnees", "Données"], ["membres", "Parcours publics"]];
 const PREFIX = "crete:";
 
 function storageBytes() { let n = 0; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i)!; if (k.startsWith(PREFIX)) n += k.length + (localStorage.getItem(k)?.length ?? 0); } } catch { /* indisponible */ } return n * 2; }
@@ -119,5 +121,23 @@ function DataAdmin() {
 }
 
 function Members() {
-  return <div className="max-w-2xl rounded-xl bg-white p-5 ring-1 ring-ink-100 text-sm text-ink-700"><h2 className="text-lg font-bold">Membres et abonnements</h2><p className="mt-2">La gestion des membres suppose des comptes utilisateurs (étape 2, reportée). La gestion des abonnements et des paiements est volontairement hors périmètre pour l'instant.</p><Badge tone="ember" className="mt-3">Pas encore disponible</Badge></div>;
+  const auth = useAuth();
+  const [routes, setRoutes] = useState<{ id: string; name: string; owner_id: string; distance_m: number; updated_at: string }[] | null>(null);
+  const [names, setNames] = useState<Record<string, string>>({});
+  const [err, setErr] = useState<string | null>(null);
+  const load = async () => {
+    const c = cloud(); if (!c) return;
+    const [r, p] = await Promise.all([c.from("public_routes").select("id,name,owner_id,distance_m,updated_at").order("updated_at", { ascending: false }).limit(200), c.from("profiles").select("id,display_name")]);
+    if (r.error || p.error) { setErr((r.error ?? p.error)!.message); return; }
+    setRoutes(r.data); setNames(Object.fromEntries((p.data ?? []).map((x) => [x.id, x.display_name])));
+  };
+  useEffect(() => { if (auth.isAdmin) load(); }, [auth.isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
+  const remove = async (id: string) => { if (!confirm("Retirer ce parcours public ?")) return; const { error } = await cloud()!.from("public_routes").delete().eq("id", id); if (error) setErr(error.message); else load(); };
+
+  if (!auth.enabled) return <div className="max-w-2xl rounded-xl bg-white p-5 ring-1 ring-ink-100 text-sm text-ink-700"><h2 className="text-lg font-bold">Membres et parcours publics</h2><p className="mt-2">Disponible une fois les comptes activés (base Supabase connectée). Les abonnements et paiements sont volontairement hors périmètre pour l'instant.</p><Badge tone="ember" className="mt-3">Comptes non activés</Badge></div>;
+  if (!auth.user || !auth.isAdmin) return <div className="max-w-2xl rounded-xl bg-white p-5 ring-1 ring-ink-100 text-sm text-ink-700"><h2 className="text-lg font-bold">Modération des parcours publics</h2><p className="mt-2">Réservé aux administrateurs : {auth.user ? "votre compte n'a pas ce droit (colonne is_admin du profil, à activer dans la base)." : "connectez-vous avec un compte administrateur."}</p>{!auth.user && <Link href="/connexion" className="mt-3 inline-block font-semibold text-pine-700 underline">Se connecter</Link>}</div>;
+  return (
+    <div><h2 className="text-lg font-bold">Parcours publics ({routes?.length ?? "…"})</h2>{err && <p role="alert" className="mt-2 text-sm text-danger">{err}</p>}
+      <ul className="mt-3 grid gap-2">{routes?.map((r) => <li key={r.id} className="flex items-center gap-2 rounded-xl bg-white p-3 ring-1 ring-ink-100"><div className="min-w-0 flex-1"><Link href={routeHref(r.id)} className="font-semibold hover:text-pine-700">{r.name}</Link><p className="text-xs text-ink-500">par {names[r.owner_id] || "membre"} · {fmtKm(r.distance_m)} · {new Date(r.updated_at).toLocaleDateString("fr-FR")}</p></div><Button size="sm" variant="ghost" aria-label="Retirer" onClick={() => remove(r.id)}><Trash2 className="size-4" /></Button></li>)}{routes && !routes.length && <li className="text-sm text-ink-500">Aucun parcours public.</li>}</ul></div>
+  );
 }

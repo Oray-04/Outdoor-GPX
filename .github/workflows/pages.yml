@@ -29,6 +29,9 @@ jobs:
         env:
           # Le site est servi sous https://<compte>.github.io/<nom-du-dépôt>/
           NEXT_PUBLIC_BASE_PATH: /${{ github.event.repository.name }}
+          # Optionnels : activent les comptes (voir docs/supabase.md). Valeurs publiques, à définir dans Settings > Variables.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: out

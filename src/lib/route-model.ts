@@ -7,7 +7,7 @@ import type { Poi, Pt, SavedRoute, Visibility } from "./types";
 export interface RouteVM {
   id: string; name: string; description: string; sport: Sport; region: string; country: string;
   coords: Pt[]; pois: Poi[]; waypoints: { lng: number; lat: number }[]; terrain: string[]; loop: boolean; visibility: Visibility;
-  origin: "demo" | "mine"; layer: string; sourceUrl?: string; stats: TrackStats; durationMin: number; difficulty: Difficulty; updatedAt?: number;
+  origin: "demo" | "mine" | "community"; layer: string; sourceUrl?: string; stats: TrackStats; durationMin: number; difficulty: Difficulty; updatedAt?: number;
 }
 
 export const isClosedTrack = (c: Pt[]) => c.length > 2 && Math.abs(c[0][0] - c[c.length - 1][0]) < 1e-4 && Math.abs(c[0][1] - c[c.length - 1][1]) < 1e-4;
