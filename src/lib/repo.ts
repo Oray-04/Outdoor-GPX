@@ -38,3 +38,12 @@ export interface Profile { name: string; bio: string; sports: string[]; goalKmMo
 export const DEFAULT_PROFILE: Profile = { name: "", bio: "", sports: [], goalKmMonth: 100 };
 export const useProfile = () => useStore<Profile>("profile", DEFAULT_PROFILE);
 export const saveProfile = (p: Profile) => writeStore("profile", p);
+
+import type { EventModel } from "./events";
+import { DEMO_EVENT_MODELS } from "./events";
+import { useMemo } from "react";
+export const eventsRepo = listKey<EventModel>("events");
+export function useAllEvents(): EventModel[] {
+  const mine = eventsRepo.useAll();
+  return useMemo(() => [...mine, ...DEMO_EVENT_MODELS], [mine]);
+}
