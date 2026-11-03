@@ -19,7 +19,7 @@ Aucune clé ni variable d'environnement n'est nécessaire.
 
 Le site est exporté en fichiers statiques (`output: "export"`) : aucun serveur n'est nécessaire.
 
-1. Fusionnez la branche dans `master` (le workflow se déclenche sur `master`/`main`).
+1. Poussez sur la branche par défaut (le workflow se déclenche sur `master`, `main` et `claude/etape-1-interface`, qui est la branche par défaut actuelle du dépôt).
 2. Dans le dépôt GitHub : **Settings > Pages > Build and deployment > Source : GitHub Actions** (à faire une seule fois).
 3. L'onglet **Actions** lance « Publier sur GitHub Pages » (tests, build, déploiement). Le site est ensuite à `https://<compte>.github.io/<nom-du-dépôt>/`.
 
