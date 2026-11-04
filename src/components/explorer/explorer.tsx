@@ -8,6 +8,7 @@ import { useAllRoutes } from "@/lib/route-vm";
 import { sparkOf, type RouteVM } from "@/lib/route-model";
 import { buildStyle } from "@/lib/basemaps";
 import { LayerControl } from "@/components/map/layer-control";
+import { Sheet, isMobileViewport, type SheetState } from "@/components/layout/sheet";
 import { POI_KINDS, fetchPois, type PoiKind, type PoiFeature } from "@/lib/poi";
 import { SPORTS, DIFFICULTY_LABEL, type Sport } from "@/lib/sports";
 import { fmtKm, fmtM, fmtDuration } from "@/lib/geo";
@@ -53,6 +54,7 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [panel, setPanel] = useState<"routes" | "calques" | "layers">("routes");
+  const [sheet, setSheet] = useState<SheetState>("peek");
   const geo = useGeo();
   const allRoutes = useAllRoutes();
   const routeLayers = useLayers();
@@ -238,8 +240,8 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
 
   const chip = "rounded-full border px-3 py-1.5 text-sm font-medium transition";
   return (
-    <div className="flex h-[calc(100dvh-4rem)] min-h-[34rem] flex-col lg:flex-row">
-      <aside className="order-2 flex max-h-[48%] min-h-0 w-full flex-col border-ink-100 bg-white lg:order-1 lg:max-h-none lg:w-[23rem] lg:border-r">
+    <div className="relative h-[calc(100dvh-4rem-var(--bnav))] overflow-hidden lg:flex lg:min-h-[34rem]">
+      <Sheet state={sheet} onState={setSheet} label="Parcours, calques et points d'intérêt" header={<>
         <form onSubmit={search} role="search" className="flex gap-2 border-b border-ink-100 p-3">
           <label className="relative flex-1"><span className="sr-only">Rechercher un lieu</span>
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-400" />
@@ -250,12 +252,12 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
         </form>
         {msg && <p className="border-b border-ink-100 px-3 py-2 text-xs text-ink-600" aria-live="polite">{msg}</p>}
         <div className="flex border-b border-ink-100 text-sm font-semibold" role="tablist">
-          {([["routes", "Parcours", Filter], ["calques", "Calques", Layers3], ["layers", "Points d'intérêt", Layers]] as const).map(([id, l, I]) => (
-            <button key={id} role="tab" aria-selected={panel === id} onClick={() => setPanel(id)} className={clsx("flex flex-1 items-center justify-center gap-1.5 py-2.5", panel === id ? "border-b-2 border-pine-600 text-pine-700" : "text-ink-500")}><I className="size-4" />{l}</button>
+          {([["routes", "Parcours", Filter], ["calques", "Calques", Layers3], ["layers", "POI", Layers]] as const).map(([id, l, I]) => (
+            <button key={id} role="tab" aria-selected={panel === id} onClick={() => { setPanel(id); setSheet((x) => (x === "peek" ? "half" : x)); }} className={clsx("flex flex-1 items-center justify-center gap-1.5 py-2.5", panel === id ? "border-b-2 border-pine-600 text-pine-700" : "text-ink-500")}><I className="size-4" />{l}</button>
           ))}
         </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+      </>}>
+        <div className="p-3">
           {panel === "calques" ? (
             <div className="grid gap-4">
               <p className="text-xs text-ink-500">Un calque regroupe des parcours (les vôtres, ceux d'une organisation, un import personnel…). Affichez ou masquez-les, chacun a sa couleur.</p>
@@ -305,7 +307,7 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
                   return (
                     <li key={r.id} className={clsx("rounded-xl border p-3", i >= 0 ? "border-ink-300 bg-ink-50" : "border-ink-100")} style={i >= 0 ? { borderLeft: `4px solid ${COMPARE_COLORS[i]}` } : undefined}>
                       <div className="flex items-start gap-2">
-                        <button onClick={() => { toggleSelect(r.id); if (i < 0) fit(r); }} aria-pressed={i >= 0} className="min-w-0 flex-1 text-left">
+                        <button onClick={() => { toggleSelect(r.id); if (i < 0) fit(r); if (isMobileViewport()) setSheet("peek"); }} aria-pressed={i >= 0} className="min-w-0 flex-1 text-left">
                           <span className="block truncate text-sm font-semibold">{r.name}</span>
                           <span className="text-xs text-ink-500">{SPORTS[r.sport].label} · {fmtKm(r.stats.distanceM)} · {fmtM(r.stats.gainM)} D+</span>
                         </button>
@@ -319,9 +321,9 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
             </div>
           )}
         </div>
-      </aside>
+      </Sheet>
 
-      <MapFrame className="order-1 min-h-[16rem] flex-1 lg:order-2" banner={banner}>
+      <MapFrame className="absolute inset-x-0 top-0 bottom-[8rem] lg:static lg:flex-1" banner={banner}>
         <div className="absolute inset-0"><div ref={el} className="size-full" role="region" aria-label="Carte interactive" /></div>
         <LayerControl map={mapRef} ready={ready} />
         {compared.length > 0 && (

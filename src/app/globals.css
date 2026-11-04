@@ -50,7 +50,11 @@
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* Hauteur de la barre de navigation basse (mobile) ; nulle sur ordinateur. */
+:root { --bnav: calc(3.5rem + env(safe-area-inset-bottom)); }
+@media (min-width: 1024px) { :root { --bnav: 0px; } }
 html { scroll-behavior: smooth; }
+body { padding-bottom: var(--bnav); }
 body {
   background: var(--color-paper);
   color: var(--color-ink-900);

@@ -11,7 +11,7 @@ const variants = {
   ghost: "text-ink-700 hover:bg-ink-100",
   onDark: "bg-white/10 text-white border border-white/20 hover:bg-white/20 backdrop-blur",
 } as const;
-const sizes = { sm: "h-9 px-3.5 text-sm", md: "h-11 px-5 text-[15px]", lg: "h-13 px-7 text-base" } as const;
+const sizes = { sm: "h-10 px-3.5 text-sm lg:h-9", md: "h-11 px-5 text-[15px]", lg: "h-13 px-7 text-base" } as const;
 
 type Props = { variant?: keyof typeof variants; size?: keyof typeof sizes; className?: string };
 

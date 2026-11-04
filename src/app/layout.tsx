@@ -3,6 +3,7 @@ import "./globals.css";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { Announcement } from "@/components/layout/announcement";
+import { MobileNav } from "@/components/layout/mobile-nav";
 import { CSP } from "@/lib/csp";
 import { GeoProvider } from "@/components/home/geo-context";
 import { AuthProvider } from "@/lib/auth";
@@ -29,6 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Header />
           <main id="contenu">{children}</main>
           <Footer />
+          <MobileNav />
         </GeoProvider>
         </SyncProvider></AuthProvider>
       </body>

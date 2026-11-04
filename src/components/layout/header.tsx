@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Menu, X, User } from "lucide-react";
+import { User } from "lucide-react";
 import clsx from "clsx";
 import { Logo } from "@/components/ui/logo";
 import { ButtonLink } from "@/components/ui/button";
@@ -10,12 +10,10 @@ import { NAV } from "@/lib/site";
 import { useAuth } from "@/lib/auth";
 
 export function Header() {
-  const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const path = usePathname();
   const auth = useAuth();
 
-  useEffect(() => setOpen(false), [path]);
   useEffect(() => {
     const on = () => setScrolled(window.scrollY > 8);
     on();
@@ -24,7 +22,7 @@ export function Header() {
   }, []);
 
   return (
-    <header className={clsx("sticky top-0 z-50 border-b transition-colors duration-300", scrolled || open ? "border-ink-100 bg-paper/90 backdrop-blur-lg" : "border-transparent bg-paper")}>
+    <header className={clsx("sticky top-0 z-50 border-b transition-colors duration-300", scrolled ? "border-ink-100 bg-paper/90 backdrop-blur-lg" : "border-transparent bg-paper")}>
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-6 px-4 sm:px-6">
         <Link href="/" aria-label="Accueil Crête"><Logo /></Link>
         <nav aria-label="Navigation principale" className="hidden flex-1 items-center gap-1 lg:flex">
@@ -40,23 +38,8 @@ export function Header() {
           <ButtonLink href="/compte" variant="ghost" size="sm"><User className="size-4" />{auth.user ? (auth.user.email ?? "Mon espace").split("@")[0] : "Mon espace"}</ButtonLink>
           <ButtonLink href="/creer" size="sm">Créer un parcours</ButtonLink>
         </div>
-        <button className="ml-auto grid size-10 place-items-center rounded-lg hover:bg-ink-100 lg:hidden" aria-label={open ? "Fermer le menu" : "Ouvrir le menu"} aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-          {open ? <X className="size-5" /> : <Menu className="size-5" />}
-        </button>
+        <div className="ml-auto flex items-center gap-1 lg:hidden"><Link href={auth.enabled && !auth.user ? "/connexion" : "/compte"} aria-label={auth.user ? "Mon espace" : auth.enabled ? "Connexion" : "Mon espace"} className="grid size-11 place-items-center rounded-full hover:bg-ink-100"><User className="size-5" /></Link></div>
       </div>
-      {open && (
-        <nav aria-label="Navigation mobile" className="rise border-t border-ink-100 bg-paper px-4 pb-5 pt-2 lg:hidden">
-          <ul className="grid gap-1">
-            {NAV.map((n) => (
-              <li key={n.href}><Link href={n.href} className="block rounded-lg px-3 py-3 text-base font-medium text-ink-800 hover:bg-ink-100">{n.label}</Link></li>
-            ))}
-          </ul>
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <ButtonLink href={auth.enabled && !auth.user ? "/connexion" : "/compte"} variant="secondary">{auth.enabled && !auth.user ? "Connexion" : "Mon espace"}</ButtonLink>
-            <ButtonLink href="/creer">Créer</ButtonLink>
-          </div>
-        </nav>
-      )}
     </header>
   );
 }

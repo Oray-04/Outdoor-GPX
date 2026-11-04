@@ -5,6 +5,7 @@ import { Undo2, Redo2, Route, Route as RouteIcon, MousePointer2, ArrowLeftRight,
 import clsx from "clsx";
 import { useMap } from "@/components/map/use-map";
 import { LayerControl } from "@/components/map/layer-control";
+import { Sheet, type SheetState } from "@/components/layout/sheet";
 import { MapFrame, StatBanner } from "@/components/map/map-frame";
 import { ElevationChart, type ChartMarker } from "@/components/route/elevation-chart";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,7 @@ export function Editor({ routeId }: { routeId?: string }) {
   const engine = useEnginePref();
   const [lastSource, setLastSource] = useState<Source | null>(null);
   const [aligning, setAligning] = useState<string | null>(null);
+  const [sheet, setSheet] = useState<SheetState>("peek");
   const [cutMode, setCutMode] = useState(false);
   const [cutKeys, setCutKeys] = useState<string[]>([]);
   const [madeParts, setMadeParts] = useState<{ id: string; name: string }[]>([]);
@@ -302,15 +304,15 @@ export function Editor({ routeId }: { routeId?: string }) {
   const locate = () => navigator.geolocation?.getCurrentPosition((p) => map.current?.flyTo({ center: [p.coords.longitude, p.coords.latitude], zoom: 14 }), () => setMsg({ kind: "warn", text: "Position indisponible ou refusée." }));
   const others = routesRepo.useAll().filter((r) => r.id !== id);
 
-  const tb = "grid size-9 place-items-center rounded-lg text-ink-700 hover:bg-ink-100 disabled:opacity-35 disabled:hover:bg-transparent";
+  const tb = "grid size-10 place-items-center lg:size-9 rounded-lg text-ink-700 hover:bg-ink-100 disabled:opacity-35 disabled:hover:bg-transparent";
   const field = "w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm";
 
   return (
-    <div className="grid h-[calc(100dvh-4rem)] min-h-[40rem] grid-rows-[auto_1fr] lg:grid-cols-[1fr_22rem] lg:grid-rows-1">
-      <div className="flex min-h-0 flex-col">
+    <div className="relative h-[calc(100dvh-4rem-var(--bnav))] overflow-hidden lg:grid lg:min-h-[40rem] lg:grid-cols-[1fr_22rem]">
+      <div className="absolute inset-x-0 top-0 bottom-[8rem] flex flex-col lg:static lg:min-h-0">
         <MapFrame className="min-h-[18rem] flex-1" banner={<StatBanner title={meta.name || "Parcours en cours"} items={[{ label: "Distance", value: stats ? fmtKm(stats.distanceM) : "—" }, { label: "D+", value: stats ? fmtM(stats.gainM) : "—" }, { label: "D−", value: stats ? fmtM(stats.lossM) : "—" }, { label: "Alt. min", value: stats ? fmtM(stats.minEle) : "—" }, { label: "Alt. max", value: stats ? fmtM(stats.maxEle) : "—" }, { label: "Durée est.", value: stats ? fmtDuration(durationMin) : "—" }]} />}>
           <div className="absolute inset-0"><div ref={el} className="size-full" role="application" aria-label="Carte de l'éditeur : cliquez pour ajouter des points" /></div>
-          <div className="absolute left-3 top-3 flex flex-wrap items-center gap-1 rounded-xl bg-white/95 p-1 shadow-card">
+          <div className="absolute left-3 top-3 flex max-w-[calc(100%-4.75rem)] flex-wrap items-center gap-1 rounded-xl bg-white/95 p-1 shadow-card">
             <div className="flex rounded-lg bg-ink-100 p-0.5 text-xs font-semibold" role="group" aria-label="Mode de tracé">
               <button aria-pressed={auto} onClick={() => setAuto(true)} className={clsx("flex items-center gap-1 rounded-md px-2 py-1.5", auto && "bg-white shadow")} title="Le tracé suit les chemins"><RouteIcon className="size-3.5" />Chemins</button>
               <button aria-pressed={!auto} onClick={() => setAuto(false)} className={clsx("flex items-center gap-1 rounded-md px-2 py-1.5", !auto && "bg-white shadow")} title="Ligne droite entre les points"><MousePointer2 className="size-3.5" />Libre</button>
@@ -332,7 +334,7 @@ export function Editor({ routeId }: { routeId?: string }) {
             {!st.waypoints.length && loaded && <span className="rounded-lg bg-white/95 px-2.5 py-1.5 text-xs shadow">Cliquez sur la carte pour poser le départ, puis les points suivants.</span>}
           </div>
         </MapFrame>
-        <div className="border-t border-ink-100 bg-white p-3">
+        <div className="hidden border-t border-ink-100 bg-white p-3 lg:block">
           <div className="mb-1 flex items-center justify-between text-xs text-ink-500">
             <span className="font-semibold text-ink-700">Profil altimétrique</span>
             <span aria-live="polite">{elev === "loading" ? "Altitudes en cours de calcul…" : elev === "error" ? "Altitudes IGN indisponibles : profil à plat" : "Altitudes IGN (RGE ALTI)"}</span>
@@ -341,9 +343,8 @@ export function Editor({ routeId }: { routeId?: string }) {
         </div>
       </div>
 
-      <aside className="min-h-0 overflow-y-auto border-t border-ink-100 bg-white lg:border-l lg:border-t-0">
-        <div className="sticky top-0 z-10 border-b border-ink-100 bg-white">
-          <div className="flex items-center justify-between px-3 pt-2 text-xs">
+      <Sheet state={sheet} onState={setSheet} side="right" label="Propriétés du parcours" header={<div className="border-b border-ink-100 bg-white">
+          <div className="flex items-center justify-between px-3 pt-0.5 text-xs lg:pt-2">
             <span className="font-semibold text-ink-700">{meta.name || "Nouveau parcours"}</span>
             <span className={clsx("inline-flex items-center gap-1", saved === "error" ? "text-danger" : "text-ink-500")} aria-live="polite">
               {saved === "saving" && <><Loader2 className="size-3 animate-spin" />Enregistrement…</>}
@@ -351,15 +352,16 @@ export function Editor({ routeId }: { routeId?: string }) {
               {saved === "error" && <><AlertTriangle className="size-3" />Non enregistré</>}
             </span>
           </div>
+          <p className="px-3 pb-1 pt-0.5 font-display text-sm font-bold lg:hidden" aria-label="Résumé du parcours">{stats ? `${fmtKm(stats.distanceM)} · +${fmtM(stats.gainM)} · −${fmtM(stats.lossM)} · ${fmtDuration(durationMin)}` : "Posez des points sur la carte"}</p>
           <div className="flex text-sm font-semibold" role="tablist">
             {([["trace", "Tracé"], ["props", "Infos"], ["poi", "POI"], ["fichiers", "Fichiers"]] as const).map(([k, l]) => (
-              <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={clsx("flex-1 py-2.5", tab === k ? "border-b-2 border-pine-600 text-pine-700" : "text-ink-500")}>{l}</button>
+              <button key={k} role="tab" aria-selected={tab === k} onClick={() => { setTab(k); setSheet((x) => (x === "peek" ? "half" : x)); }} className={clsx("flex-1 py-2.5", tab === k ? "border-b-2 border-pine-600 text-pine-700" : "text-ink-500")}>{l}</button>
             ))}
           </div>
-        </div>
-
+        </div>}>
         <div className="grid gap-4 p-4">
           {tab === "trace" && (<>
+            <div className="lg:hidden"><ElevationChart points={profile} markers={chartMarkers} onHover={setHoverIdx} height={150} /></div>
             <dl className="grid grid-cols-2 gap-3">
               {[["Distance", stats ? fmtKm(stats.distanceM) : "—"], ["Durée estimée", stats ? fmtDuration(durationMin) : "—"], ["D+", stats ? fmtM(stats.gainM) : "—"], ["D−", stats ? fmtM(stats.lossM) : "—"], ["Altitude min", stats ? fmtM(stats.minEle) : "—"], ["Altitude max", stats ? fmtM(stats.maxEle) : "—"]].map(([l, v]) => (
                 <div key={l} className="rounded-xl bg-ink-50 p-3"><dt className="text-[11px] font-medium uppercase tracking-wide text-ink-400">{l}</dt><dd className="font-display text-lg font-bold">{v}</dd></div>
@@ -436,7 +438,7 @@ export function Editor({ routeId }: { routeId?: string }) {
             </div>
           </>)}
         </div>
-      </aside>
+      </Sheet>
     </div>
   );
 }
