@@ -6,7 +6,8 @@ import Link from "next/link";
 import clsx from "clsx";
 import { useAllRoutes } from "@/lib/route-vm";
 import { sparkOf, type RouteVM } from "@/lib/route-model";
-import { BASEMAPS, OVERLAYS, buildStyle } from "@/lib/basemaps";
+import { buildStyle } from "@/lib/basemaps";
+import { LayerControl } from "@/components/map/layer-control";
 import { POI_KINDS, fetchPois, type PoiKind, type PoiFeature } from "@/lib/poi";
 import { SPORTS, DIFFICULTY_LABEL, type Sport } from "@/lib/sports";
 import { fmtKm, fmtM, fmtDuration } from "@/lib/geo";
@@ -46,8 +47,6 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
   const [sport, setSport] = useState<Sport | "all">("all");
   const [maxKm, setMaxKm] = useState(60);
   const [inView, setInView] = useState(false);
-  const [basemap, setBasemap] = useState(BASEMAPS[0].id);
-  const [overlays, setOverlays] = useState<string[]>([]);
   const [poiKinds, setPoiKinds] = useState<PoiKind[]>([]);
   const [poiState, setPoiState] = useState<{ status: "idle" | "loading" | "error" | "zoom"; count?: number }>({ status: "idle" });
   const [q, setQ] = useState("");
@@ -87,7 +86,7 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
       if (dead || !el.current) return;
       mlRef.current = ml;
       const m = new ml.Map({ container: el.current, style: buildStyle(), center: initial ? [initial.lng, initial.lat] : [2.5, 46.6], zoom: initial ? 10 : 5.3, attributionControl: { compact: true } });
-      m.addControl(new ml.NavigationControl(), "top-right");
+      m.addControl(new ml.NavigationControl({ showCompass: false }), "top-right");
       m.addControl(new ml.ScaleControl({ unit: "metric" }), "bottom-left");
       m.on("style.load", () => {
         m.addSource("routes", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
@@ -179,16 +178,6 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
     }
   }, [compared, shown, ready]);
 
-  // Fond de carte
-  useEffect(() => {
-    const m = mapRef.current; if (!m || !ready) return;
-    for (const b of BASEMAPS) m.setLayoutProperty(`base-${b.id}`, "visibility", b.id === basemap ? "visible" : "none");
-  }, [basemap, ready]);
-
-  useEffect(() => {
-    const m = mapRef.current; if (!m || !ready) return;
-    for (const o of OVERLAYS) m.setLayoutProperty(`ovl-${o.id}`, "visibility", overlays.includes(o.id) ? "visible" : "none");
-  }, [overlays, ready]);
 
   // Points d'intérêt (données OSM via Overpass), rechargés après chaque déplacement
   useEffect(() => {
@@ -261,7 +250,7 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
         </form>
         {msg && <p className="border-b border-ink-100 px-3 py-2 text-xs text-ink-600" aria-live="polite">{msg}</p>}
         <div className="flex border-b border-ink-100 text-sm font-semibold" role="tablist">
-          {([["routes", "Parcours", Filter], ["calques", "Calques", Layers3], ["layers", "Fonds & POI", Layers]] as const).map(([id, l, I]) => (
+          {([["routes", "Parcours", Filter], ["calques", "Calques", Layers3], ["layers", "Points d'intérêt", Layers]] as const).map(([id, l, I]) => (
             <button key={id} role="tab" aria-selected={panel === id} onClick={() => setPanel(id)} className={clsx("flex flex-1 items-center justify-center gap-1.5 py-2.5", panel === id ? "border-b-2 border-pine-600 text-pine-700" : "text-ink-500")}><I className="size-4" />{l}</button>
           ))}
         </div>
@@ -286,16 +275,6 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
             </div>
           ) : panel === "layers" ? (
             <div className="grid gap-5">
-              <fieldset><legend className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-400">Fond de carte</legend>
-                <div className="grid gap-2">{BASEMAPS.map((b) => (
-                  <label key={b.id} className={clsx("cursor-pointer rounded-lg border p-3 text-sm", basemap === b.id ? "border-pine-500 bg-pine-50" : "border-ink-200")}>
-                    <input type="radio" name="bm" className="mr-2 accent-[var(--color-pine-600)]" checked={basemap === b.id} onChange={() => setBasemap(b.id)} /><b>{b.label}</b>
-                    <p className="mt-1 text-xs text-ink-500">{b.note}</p>
-                  </label>))}
-                </div>
-                <div className="mt-3 grid gap-2">{OVERLAYS.map((o) => (
-                  <label key={o.id} className="cursor-pointer rounded-lg border border-ink-200 p-3 text-sm"><input type="checkbox" className="mr-2 accent-[var(--color-pine-600)]" checked={overlays.includes(o.id)} onChange={(e) => setOverlays((s) => (e.target.checked ? [...s, o.id] : s.filter((x) => x !== o.id)))} /><b>{o.label}</b><p className="mt-1 text-xs text-ink-500">{o.note}</p></label>))}</div>
-              </fieldset>
               <fieldset><legend className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-400">Points d'intérêt (OpenStreetMap)</legend>
                 <div className="flex flex-wrap gap-2">{(Object.keys(POI_KINDS) as PoiKind[]).map((k) => {
                   const on = poiKinds.includes(k);
@@ -344,6 +323,7 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
 
       <MapFrame className="order-1 min-h-[16rem] flex-1 lg:order-2" banner={banner}>
         <div className="absolute inset-0"><div ref={el} className="size-full" role="region" aria-label="Carte interactive" /></div>
+        <LayerControl map={mapRef} ready={ready} />
         {compared.length > 0 && (
           <div className="absolute inset-x-2 bottom-8 z-10 max-h-[55%] overflow-auto rounded-xl bg-white/95 p-3 shadow-lift backdrop-blur lg:inset-x-auto lg:left-3 lg:w-[34rem]">
             <div className="mb-2 flex items-center justify-between"><h2 className="font-display text-sm font-bold">{compared.length > 1 ? "Comparaison" : "Parcours sélectionné"}</h2>

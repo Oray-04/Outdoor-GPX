@@ -6,6 +6,7 @@ import { Play, Square, Pause, Navigation, AlertTriangle, ArrowUp, Smartphone, Lo
 import clsx from "clsx";
 import { useMap } from "@/components/map/use-map";
 import { MapFrame, StatBanner } from "@/components/map/map-frame";
+import { LayerControl } from "@/components/map/layer-control";
 import { Button } from "@/components/ui/button";
 import { useAllRoutes } from "@/lib/route-vm";
 import { activitiesRepo } from "@/lib/repo";
@@ -129,6 +130,7 @@ export function Tracker({ initialRouteId }: { initialRouteId?: string }) {
         <h1 className="text-2xl font-extrabold sm:text-3xl">Suivi GPS et navigation</h1>
         <MapFrame className="mt-3 h-[55vh] min-h-[22rem] overflow-hidden rounded-2xl ring-1 ring-ink-100" banner={<StatBanner title={route ? route.name : "Activité libre"} items={[{ label: "Distance", value: fmtKm(st.distM) }, { label: "Durée", value: fmtT(elapsed) }, { label: "D+", value: fmtM(st.gainM) }, ...(nav ? [{ label: "Reste", value: fmtKm(nav.remainM) }] : [])]} />}>
           <div className="absolute inset-0"><div ref={el} className="size-full" role="region" aria-label="Carte de navigation" /></div>
+          <LayerControl map={map} ready={ready} />
           {off && <div role="alert" className="absolute inset-x-3 top-3 flex items-center gap-2 rounded-xl bg-danger px-3 py-2.5 text-white shadow-lg"><AlertTriangle className="size-5 shrink-0" /><div><p className="font-bold">Vous êtes sorti du parcours</p><p className="text-sm">À {Math.round(nav?.offM ?? 0)} m de la trace.</p></div></div>}
           {nav && !off && active && <div className="absolute inset-x-3 top-3 flex items-center gap-3 rounded-xl bg-ink-900/90 px-3 py-2.5 text-white shadow-lg backdrop-blur"><ArrowUp className="size-8 shrink-0 text-ember-400 transition-transform" style={{ transform: `rotate(${rel}deg)` }} aria-hidden="true" /><div><p className="font-bold">{HINT_LABEL[nav.hint]}</p><p className="text-sm text-ink-200">Reste {fmtKm(nav.remainM)} · écart {Math.round(nav.offM)} m</p></div></div>}
           {!follow && active && <button onClick={() => setFollow(true)} className="absolute bottom-[5.5rem] right-2.5 grid size-9 place-items-center rounded-lg bg-white shadow-md ring-1 ring-black/10" aria-label="Recentrer sur ma position"><LocateFixed className="size-5" /></button>}

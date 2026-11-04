@@ -35,7 +35,7 @@ export const HeroMap = forwardRef<HeroMapHandle>(function HeroMap(_, ref) {
         container: el.current,
         style: {
           version: 8,
-          sources: { base: { type: "raster", tiles: BASEMAPS[0].tiles, tileSize: 256, maxzoom: BASEMAPS[0].maxzoom, attribution: BASEMAPS[0].attribution } },
+          sources: { base: { type: "raster", tiles: [BASEMAPS[0].tiles], tileSize: 256, maxzoom: BASEMAPS[0].maxzoom, attribution: BASEMAPS[0].attribution } },
           layers: [{ id: "bg", type: "background", paint: { "background-color": "#dfe7e2" } }, { id: "base", type: "raster", source: "base", paint: { "raster-saturation": -0.3 } }],
         },
         center: [4.2, 45.6], zoom: 4.6, attributionControl: { compact: true },

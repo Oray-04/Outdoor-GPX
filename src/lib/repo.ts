@@ -93,11 +93,12 @@ export const saveEditorial = (e: Editorial) => writeStore("editorial", e);
 export interface RouteLayer { id: string; name: string; color: string; builtin?: boolean }
 export const DEFAULT_LAYERS: RouteLayer[] = [
   { id: "mine", name: "Mes parcours", color: "#1e7a58", builtin: true },
-  { id: "fkt", name: "Parcours FKT (import personnel)", color: "#7a4bd1", builtin: true },
   { id: "orga", name: "Parcours d'organisations", color: "#3ba6c9", builtin: true },
 ];
 export const DEMO_LAYER: RouteLayer = { id: "demo", name: "Démonstration", color: "#f0612b", builtin: true };
-export const useLayers = (): RouteLayer[] => { const s = useStore<RouteLayer[] | null>("layers", null); return s ?? DEFAULT_LAYERS; };
+/** Ancien calque supprimé : ses parcours sont rattachés à « Mes parcours ». */
+export const normalizeLayer = (id: string | undefined) => (!id || id === "fkt" ? "mine" : id);
+export const useLayers = (): RouteLayer[] => { const s = useStore<RouteLayer[] | null>("layers", null); return (s ?? DEFAULT_LAYERS).filter((l) => l.id !== "fkt"); };
 export const saveLayers = (l: RouteLayer[]) => writeSingle("layers", l);
 export function deleteLayer(id: string) {
   const cur = readStore<RouteLayer[] | null>("layers", null) ?? DEFAULT_LAYERS;

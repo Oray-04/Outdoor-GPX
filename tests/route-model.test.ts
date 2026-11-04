@@ -25,7 +25,7 @@ import { inFrance } from "../src/lib/geo";
 describe("calques", () => {
   it("emprise France : Chamonix oui, Londres non", () => { expect(inFrance(6.87, 45.92)).toBe(true); expect(inFrance(-0.12, 51.5)).toBe(false); expect(inFrance(9.1, 42.3)).toBe(true); });
   it("filtre par calque", () => {
-    const a = { ...DEMO_VMS[0], layer: "fkt" };
-    expect(filterRoutes([a, DEMO_VMS[1]], { ...DEFAULT_FILTERS, layers: ["fkt"] }, [])).toHaveLength(1);
+    const a = { ...DEMO_VMS[0], layer: "orga" };
+    expect(filterRoutes([a, DEMO_VMS[1]], { ...DEFAULT_FILTERS, layers: ["orga"] }, [])).toHaveLength(1);
   });
 });

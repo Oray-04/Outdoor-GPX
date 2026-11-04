@@ -3,7 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Marker, GeoJSONSource } from "maplibre-gl";
 import { Undo2, Redo2, Route as RouteIcon, MousePointer2, ArrowLeftRight, Repeat, Trash2, Copy, Scissors, Flag, Upload, Download, MapPin, Loader2, Check, AlertTriangle, Plus, Merge, LocateFixed } from "lucide-react";
 import clsx from "clsx";
-import { useMap, setBasemap, BasemapPicker } from "@/components/map/use-map";
+import { useMap } from "@/components/map/use-map";
+import { LayerControl } from "@/components/map/layer-control";
 import { MapFrame, StatBanner } from "@/components/map/map-frame";
 import { ElevationChart, type ChartMarker } from "@/components/route/elevation-chart";
 import { Button } from "@/components/ui/button";
@@ -43,7 +44,6 @@ export function Editor({ routeId }: { routeId?: string }) {
   const [coords, setCoords] = useState<Pt[]>([]);
   const [elev, setElev] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [saved, setSaved] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const [basemap, setBase] = useState("ign-plan");
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const [loaded, setLoaded] = useState(!routeId);
   const markers = useRef<Marker[]>([]);
@@ -75,7 +75,7 @@ export function Editor({ routeId }: { routeId?: string }) {
     const r = routesRepo.get(routeId);
     if (!r) { setMsg({ kind: "err", text: "Parcours introuvable sur cet appareil." }); setLoaded(true); return; }
     createdAt.current = r.createdAt; sourceKind.current = r.source; fileName.current = r.fileName;
-    setMeta({ name: r.name, description: r.description, sport: r.sport, visibility: r.visibility, terrain: r.terrain, region: r.region, country: r.country, layer: r.layer ?? "mine", sourceUrl: r.sourceUrl ?? "" });
+    setMeta({ name: r.name, description: r.description, sport: r.sport, visibility: r.visibility, terrain: r.terrain, region: r.region, country: r.country, layer: r.layer === "fkt" || !r.layer ? "mine" : r.layer, sourceUrl: r.sourceUrl ?? "" });
     setHist([{ waypoints: r.waypoints, segs: r.segs, pois: r.pois }]); setHi(0);
     setCoords(r.coords); setElev("ok"); setLoaded(true);
   }, [routeId]);
@@ -146,8 +146,6 @@ export function Editor({ routeId }: { routeId?: string }) {
     (m.getSource("track") as GeoJSONSource | undefined)?.setData({ type: "FeatureCollection", features: track.length > 1 ? [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: track } }] : [] });
     if (!fitted.current && track.length > 1) { const b = bboxOf(track); m.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 70, maxZoom: 15, duration: 0 }); fitted.current = true; }
   }, [track, ready, map]);
-
-  useEffect(() => { const m = map.current; if (m && ready) setBasemap(m, basemap); }, [basemap, ready, map]);
 
   // Clic sur la carte : ajoute un waypoint / un POI, ou insère un point sur le tracé
   const stRef = useRef(st); stRef.current = st;
@@ -280,7 +278,7 @@ export function Editor({ routeId }: { routeId?: string }) {
             <button className={tb} onClick={locate} aria-label="Me localiser" title="Me localiser"><LocateFixed className="size-4" /></button>
             <button className={tb} onClick={reset} aria-label="Nouveau parcours" title="Nouveau / effacer"><Trash2 className="size-4" /></button>
           </div>
-          <div className="absolute right-14 top-3"><BasemapPicker value={basemap} onChange={setBase} /></div>
+          <LayerControl map={map} ready={ready} />
           <div className="pointer-events-none absolute bottom-8 left-3 flex flex-col gap-1.5">
             {busy && <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/95 px-2.5 py-1 text-xs shadow"><Loader2 className="size-3.5 animate-spin" />Calcul du tracé…</span>}
             {poiMode && <span className="rounded-lg bg-ember-500 px-2.5 py-1 text-xs font-semibold text-white shadow">Cliquez sur la carte pour placer : {POI_TYPES[poiMode].label} (Échap pour annuler)</span>}

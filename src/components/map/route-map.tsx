@@ -4,6 +4,7 @@ import type { GeoJSONSource, Marker } from "maplibre-gl";
 import { useMap } from "./use-map";
 import { bboxOf, trackStats, fmtKm, fmtM } from "@/lib/geo";
 import { MapFrame, StatBanner } from "./map-frame";
+import { LayerControl } from "./layer-control";
 import { POI_TYPES, type Poi, type Pt } from "@/lib/types";
 
 /** Carte en lecture seule : trace, départ/arrivée, POI, position active (survol du profil). */
@@ -55,6 +56,7 @@ export function RouteMap({ coords, pois = [], activeIndex, className = "h-80", o
   return (
     <MapFrame className={`overflow-hidden rounded-2xl ring-1 ring-ink-100 ${className}`} banner={<StatBanner title={title} items={st ? [{ label: "Distance", value: fmtKm(st.distanceM) }, { label: "D+", value: fmtM(st.gainM) }, { label: "D−", value: fmtM(st.lossM) }, { label: "Alt. min", value: fmtM(st.minEle) }, { label: "Alt. max", value: fmtM(st.maxEle) }] : [{ label: "Distance", value: "—" }]} />}>
       <div className="absolute inset-0"><div ref={el} className="size-full" role="region" aria-label="Carte du parcours" /></div>
+      <LayerControl map={map} ready={ready} />
     </MapFrame>
   );
 }

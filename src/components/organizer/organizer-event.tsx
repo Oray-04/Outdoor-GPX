@@ -5,6 +5,7 @@ import type { GeoJSONSource, Marker } from "maplibre-gl";
 import { ArrowLeft, Plus, Trash2, FileDown, Printer, Users, Eye } from "lucide-react";
 import clsx from "clsx";
 import { useMap } from "@/components/map/use-map";
+import { LayerControl } from "@/components/map/layer-control";
 import { Button } from "@/components/ui/button";
 import { eventsRepo, routesRepo } from "@/lib/repo";
 import { POST_KINDS, ROLES, passageTable, positionOnTrack, type EventModel, type Member, type Post, type PostKind, type Race, type Role, type Volunteer } from "@/lib/events";
@@ -161,7 +162,7 @@ function Logistics({ ev, save }: P) {
           <select aria-label="Course" className="h-9 rounded-lg border border-ink-200 bg-white px-2 text-sm" value={race?.id} onChange={(e) => setRaceId(e.target.value)}>{ev.races.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}</select>
           <div className="flex flex-wrap gap-1">{(Object.keys(POST_KINDS) as PostKind[]).map((k) => <button key={k} aria-pressed={kind === k} onClick={() => setKind(k)} className={clsx("rounded-full border px-2.5 py-1 text-xs font-medium", kind === k ? "border-transparent text-white" : "border-ink-200")} style={kind === k ? { background: POST_KINDS[k].color } : undefined}>{POST_KINDS[k].label}</button>)}</div>
         </div>
-        <div className="relative h-[28rem] overflow-hidden rounded-2xl ring-1 ring-ink-100"><div className="absolute inset-0"><div ref={el} className="size-full" role="application" aria-label="Carte logistique : cliquez pour placer un poste" /></div></div>
+        <div className="relative h-[28rem] overflow-hidden rounded-2xl ring-1 ring-ink-100"><div className="absolute inset-0"><div ref={el} className="size-full" role="application" aria-label="Carte logistique : cliquez pour placer un poste" /></div><LayerControl map={map} ready={ready} /></div>
         <p className="mt-2 text-xs text-ink-500" aria-live="polite">{msg ?? (route ? "Choisissez un type puis cliquez sur le tracé : le kilomètre est calculé automatiquement." : "Liez un parcours à cette course pour placer les postes sur le tracé.")}</p>
         <div className="mt-3 flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={exportMap} disabled={!posts.length}><FileDown className="size-4" />Carte en PDF</Button><Button size="sm" variant="secondary" onClick={() => window.print()}><Printer className="size-4" />Imprimer la page</Button></div>
       </div>

@@ -11,7 +11,7 @@ import { fromSaved } from "@/lib/route-model";
 import { FORMATS, parseAny, serialize, download, safeName, GpsFileError, MAX_BYTES, type GpsFormat, type ParsedFile } from "@/lib/formats";
 import { fromTrack } from "@/lib/editor-core";
 import { addElevation } from "@/lib/ign";
-import { trackStats, fmtKm, fmtM, inFrance } from "@/lib/geo";
+import { trackStats, fmtKm, fmtM } from "@/lib/geo";
 import { uid, type Pt } from "@/lib/types";
 import { routeHref, editorHref } from "@/lib/url";
 
@@ -44,10 +44,9 @@ export function FilesManager() {
     }
   }
 
-  const franceOnly = (p: Pending) => p.layer === "fkt" && p.coords && !inFrance(p.coords[0][0], p.coords[0][1]);
   const patchPending = (key: string, x: Partial<Pending>) => setPending((l) => l.map((i) => (i.key === key ? { ...i, ...x } : i)));
   const save = (p: Pending) => {
-    if (!p.parsed || !p.coords || franceOnly(p)) return;
+    if (!p.parsed || !p.coords) return;
     const st = fromTrack(p.coords, p.parsed.pois);
     const now = Date.now();
     const res = routesRepo.upsert({ id: uid(), name: p.parsed.name, description: "", sport: "trail", segs: st.segs, waypoints: st.waypoints, coords: p.coords, pois: st.pois, terrain: [], visibility: "prive", region: "", country: "", source: "import", fileName: p.file, layer: p.layer, sourceUrl: /^https?:\/\//.test(p.sourceUrl) ? p.sourceUrl : undefined, createdAt: now, updatedAt: now });
@@ -99,8 +98,7 @@ export function FilesManager() {
                     {p.parsed.warnings.map((w) => <p key={w} className="flex gap-1.5 text-xs text-warn"><AlertTriangle className="mt-0.5 size-3.5 shrink-0" />{w}</p>)}
                     <label className="mt-1 grid gap-1 text-xs font-medium">Calque<select className="h-9 rounded-lg border border-ink-200 bg-white px-2 text-sm" value={p.layer} onChange={(e) => patchPending(p.key, { layer: e.target.value })}>{layers.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label>
                     <label className="grid gap-1 text-xs font-medium">Lien source (optionnel)<input className="h-9 rounded-lg border border-ink-200 px-2 text-sm" placeholder="https://…" value={p.sourceUrl} onChange={(e) => patchPending(p.key, { sourceUrl: e.target.value })} /></label>
-                    {franceOnly(p) && <p role="alert" className="flex gap-1.5 text-xs text-danger"><AlertTriangle className="mt-0.5 size-3.5 shrink-0" />Ce calque est limité à la France (emprise approximative, métropole) : ce tracé commence ailleurs. Choisissez un autre calque.</p>}
-                    <div className="mt-2 flex gap-2"><Button size="sm" variant="brand" disabled={!!franceOnly(p)} onClick={() => save(p)}><Check className="size-4" />Enregistrer</Button><Button size="sm" variant="secondary" onClick={() => setPending((x) => x.filter((i) => i.key !== p.key))}>Écarter</Button></div>
+                    <div className="mt-2 flex gap-2"><Button size="sm" variant="brand" onClick={() => save(p)}><Check className="size-4" />Enregistrer</Button><Button size="sm" variant="secondary" onClick={() => setPending((x) => x.filter((i) => i.key !== p.key))}>Écarter</Button></div>
                   </div>
                 </div>); })()}
             </article>

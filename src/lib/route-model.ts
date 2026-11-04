@@ -14,7 +14,7 @@ export const isClosedTrack = (c: Pt[]) => c.length > 2 && Math.abs(c[0][0] - c[c
 
 export function fromSaved(r: SavedRoute): RouteVM {
   const stats = trackStats(r.coords, 3);
-  return { id: r.id, name: r.name, description: r.description, sport: r.sport, region: r.region, country: r.country, coords: r.coords, pois: r.pois, waypoints: r.source === "creation" ? r.waypoints : [], terrain: r.terrain, loop: isClosedTrack(r.coords), visibility: r.visibility, origin: "mine", layer: r.layer ?? "mine", sourceUrl: r.sourceUrl, stats, durationMin: estimateMinutes(r.sport, stats.distanceM, stats.gainM), difficulty: difficultyOf(stats.distanceM, stats.gainM), updatedAt: r.updatedAt };
+  return { id: r.id, name: r.name, description: r.description, sport: r.sport, region: r.region, country: r.country, coords: r.coords, pois: r.pois, waypoints: r.source === "creation" ? r.waypoints : [], terrain: r.terrain, loop: isClosedTrack(r.coords), visibility: r.visibility, origin: "mine", layer: r.layer === "fkt" || !r.layer ? "mine" : r.layer, sourceUrl: r.sourceUrl, stats, durationMin: estimateMinutes(r.sport, stats.distanceM, stats.gainM), difficulty: difficultyOf(stats.distanceM, stats.gainM), updatedAt: r.updatedAt };
 }
 
 export const DEMO_VMS: RouteVM[] = DEMO_ROUTES.map((d) => ({ id: d.id, name: d.name, description: "Tracé de démonstration généré automatiquement. Il ne correspond à aucun sentier réel.", sport: d.sport, region: d.region, country: d.country, coords: d.coords, pois: [], waypoints: [], terrain: [], loop: d.loop, visibility: "public", origin: "demo", layer: "demo", stats: d.stats, durationMin: d.durationMin, difficulty: d.difficulty }));

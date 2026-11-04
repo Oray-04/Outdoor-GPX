@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { Map as MLMap } from "maplibre-gl";
-import { BASEMAPS, buildStyle } from "@/lib/basemaps";
+import { buildStyle } from "@/lib/basemaps";
 import { BASE } from "@/lib/url";
 
 export type ML = typeof import("maplibre-gl");
@@ -34,19 +34,4 @@ export function useMap(opts: { center?: [number, number]; zoom?: number; scale?:
   }, []);
 
   return { el, map: mapRef, ml: mlRef, ready };
-}
-
-export function setBasemap(map: MLMap, id: string) {
-  for (const b of BASEMAPS) map.setLayoutProperty(`base-${b.id}`, "visibility", b.id === id ? "visible" : "none");
-}
-
-export function BasemapPicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {
-  return (
-    <label className="rounded-lg bg-white/95 px-2 py-1 text-xs shadow">
-      <span className="sr-only">Fond de carte</span>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className="bg-transparent font-medium">
-        {BASEMAPS.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
-      </select>
-    </label>
-  );
 }
