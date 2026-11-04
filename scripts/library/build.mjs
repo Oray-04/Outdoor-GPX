@@ -46,6 +46,20 @@ function chain(ways) {
   }
   return { line, gaps };
 }
+/** Assemble des morceaux de ligne : dans l'ordre donné, ou en choisissant à chaque fois le morceau le plus proche de la fin courante (dans les deux orientations). */
+function assemble(items, greedy) {
+  if (!items.length) return { line: [], gaps: [], total: 0 };
+  const rest = items.map((x) => x), first = rest.shift(); let line = [...first]; const gaps = [];
+  while (rest.length) {
+    const end = line[line.length - 1]; let bi = 0, bd = Infinity, brev = false;
+    const lim = greedy ? rest.length : 1;
+    for (let i = 0; i < lim; i++) { const ds = hav(end, rest[i][0]), de = hav(end, rest[i][rest[i].length - 1]); if (ds < bd) { bd = ds; bi = i; brev = false; } if (de < bd) { bd = de; bi = i; brev = true; } }
+    const seg = brev ? [...rest[bi]].reverse() : rest[bi]; rest.splice(bi, 1);
+    if (bd > 15) gaps.push(bd);
+    line.push(...(bd <= 1 ? seg.slice(1) : seg));
+  }
+  return { line, gaps, total: gaps.reduce((x, y) => x + y, 0) };
+}
 const isMain = (m) => !/^(alternative|alternate|excursion|approach|connection|variant|spur|shortcut|ferry)/i.test(m.role || "");
 
 async function buildLine(rootId, depth = 0, seen = new Set()) {
@@ -67,16 +81,11 @@ async function buildLine(rootId, depth = 0, seen = new Set()) {
       }
     }
   }
-  // 1) tronçons de la relation ; 2) sous-relations : orientées pour minimiser le trou avec la fin précédente
-  const waysOnly = parts.filter((p) => p.kind === "way").map((p) => p.pts), rels = parts.filter((p) => p.kind === "rel").map((p) => p.pts);
-  let line = [];
-  if (waysOnly.length) { const c = chain(waysOnly); line = c.line; allGaps = allGaps.concat(c.gaps); }
-  for (const r of rels) {
-    if (!line.length) { line = [...r]; continue; }
-    const end = line[line.length - 1], ds = hav(end, r[0]), de = hav(end, r[r.length - 1]); const seg = de < ds ? [...r].reverse() : r;
-    if (Math.min(ds, de) > 15) allGaps.push(Math.min(ds, de));
-    line.push(...seg);
-  }
+  // Assemblage : ordre des membres ; si des trous importants subsistent, repli « glouton » (plus proche extrémité) et on garde le meilleur
+  const all = parts.map((p) => p.pts).filter((p) => p.length > 1);
+  const a = assemble(all, false), b = a.gaps.some((g) => g > 2000) ? assemble(all, true) : null;
+  const best = b && b.total < a.total ? b : a;
+  const line = best.line; allGaps = allGaps.concat(best.gaps);
   return { line, gaps: allGaps, tags: rel.tags || {}, children };
 }
 
@@ -141,6 +150,7 @@ for (const r of spec) {
     };
     fs.writeFileSync(path.join(OUT, "routes", `${r.slug}.json`), JSON.stringify({ id: r.slug, coords }));
     const k = index.findIndex((e) => e.id === r.slug); if (k >= 0) index[k] = entry; else index.push(entry);
+    if (!args.includes("--dry")) fs.writeFileSync(indexFile, JSON.stringify([...index].sort((a, b) => a.name.localeCompare(b.name, "fr"))));
     console.log(`${(st.distanceM / 1000).toFixed(0)} km, D+ ${st.gainM}, ${coords.length} pts, trous ${gaps.length}${gaps.length ? ` (max ${Math.round(Math.max(...gaps))} m)` : ""}`);
   } catch (e) { console.log(`ÉCHEC : ${e.message}`); }
 }
