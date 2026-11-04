@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { destination, loopWaypoints, overlapRatio, lineKm, fitLoop, scoreProposal, pickDistinct, generateLoops, type GenDeps } from "../src/lib/generator";
-import { haversine } from "../src/lib/geo";
+import { haversine, densify } from "../src/lib/geo";
 import type { LL, Pt } from "../src/lib/types";
 
 const start: LL = [6.8694, 45.9237];
@@ -63,4 +63,41 @@ describe("générateur de boucles", () => {
     expect(got).toBe(ctrl.signal);
   });
   it("longueur calculée cohérente", () => { expect(lineKm([[6, 45], [6, 45.009]])).toBeCloseTo(1, 1); });
+});
+
+describe("génération avec D+ cible (terrain simulé)", () => {
+  // MNT synthétique : altitude = f(position). Le routeur factice relie les points en ligne brisée.
+  const dem = (amp: number, wavelengthM: number, tilt = 0): GenDeps["elevate"] => async (l) => l.map((p) => {
+    const x = (p[0] - start[0]) * 78000, y = (p[1] - start[1]) * 111000;
+    return [p[0], p[1], 1000 + amp * (Math.sin(x / wavelengthM) + Math.cos(y / wavelengthM)) + tilt * x / 1000] as Pt;
+  });
+  const deps = (el: GenDeps["elevate"]): GenDeps => ({ via: async (pts, pr) => { const l = await fakeVia(1.5)(pts, pr); return l && densify(l, 40); }, elevate: el }); // routeur factice dense, comme un vrai tracé
+  it("marge ±20 % : bornes correctes", async () => {
+    const { gainWithinTolerance } = await import("../src/lib/generator");
+    expect(gainWithinTolerance(800, 1000)).toBe(true); expect(gainWithinTolerance(1200, 1000)).toBe(true);
+    expect(gainWithinTolerance(799, 1000)).toBe(false); expect(gainWithinTolerance(1201, 1000)).toBe(false);
+    expect(gainWithinTolerance(500, null)).toBeNull();
+  });
+  it("le D+ affiché est exactement celui du tracé généré", async () => {
+    const { trackStats } = await import("../src/lib/geo");
+    const res = await generateLoops({ start, targetKm: 12, targetGain: 400, profile: "trail", count: 3 }, deps(dem(150, 1500)));
+    expect(res.length).toBeGreaterThan(0);
+    for (const p of res) { const st = trackStats(p.coords, 3); expect(p.gainM).toBe(st.gainM); expect(p.lossM).toBe(st.lossM); expect(p.distanceM).toBeCloseTo(st.distanceM, 3); }
+  });
+  it("terrain plat : D+ faible, 1000 m demandés → aucune boucle dans la marge, signalé honnêtement", async () => {
+    const res = await generateLoops({ start, targetKm: 15, targetGain: 1000, profile: "trail", count: 3 }, deps(dem(3, 2000)));
+    expect(res.every((p) => p.gainM < 300)).toBe(true); expect(res.some((p) => p.gainOk)).toBe(false);
+  });
+  for (const [name, amp, wl, target] of [["vallonné", 60, 900, 400], ["montagneux", 400, 1800, 1000]] as const) {
+    it(`terrain ${name} : trouve des boucles continues dans la marge ±20 % de ${target} m`, async () => {
+      const res = await generateLoops({ start, targetKm: 15, targetGain: target, profile: "trail", count: 4 }, deps(dem(amp, wl)));
+      expect(res.length).toBeGreaterThan(0);
+      expect(res.some((p) => p.gainOk), `D+ obtenus : ${res.map((p) => Math.round(p.gainM)).join(", ")}`).toBe(true);
+      expect(res[0].gainOk).toBe(true); // les boucles dans la marge sont classées en premier
+      for (const p of res) { // continuité : pas de saut > 60 m, boucle fermée sur le départ
+        for (let i = 1; i < p.line.length; i++) expect(haversine(p.line[i - 1], p.line[i])).toBeLessThan(60);
+        expect(haversine(p.line[0], p.line.at(-1)!)).toBeLessThan(30);
+      }
+    });
+  }
 });

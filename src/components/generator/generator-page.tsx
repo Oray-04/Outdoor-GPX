@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { GeoJSONSource, Marker } from "maplibre-gl";
-import { Sparkles, LocateFixed, Search, Loader2, Square, Download, Pencil, Save, TriangleAlert, Mountain, Route as RouteIcon } from "lucide-react";
+import { Sparkles, LocateFixed, Search, Loader2, Square, Download, Pencil, Save, TriangleAlert, Mountain, Check, Route as RouteIcon } from "lucide-react";
 import clsx from "clsx";
 import { useMap } from "@/components/map/use-map";
 import { LayerControl } from "@/components/map/layer-control";
@@ -109,7 +109,10 @@ export function GeneratorPage() {
         { via: routeVia, elevate: addElevation, surface: surfaceShare }, { signal: c.signal, onProgress: setProgress });
       setProps(res); setSel(res[0]?.id ?? null);
       if (!res.length) setMsg({ kind: "warn", text: "Aucune boucle trouvée depuis ce départ : essayez un autre point, une distance plus courte, ou une autre pratique." });
-      else { const b = bboxOf(res.flatMap((p) => p.line)); map.current?.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 60, maxZoom: 15 }); }
+      else {
+        if (!anyGain && !res.some((p) => p.gainOk)) setMsg({ kind: "warn", text: `Aucune boucle de ${km} km ne respecte ${gain} m de D+ (±20 %) depuis ce départ : le relief accessible ne le permet pas. Les propositions les plus proches sont affichées avec leur D+ réel.` });
+        const b = bboxOf(res.flatMap((p) => p.line)); map.current?.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 60, maxZoom: 15 });
+      }
     } catch (e) { if ((e as Error).name !== "AbortError") setMsg({ kind: "err", text: "Génération impossible pour le moment (service de calcul indisponible). Réessayez dans un instant." }); }
     finally { setBusy(false); setProgress(null); }
   }
@@ -146,7 +149,8 @@ export function GeneratorPage() {
           <label className="grid gap-1 text-sm font-medium"><span className="flex justify-between"><span className="flex items-center gap-1.5"><RouteIcon className="size-4" />Distance</span><b className="font-display">{km} km</b></span>
             <input type="range" min={3} max={80} step={1} value={km} onChange={(e) => setKm(+e.target.value)} className="h-8 w-full accent-[var(--color-pine-600)]" aria-label="Distance cible en kilomètres" /></label>
           <label className="grid gap-1 text-sm font-medium"><span className="flex justify-between"><span className="flex items-center gap-1.5"><Mountain className="size-4" />Dénivelé positif</span><b className="font-display">{anyGain ? "indifférent" : `${gain} m`}</b></span>
-            <input type="range" min={0} max={3500} step={50} value={gain} disabled={anyGain} onChange={(e) => setGain(+e.target.value)} className="h-8 w-full accent-[var(--color-pine-600)] disabled:opacity-40" aria-label="Dénivelé positif cible en mètres" /></label>
+            <input type="range" min={0} max={3500} step={50} value={gain} disabled={anyGain} onChange={(e) => setGain(+e.target.value)} className="h-8 w-full accent-[var(--color-pine-600)] disabled:opacity-40" aria-label="Dénivelé positif cible en mètres" aria-describedby="gain-note" /></label>
+          <p id="gain-note" className="-mt-1 text-xs text-ink-500">Le dénivelé indiqué est une estimation. Une marge d'erreur de ±20 % peut être appliquée afin de trouver un parcours adapté au terrain.</p>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={anyGain} onChange={(e) => setAnyGain(e.target.checked)} className="accent-[var(--color-pine-600)]" />Dénivelé indifférent</label>
           {busy ? <Button variant="secondary" size="lg" onClick={() => ctrl.current?.abort()}><Square className="size-4" />Arrêter</Button> : <Button size="lg" onClick={run}><Sparkles className="size-5" />Générer 4 propositions</Button>}
           {busy && progress && <div role="status" aria-live="polite"><div className="flex justify-between text-xs text-ink-500"><span className="inline-flex items-center gap-1.5"><Loader2 className="size-3.5 animate-spin" />{PHASE[progress.phase]}…</span><span>{progress.done}/{progress.total}</span></div><div className="mt-1 h-1.5 overflow-hidden rounded-full bg-ink-100"><div className="h-full rounded-full bg-pine-500 transition-all" style={{ width: `${(progress.done / Math.max(1, progress.total)) * 100}%` }} /></div></div>}
@@ -164,6 +168,7 @@ export function GeneratorPage() {
                   <span className="mt-1 grid grid-cols-3 gap-2 text-sm"><span><b className="font-display">{fmtKm(p.distanceM)}</b><br /><small className="text-ink-400">{dk >= 0 ? "+" : ""}{dk.toFixed(1).replace(".", ",")} km</small></span>
                     <span><b className="font-display">{fmtM(p.gainM)}</b> D+<br /><small className="text-ink-400">{anyGain ? "" : `${dg >= 0 ? "+" : ""}${Math.round(dg)} m`}</small></span>
                     <span><b className="font-display">{p.offRoadPct != null ? `${p.offRoadPct} %` : "—"}</b><br /><small className="text-ink-400">chemins</small></span></span>
+                  {p.gainOk != null && <span className={clsx("mt-1 flex items-center gap-1 text-xs", p.gainOk ? "text-pine-700" : "text-warn")}>{p.gainOk ? <><Check className="size-3.5" />D+ mesuré dans la marge de ±20 % ({Math.round(gain * 0.8)}–{Math.round(gain * 1.2)} m)</> : <><TriangleAlert className="size-3.5" />D+ hors de la marge de ±20 %</>}</span>}
                   {p.overlapPct >= 15 && <span className="mt-1 flex items-center gap-1 text-xs text-warn"><TriangleAlert className="size-3.5" />{p.overlapPct} % en aller-retour</span>}
                 </button></li>);
             })}</ul>

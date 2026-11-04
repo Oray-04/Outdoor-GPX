@@ -12,7 +12,13 @@ export interface GenInput { start: LL; targetKm: number; targetGain: number | nu
 export interface Proposal {
   id: string; bearing: number; line: LL[]; coords: Pt[];
   distanceM: number; gainM: number; lossM: number; overlapPct: number; offRoadPct?: number; pathPct?: number; score: number;
+  /** D+ mesuré sur le tracé réellement généré, dans la marge acceptée autour de la cible (null = pas de cible). */
+  gainOk: boolean | null;
 }
+/** Marge acceptée sur le dénivelé cible (±20 %). */
+export const GAIN_TOLERANCE = 0.2;
+export const gainWithinTolerance = (gainM: number, target: number | null, tol = GAIN_TOLERANCE) =>
+  target == null ? null : target <= 0 ? gainM <= 100 : Math.abs(gainM - target) <= tol * target;
 export interface GenDeps {
   /** Itinéraire passant par les points donnés, ou null s'il n'existe pas. */
   via(points: LL[], profile: Profile, signal?: AbortSignal): Promise<LL[] | null>;
@@ -111,16 +117,39 @@ export async function generateLoops(input: GenInput, deps: GenDeps, opts: { sign
       opts.onProgress?.({ phase: "tracé", done: ++done, total: n });
     }
   }));
-  // altitudes + score
+  // altitudes + score : le D+ est celui du tracé réellement généré (altitudes IGN, même calcul que partout sur le site)
   const scored: Proposal[] = []; let e = 0;
-  for (const f of fitted) {
+  const evaluate = async (f: { theta: number; line: LL[] }) => {
     const coords = await deps.elevate(f.line, opts.signal);
     const st = trackStats(coords, 3), ov = Math.round(overlapRatio(f.line) * 100);
     const base = { id: `g-${Math.round(f.theta)}`, bearing: f.theta, line: f.line, coords, distanceM: st.distanceM, gainM: st.gainM, lossM: st.lossM, overlapPct: ov };
-    scored.push({ ...base, score: scoreProposal(base, targetKm, targetGain) });
+    scored.push({ ...base, gainOk: gainWithinTolerance(st.gainM, targetGain), score: scoreProposal(base, targetKm, targetGain) });
     opts.onProgress?.({ phase: "altitudes", done: ++e, total: fitted.length });
+  };
+  for (const f of fitted) await evaluate(f);
+  // Aucune boucle dans la marge : on explore d'autres directions, classées selon le relief estimé sur le cercle idéal
+  // (altitudes du cercle, calibrées sur le rapport D+ réel / D+ estimé des boucles déjà tracées).
+  if (targetGain != null && !scored.some((p) => p.gainOk)) {
+    const tried = new Set(thetas);
+    const extra = Array.from({ length: n }, (_, i) => (i * 360) / n + 180 / n).filter((t) => !tried.has(t));
+    const radius = (targetKm * 1000) / (2 * Math.PI * DETOUR);
+    const est = async (theta: number) => { const ring = loopWaypoints(start, radius, theta, 11); const c = await deps.elevate(ring, opts.signal).catch(() => null); return c ? trackStats(c, 3).gainM : 0; };
+    const ratios: number[] = [];
+    for (const p of scored.slice(0, 4)) { const g = await est(p.bearing); if (g > 5) ratios.push(p.gainM / g); }
+    const ratio = ratios.length ? ratios.reduce((a, b) => a + b, 0) / ratios.length : 1;
+    const ranked: { theta: number; err: number }[] = [];
+    for (const t of extra) ranked.push({ theta: t, err: Math.abs((await est(t)) * ratio - targetGain) });
+    ranked.sort((a, b) => a.err - b.err);
+    const picks = ranked.slice(0, 4).map((r) => r.theta);
+    for (const theta of picks) {
+      const r = await fitLoop(start, theta, targetKm, profile, deps, { signal: opts.signal });
+      if (r && Math.abs(r.km - targetKm) / targetKm <= 0.25) { fitted.push({ theta, ...r }); await evaluate({ theta, line: r.line }); }
+    }
   }
-  const top = pickDistinct(scored.sort((a, b) => a.score - b.score), count);
+  // les boucles dans la marge de D+ passent d'abord, puis le score
+  scored.sort((a, b) => (Number(!!b.gainOk) - Number(!!a.gainOk)) || a.score - b.score);
+  const top = pickDistinct(scored, count);
+  top.sort((a, b) => (Number(!!b.gainOk) - Number(!!a.gainOk)) || a.score - b.score);
   if (deps.surface) {
     let s = 0;
     for (const p of top) { const r = await deps.surface(p.line, profile, opts.signal).catch(() => null); if (r) { p.offRoadPct = r.offRoadPct; p.pathPct = r.pathPct; } opts.onProgress?.({ phase: "analyse", done: ++s, total: top.length }); }
