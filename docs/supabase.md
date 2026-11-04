@@ -12,10 +12,10 @@ Supabase a une offre gratuite suffisante pour un usage personnel. (Un projet gra
 ## 2. Créer les tables
 
 1. Dans le menu de gauche, ouvrez **SQL Editor** > **New query**.
-2. Ouvrez le fichier `supabase/migrations/20261103000000_init.sql` de ce dépôt, copiez **tout** son contenu et collez-le dans l'éditeur.
-3. Cliquez sur **Run**. Le message attendu est « Success. No rows returned ».
+2. Ouvrez le fichier `supabase/migrations/20261103000000_init.sql` de ce dépôt, copiez **tout** son contenu, collez-le dans l'éditeur et cliquez sur **Run** (message attendu : « Success. No rows returned »).
+3. Faites de même, **dans cet ordre**, avec `supabase/migrations/20261104000000_public_content.sql` (nouvelle requête, coller, Run).
 
-Ce script crée : les profils, les documents privés synchronisés, les parcours publiés (avec PostGIS) et toutes les règles d'accès (RLS) : chaque utilisateur ne voit que ses données ; seuls les parcours publiés sont lisibles par tous.
+Ces scripts créent : les profils, les documents privés synchronisés, les parcours publiés (avec PostGIS), les événements et collections publics, et toutes les règles d'accès (RLS) : chaque utilisateur ne voit que ses données ; seuls les contenus explicitement publiés sont lisibles par tous.
 
 ## 3. Configurer les adresses de connexion
 
@@ -65,7 +65,7 @@ Règle de conflit : la modification la plus récente gagne (horloge de l'apparei
 
 ## Tests
 
-- `bash supabase/tests/rls.sh` : applique la migration sur une base PostgreSQL + PostGIS locale jetable et vérifie 30 règles d'accès (isolation entre utilisateurs, protection de `is_admin`, lecture publique, recherche par emprise…).
+- `bash supabase/tests/rls.sh` : applique la migration sur une base PostgreSQL + PostGIS locale jetable et vérifie 45 règles d'accès (isolation entre utilisateurs, protection de `is_admin`, lecture publique, recherche par emprise, événements et collections publics, modération…).
 - `npm test` : logique de synchronisation (conflits, suppressions, deux appareils) et requêtes du client contre une API simulée.
 
 Limite connue : le code n'a pas encore été essayé contre un vrai projet Supabase (création de compte, e-mails de confirmation, requêtes réelles). Les premières connexions sont donc à vérifier ; en cas d'erreur, le message s'affiche dans **Mon espace > Compte et synchronisation**.
