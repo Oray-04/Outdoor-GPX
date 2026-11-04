@@ -176,3 +176,11 @@ export async function surfaceShare(line: LL[], profile: Profile, signal?: AbortS
   const sum = (uses: string[]) => edges.filter((e) => uses.includes(e.use ?? "")).reduce((s, e) => s + (e.length ?? 0), 0);
   return { offRoadPct: Math.round((100 * sum(["path", "footway", "track", "steps", "bridleway", "mountain_bike", "cycleway", "pedestrian"])) / tot), pathPct: Math.round((100 * sum(["path", "footway", "steps", "bridleway", "mountain_bike"])) / tot) };
 }
+
+/** Itinéraire passant par plusieurs points (une seule requête, demi-tours autorisés à chaque étape). */
+export async function routeVia(points: LL[], profile: Profile, signal?: AbortSignal): Promise<LL[] | null> {
+  const c = COSTING[profile];
+  const d = await postJson<Trip>("/route", { locations: points.map((p) => loc(p)), costing: c.costing, costing_options: { [c.costing]: c.options }, directions_type: "none" }, signal);
+  const l = d?.trip.legs.flatMap((g, i) => { const x = decodePolyline(g.shape); return i ? x.slice(1) : x; });
+  return l && l.length > 1 ? l : null;
+}

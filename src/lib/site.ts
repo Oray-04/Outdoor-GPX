@@ -3,11 +3,11 @@ export const SITE = { name: "Crête", tagline: "Tracer. Explorer. Courir. Partag
 export const NAV = [
   { href: "/explorer", label: "Explorer" },
   { href: "/creer", label: "Créer un parcours" },
+  { href: "/generer", label: "Générer" },
   { href: "/parcours", label: "Parcours" },
   { href: "/evenements", label: "Événements" },
   { href: "/organisateurs", label: "Organisateurs" },
   { href: "/communaute", label: "Communauté" },
-  { href: "/tarifs", label: "Tarifs" },
 ] as const;
 
 export const ROADMAP = [
