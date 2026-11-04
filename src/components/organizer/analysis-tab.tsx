@@ -9,7 +9,7 @@ import { MapFrame, StatBanner } from "@/components/map/map-frame";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { routesRepo } from "@/lib/repo";
-import { analyzeRoute, parcelsCsv, GROUP_LABEL, type Analysis, type Portion } from "@/lib/analysis";
+import { analyzeRoute, parcelsCsv, GROUP_LABEL, type Analysis, sliceByDistance, type Portion } from "@/lib/analysis";
 import { analysisPdf } from "@/lib/pdf";
 import { download, safeName } from "@/lib/formats";
 import { bboxOf, fmtKm, cumulative } from "@/lib/geo";
@@ -23,8 +23,8 @@ const portionColor = (p: Portion) => (!p.matched || p.prive === null ? COLOR.inc
 function coloredSegments(coords: LL[], portions: Portion[]) {
   const cum = cumulative(coords); const out: { color: string; gr: boolean; line: LL[] }[] = [];
   for (const p of portions) {
-    const idx: number[] = []; cum.forEach((d, i) => { if (d >= p.fromM - 1e-6 && d <= p.toM + 1e-6) idx.push(i); });
-    if (idx.length >= 2) out.push({ color: portionColor(p), gr: p.gr, line: idx.map((i) => coords[i]) });
+    const line = sliceByDistance(coords, cum, p.fromM, p.toM);
+    if (line.length >= 2) out.push({ color: portionColor(p), gr: p.gr, line });
   }
   return out;
 }

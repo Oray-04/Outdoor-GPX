@@ -84,7 +84,12 @@ export function classify(samples: { p: LL; d: number }[], troncons: Troncon[], m
     let best: Troncon | null = null, bd = maxM;
     for (const t of troncons) { const d = distToLine(s.p, t.geometry); if (d <= bd) { bd = d; best = t; } }
     const key = keyOf(best);
-    if (cur && cur.key === key) cur.to = s.d; else { flush(); cur = { key, t: best, from: s.d, to: s.d }; }
+    if (cur && cur.key === key) cur.to = s.d;
+    else { // les portions sont jointives : la frontière est placée à mi-chemin entre deux échantillons (aucun trou, aucune longueur perdue)
+      const edge: number = cur ? (cur.to + s.d) / 2 : s.d;
+      if (cur) cur.to = edge;
+      flush(); cur = { key, t: best, from: edge, to: s.d };
+    }
   }
   flush();
   return portions.map((x) => ({ ...x, toM: Math.max(x.toM, x.fromM) }));
@@ -119,14 +124,35 @@ async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   throw new Error("Service indisponible : réessayez dans un instant.");
 }
 
+/**
+ * Géométrie envoyée à l'API Carto : le tracé d'origine (points espacés d'au moins 1 m), SANS simplification.
+ * Une simplification, même à 1–3 m, écarte la requête de quelques mètres du tracé réel et fait manquer des parcelles
+ * étroites (bandes le long d'un chemin) : constaté sur un tracé réel de 30 km sur 5 communes.
+ */
+export const queryLine = (line: LL[], minGapM = 1): LL[] => {
+  if (line.length < 3) return line;
+  const out: LL[] = [line[0]];
+  for (let i = 1; i < line.length - 1; i++) if (haversine(out[out.length - 1], line[i]) >= minGapM) out.push(line[i]);
+  out.push(line[line.length - 1]);
+  return out;
+};
+/** Nombre de sommets par requête (≈ 2 Ko d'URL) et requêtes simultanées (le serveur est public). */
+export const PARCEL_WINDOW = 60, PARCEL_CONCURRENCY = 3;
+
 export async function fetchParcels(line: LL[], samples: { p: LL; d: number }[], stepM: number, o: { signal?: AbortSignal; onProgress?: (d: number, t: number) => void } = {}): Promise<ParcelHit[]> {
-  const ws = windows(simplifyLine(line, 3), 30); const found = new Map<string, { props: ParcelProps; geometry: Ring }>();
-  for (let i = 0; i < ws.length; i++) {
-    const g = encodeURIComponent(JSON.stringify({ type: "LineString", coordinates: ws[i] }));
-    const j = await getJson<{ features?: { properties: ParcelProps; geometry: Ring }[] }>(`${CARTO}?geom=${g}&_limit=1000`, o.signal);
-    for (const f of j.features ?? []) { const id = f.properties.idu ?? `${f.properties.code_insee}${f.properties.section}${f.properties.numero}`; if (!found.has(id)) found.set(id, { props: f.properties, geometry: f.geometry }); }
-    o.onProgress?.(i + 1, ws.length);
-  }
+  const ws = windows(queryLine(line), PARCEL_WINDOW); const found = new Map<string, { props: ParcelProps; geometry: Ring }>();
+  let next = 0, done = 0;
+  const worker = async () => {
+    while (next < ws.length) {
+      const i = next++;
+      const g = encodeURIComponent(JSON.stringify({ type: "LineString", coordinates: ws[i] }));
+      const j = await getJson<{ features?: { properties: ParcelProps; geometry: Ring }[]; totalFeatures?: number }>(`${CARTO}?geom=${g}&_limit=1000`, o.signal);
+      if ((j.totalFeatures ?? 0) > (j.features?.length ?? 0)) throw new Error("Résultat tronqué par le service (trop de parcelles dans une requête).");
+      for (const f of j.features ?? []) { const id = f.properties.idu ?? `${f.properties.code_insee}${f.properties.section}${f.properties.numero}`; if (!found.has(id)) found.set(id, { props: f.properties, geometry: f.geometry }); }
+      o.onProgress?.(++done, ws.length);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(PARCEL_CONCURRENCY, ws.length) }, worker));
   const hits = [...found].map(([id, v]) => ({ id, v }));
   const lens = lengthInside(samples, hits.map((h) => h.v.geometry), stepM);
   return hits.map((h, i) => ({ id: h.id, ref: parcelRef(h.v.props), commune: h.v.props.nom_com, insee: h.v.props.code_insee, section: h.v.props.section, numero: h.v.props.numero, areaM2: h.v.props.contenance ?? 0, lengthM: lens[i], geometry: h.v.geometry }))
@@ -153,7 +179,7 @@ export async function fetchTroncons(line: LL[], o: { signal?: AbortSignal; onPro
 }
 
 export async function fetchZones(line: LL[], samples: { p: LL; d: number }[], stepM: number, o: { signal?: AbortSignal } = {}): Promise<ZoneHit[]> {
-  const ws = windows(simplifyLine(line, 10), 22); const found = new Map<string, ZoneHit>();
+  const ws = windows(simplifyLine(line, 2), 22); const found = new Map<string, ZoneHit>();
   for (const [type, kind] of [["BDTOPO_V3:foret_publique", "foret"], ["BDTOPO_V3:parc_ou_reserve", "parc"]] as const) {
     for (const w of ws) {
       const j = await getJson<{ features?: WfsFeature<{ cleabs: string; toponyme: string | null; nature: string | null }>[] }>(wfsUrl(type, `INTERSECTS(geometrie,${wkt(w)})`, { COUNT: "200" }), o.signal);
@@ -196,4 +222,19 @@ export async function analyzeRoute(line: LL[], o: { signal?: AbortSignal; onStep
 const q = (s: string | number) => `"${String(s).replace(/"/g, '""')}"`;
 export function parcelsCsv(a: Analysis): string {
   return ["Commune;Code INSEE;Section;Numéro;Référence;Surface parcelle (m²);Longueur du tracé (m)", ...a.parcels.map((p) => [q(p.commune), p.insee, p.section, p.numero, q(p.ref), p.areaM2, Math.round(p.lengthM)].join(";"))].join("\r\n");
+}
+
+/** Sous-ligne du tracé entre deux distances cumulées, avec points de coupe interpolés (portions jointives sans trou). */
+export function sliceByDistance(coords: LL[], cum: number[], fromM: number, toM: number): LL[] {
+  if (coords.length < 2 || toM <= fromM) return [];
+  const at = (d: number): LL => {
+    if (d <= 0) return coords[0]; if (d >= cum[cum.length - 1]) return coords[coords.length - 1];
+    let lo = 0, hi = cum.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (cum[m] <= d) lo = m; else hi = m; }
+    const t = cum[hi] > cum[lo] ? (d - cum[lo]) / (cum[hi] - cum[lo]) : 0;
+    return [coords[lo][0] + (coords[hi][0] - coords[lo][0]) * t, coords[lo][1] + (coords[hi][1] - coords[lo][1]) * t];
+  };
+  const out: LL[] = [at(fromM)];
+  for (let i = 0; i < coords.length; i++) if (cum[i] > fromM && cum[i] < toM) out.push(coords[i]);
+  out.push(at(toM));
+  return out;
 }

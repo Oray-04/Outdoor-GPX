@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { resample, inGeometry, lengthInside, distToLine, windows, parcelRef, isGR, classify, summarize, fetchParcels, fetchTroncons, fetchZones, analyzeRoute, parcelsCsv, type Ring, type Troncon } from "../src/lib/analysis";
+import { resample, inGeometry, lengthInside, distToLine, windows, parcelRef, isGR, classify, summarize, fetchParcels, fetchTroncons, fetchZones, analyzeRoute, parcelsCsv, queryLine, sliceByDistance, type Ring, type Troncon } from "../src/lib/analysis";
 import type { LL } from "../src/lib/types";
+import { cumulative } from "../src/lib/geo";
 
 afterEach(() => vi.unstubAllGlobals());
 const sq = (x0: number, y0: number, x1: number, y1: number): Ring => ({ type: "Polygon", coordinates: [[[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]]] });
@@ -108,5 +109,55 @@ describe("accès aux services (simulés)", () => {
   it("une erreur du service est signalée, pas avalée", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 403 })));
     await expect(fetchParcels(line, resample(line, 5), 5)).rejects.toThrow(/403/);
+  });
+});
+
+describe("export cadastral : tracé complet, sans coupure (correctifs)", () => {
+  const dense = (n: number): LL[] => Array.from({ length: n }, (_, i) => [6 + i * 0.00004, 45 + (i % 3 === 0 ? 0.6e-5 : -0.6e-5)] as LL); // ~3 m entre points, zigzag de ±0,7 m
+  it("queryLine : extrémités conservées, jamais d'écart < 1 m, aucune simplification de forme", () => {
+    const l = dense(600), q = queryLine(l);
+    expect(q[0]).toEqual(l[0]); expect(q.at(-1)).toEqual(l.at(-1)); expect(q.length).toBeGreaterThan(500);
+  });
+  it("portions jointives : somme des longueurs = longueur du tracé (aucun trou aux frontières)", () => {
+    const l = dense(600), s = resample(l, 5);
+    const tr = (id: string, nature: string, x0: number, x1: number): Troncon => ({ id, nature, prive: false, accesPieton: null, itineraire: "", geometry: [[x0, 45], [x1, 45]] });
+    const p = classify(s, [tr("a", "Sentier", 5.99, 6.006), tr("b", "Chemin", 6.0061, 6.015)]);
+    expect(p.length).toBeGreaterThanOrEqual(3);
+    for (let i = 1; i < p.length; i++) expect(p[i].fromM).toBeCloseTo(p[i - 1].toM, 6);
+    expect(p[0].fromM).toBe(0);
+    expect(p.reduce((a, x) => a + x.toM - x.fromM, 0)).toBeCloseTo(s.at(-1)!.d, 6);
+    expect(summarize(p).byNature.reduce((a, x) => a + x.km, 0) * 1000).toBeCloseTo(s.at(-1)!.d, 3);
+  });
+  it("sliceByDistance : les tranches recollées reconstituent exactement le tracé (même sur un tracé clairsemé)", () => {
+    const l: LL[] = [[6, 45], [6.001, 45], [6.001, 45.001], [6.004, 45.001]]; const cum = cumulative(l); const total = cum.at(-1)!;
+    const cuts = [0, 20, 95, 100, 260, total]; const parts = cuts.slice(0, -1).map((c, i) => sliceByDistance(l, cum, c, cuts[i + 1]));
+    parts.forEach((pt) => expect(pt.length).toBeGreaterThanOrEqual(2)); // même une portion de 5 m (< écart entre sommets) est tracée
+    for (let i = 1; i < parts.length; i++) expect(parts[i][0]).toEqual(parts[i - 1].at(-1)); // jointives
+    const len = parts.reduce((a, pt) => a + cumulative(pt).at(-1)!, 0); expect(len).toBeCloseTo(total, 1);
+  });
+  it("tracé de plusieurs centaines de points sur 3 communes : toutes les parcelles traversées, même étroites, sont retrouvées", async () => {
+    const route = dense(700); // 700 points ≈ 2,1 km
+    // 21 bandes de parcelles de 1,2 m de large (étroites) réparties sur 3 communes, sur le tracé ; 21 autres loin du tracé
+    const strip = (i: number, y0: number): { props: object; g: Ring; crossed: boolean } => {
+      const x0 = 6 + i * 0.0012, commune = i < 7 ? ["Alpha", "74001"] : i < 14 ? ["Beta", "74002"] : ["Gamma", "74003"];
+      return { props: { idu: `${commune[1]}000A${String(i).padStart(4, "0")}`, numero: String(i).padStart(4, "0"), section: "A", code_insee: commune[1], com_abs: "000", nom_com: commune[0], contenance: 40 }, g: sq(x0, y0, x0 + 0.0004, y0 + 1.2e-5), crossed: y0 < 45 + 1e-5 };
+    };
+    const all = Array.from({ length: 21 }, (_, i) => strip(i, 45 - 0.6e-5)).concat(Array.from({ length: 21 }, (_, i) => strip(i + 100, 45.01)));
+    vi.stubGlobal("fetch", vi.fn(async (u: string) => {
+      const geom = JSON.parse(decodeURIComponent(u.split("geom=")[1].split("&")[0])) as { coordinates: LL[] };
+      const hit = (g: Ring) => { for (let i = 1; i < geom.coordinates.length; i++) { const a = geom.coordinates[i - 1], b = geom.coordinates[i]; for (let k = 0; k <= 40; k++) if (inGeometry([a[0] + ((b[0] - a[0]) * k) / 40, a[1] + ((b[1] - a[1]) * k) / 40], g)) return true; } return false; };
+      return new Response(JSON.stringify({ features: all.filter((x) => hit(x.g)).map((x) => ({ properties: x.props, geometry: x.g })) }), { status: 200 });
+    }));
+    const hits = await fetchParcels(route, resample(route, 5), 5);
+    // référence indépendante : parcelles contenant un point du tracé d'origine (pas de 0,3 m)
+    const truth = new Set(all.filter((x) => { for (let i = 1; i < route.length; i++) for (let k = 0; k < 10; k++) { const a = route[i - 1], b = route[i]; if (inGeometry([a[0] + ((b[0] - a[0]) * k) / 10, a[1] + ((b[1] - a[1]) * k) / 10], x.g)) return true; } return false; }).map((x) => (x.props as { idu: string }).idu));
+    expect(truth.size).toBeGreaterThan(15);
+    const got = new Set(hits.map((h) => h.id));
+    expect([...truth].filter((id) => !got.has(id)), "parcelles manquantes").toEqual([]);
+    expect(new Set(hits.map((h) => h.commune)).size).toBe(3);
+  });
+  it("résultat tronqué par le service : erreur explicite plutôt qu'un export silencieusement incomplet", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ features: [], totalFeatures: 1500 }), { status: 200 })));
+    const l = dense(50); await expect(fetchParcels(l, resample(l, 5), 5)).rejects.toThrow(/tronqu/);
   });
 });
