@@ -4,6 +4,7 @@ import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { Announcement } from "@/components/layout/announcement";
 import { MobileNav } from "@/components/layout/mobile-nav";
+import { OfflineBoot } from "@/components/offline/offline-boot";
 import { CSP } from "@/lib/csp";
 import { GeoProvider } from "@/components/home/geo-context";
 import { AuthProvider } from "@/lib/auth";
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <a href="#contenu" className="sr-only focus:not-sr-only focus:absolute focus:z-[60] focus:m-2 focus:rounded-lg focus:bg-white focus:px-4 focus:py-2">Aller au contenu</a>
         <AuthProvider><SyncProvider>
         <GeoProvider>
+          <OfflineBoot />
           <Announcement />
           <Header />
           <main id="contenu">{children}</main>

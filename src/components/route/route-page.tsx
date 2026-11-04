@@ -5,6 +5,7 @@ import { Heart, Navigation, Download, Share2, Pencil, Flag, Star, MapPin, Copy, 
 import clsx from "clsx";
 import { RouteMap, type MapOverlay } from "@/components/map/route-map";
 import { WeatherPanel } from "./weather-panel";
+import { fromTrack } from "@/lib/editor-core";
 import { ElevationChart, type ChartMarker } from "./elevation-chart";
 import { Button } from "@/components/ui/button";
 import { Badge, DemoBadge } from "@/components/ui/badge";
@@ -83,6 +84,12 @@ export function RoutePage({ id }: { id: string }) {
   };
   const sendReview = () => { if (!rating) { setMsg("Choisissez une note de 1 à 5."); return; } reviewsRepo.upsert({ id: uid(), routeId: route.id, rating, comment: comment.trim(), at: Date.now() }); setRating(0); setComment(""); setMsg("Avis enregistré sur cet appareil."); };
   const sendReport = () => { if (!report.trim()) return; reportsRepo.upsert({ id: uid(), routeId: route.id, routeName: route.name, message: report.trim(), at: Date.now(), status: "ouvert" }); setReport(""); setReporting(false); setMsg("Signalement enregistré : il apparaît dans l'administration."); };
+  /** Copie d'un parcours publié sur l'appareil (consultation et navigation hors ligne). */
+  const saveCopy = () => {
+    const st = fromTrack(route.coords, route.pois); const now = Date.now();
+    const res = routesRepo.upsert({ id: uid(), name: route.name, description: route.description, sport: route.sport, segs: st.segs, waypoints: st.waypoints, coords: route.coords, pois: st.pois, terrain: route.terrain, visibility: "prive", region: route.region, country: route.country, layer: "mine", source: "import", fileName: "parcours publié", createdAt: now, updatedAt: now });
+    setMsg(res.ok ? "Copie enregistrée sur votre appareil : retrouvez-la dans « Mes parcours » et préparez-la dans « Hors ligne »." : res.error ?? "Enregistrement impossible.");
+  };
   const del = () => { if (confirm(`Supprimer « ${route.name} » ?`)) { routesRepo.remove(route.id); location.assign(withBase("/parcours/")); } };
   const upPhoto = async (f?: File) => { if (!f) return; const r = await addPhoto(route.id, f); if (!r.ok) setMsg(r.error ?? "Ajout impossible."); };
 
@@ -100,6 +107,7 @@ export function RoutePage({ id }: { id: string }) {
         <div className="flex flex-wrap gap-2">
           <Button variant={isFav ? "primary" : "secondary"} aria-pressed={isFav} onClick={() => toggleFavorite(route.id)}><Heart className={clsx("size-4", isFav && "fill-current")} />{isFav ? "Favori" : "Ajouter aux favoris"}</Button>
           <Link href={trackerHref(route.id)} className="inline-flex h-11 items-center gap-2 rounded-xl border border-ink-200 bg-white px-5 text-[15px] font-semibold hover:bg-ink-50"><Navigation className="size-4" />Suivre</Link>
+          {route.origin === "community" && <Button variant="brand" onClick={saveCopy}>Enregistrer sur mon appareil</Button>}
           <Button variant="secondary" onClick={() => exp("gpx")}><Download className="size-4" />GPX</Button>
           <Button variant="secondary" onClick={share}><Share2 className="size-4" />Partager</Button>
           {mine && <Link href={editorHref(route.id)} className="inline-flex h-11 items-center gap-2 rounded-xl bg-pine-600 px-5 text-[15px] font-semibold text-white hover:bg-pine-700"><Pencil className="size-4" />Modifier</Link>}
