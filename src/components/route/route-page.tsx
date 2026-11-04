@@ -3,7 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Heart, Navigation, Download, Share2, Pencil, Flag, Star, MapPin, Copy, Camera, Trash2, ExternalLink, ImageDown, FileText, BadgeCheck, ArrowLeft } from "lucide-react";
 import clsx from "clsx";
-import { RouteMap } from "@/components/map/route-map";
+import { RouteMap, type MapOverlay } from "@/components/map/route-map";
+import { WeatherPanel } from "./weather-panel";
 import { ElevationChart, type ChartMarker } from "./elevation-chart";
 import { Button } from "@/components/ui/button";
 import { Badge, DemoBadge } from "@/components/ui/badge";
@@ -40,6 +41,7 @@ export function RoutePage({ id }: { id: string }) {
   const reviews = reviewsRepo.useAll().filter((r) => r.routeId === id);
   const chartRef = useRef<SVGSVGElement>(null);
   const [hover, setHover] = useState<number | null>(null);
+  const [wx, setWx] = useState<MapOverlay | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState("");
@@ -110,7 +112,7 @@ export function RoutePage({ id }: { id: string }) {
         <Stat l="Alt. min" v={fmtM(s.minEle)} /><Stat l="Alt. max" v={fmtM(s.maxEle)} /><Stat l="Durée est." v={fmtDuration(route.durationMin)} /><Stat l="Terrain" v={route.terrain.length ? route.terrain.join(", ") : "—"} />
       </dl>
 
-      <div className="mt-6"><RouteMap coords={route.coords} pois={route.pois} activeIndex={hover} onTrackHover={setHover} className="h-[26rem]" title={route.name} /></div>
+      <div className="mt-6"><RouteMap coords={route.coords} pois={route.pois} activeIndex={hover} onTrackHover={setHover} className="h-[26rem]" title={route.name} overlay={wx} /></div>
 
       <section className="mt-6 rounded-2xl bg-white p-4 ring-1 ring-ink-100" aria-label="Profil altimétrique">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-bold">Profil altimétrique</h2>
@@ -118,6 +120,8 @@ export function RoutePage({ id }: { id: string }) {
         <ElevationChart ref={chartRef} points={profile} markers={markers} onHover={setHover} height={260} />
         <p className="mt-1 text-xs text-ink-400">Survolez le profil ou la trace pour voir la position correspondante. Pente calculée sur environ 100 m.</p>
       </section>
+
+      <WeatherPanel route={route} onOverlay={setWx} />
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         <div className="grid content-start gap-6">

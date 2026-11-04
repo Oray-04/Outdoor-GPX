@@ -8,7 +8,10 @@ import { LayerControl } from "./layer-control";
 import { POI_TYPES, type Poi, type Pt } from "@/lib/types";
 
 /** Carte en lecture seule : trace, départ/arrivée, POI, position active (survol du profil). */
-export function RouteMap({ coords, pois = [], activeIndex, className = "h-80", onTrackHover, title }: { coords: Pt[]; pois?: Poi[]; activeIndex?: number | null; className?: string; onTrackHover?: (i: number | null) => void; title?: string }) {
+export interface MapOverlay { segments: { from: number; to: number; color: string }[]; arrows: { lng: number; lat: number; toDeg: number; label: string; color: string; title: string }[] }
+
+export function RouteMap({ coords, pois = [], activeIndex, className = "h-80", onTrackHover, title, overlay }: { coords: Pt[]; pois?: Poi[]; activeIndex?: number | null; className?: string; onTrackHover?: (i: number | null) => void; title?: string; overlay?: MapOverlay | null }) {
+  const arrowMarks = useRef<Marker[]>([]);
   const st = useMemo(() => (coords.length > 1 ? trackStats(coords, 3) : null), [coords]);
   const { el, map, ml, ready } = useMap();
   const marks = useRef<Marker[]>([]);
@@ -44,6 +47,23 @@ export function RouteMap({ coords, pois = [], activeIndex, className = "h-80", o
     }
     for (const p of pois) pin(POI_TYPES[p.type].letter, POI_TYPES[p.type].color, [p.lng, p.lat], `${p.name} (${POI_TYPES[p.type].label})`, "size-5");
   }, [coords, pois, ready, map, ml]);
+
+  // Tracé coloré par segment (ex. vent de face / dans le dos) et flèches
+  useEffect(() => {
+    const m = map.current, lib = ml.current; if (!m || !lib || !ready || !m.getSource("t")) return;
+    if (!m.getSource("wx")) {
+      m.addSource("wx", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      m.addLayer({ id: "wx-line", type: "line", source: "wx", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": ["get", "color"], "line-width": 5 } });
+    }
+    (m.getSource("wx") as GeoJSONSource).setData({ type: "FeatureCollection", features: (overlay?.segments ?? []).map((s) => ({ type: "Feature", properties: { color: s.color }, geometry: { type: "LineString", coordinates: coords.slice(s.from, s.to + 1).map((c) => [c[0], c[1]]) } })) });
+    m.setPaintProperty("t-line", "line-opacity", overlay ? 0 : 1);
+    arrowMarks.current.forEach((x) => x.remove()); arrowMarks.current = [];
+    for (const a of overlay?.arrows ?? []) {
+      const d = document.createElement("div"); d.title = a.title; d.className = "grid place-items-center";
+      d.innerHTML = `<svg width="30" height="30" viewBox="0 0 30 30" style="transform:rotate(${a.toDeg}deg)" aria-hidden="true"><circle cx="15" cy="15" r="14" fill="#fff" stroke="${a.color}" stroke-width="2"/><path d="M15 5 L21 20 L15 16.5 L9 20 Z" fill="${a.color}"/></svg><span style="font:700 10px Inter,system-ui;background:#fff;border-radius:6px;padding:0 3px;margin-top:-4px;color:#0d1b17;box-shadow:0 0 0 1px ${a.color}">${a.label}</span>`;
+      arrowMarks.current.push(new lib.Marker({ element: d }).setLngLat([a.lng, a.lat]).addTo(m));
+    }
+  }, [overlay, coords, ready, map, ml]);
 
   useEffect(() => {
     const m = map.current, lib = ml.current; if (!m || !lib || !ready) return;
