@@ -1,5 +1,6 @@
 import { MapPin, Route as RouteIcon, FileUp, LineChart, Users, Check } from "lucide-react";
-import { DEMO_ROUTES, DEMO_EVENTS, DESTINATIONS } from "@/lib/demo-data";
+import { DEMO_ROUTES, DESTINATIONS } from "@/lib/demo-data";
+import { DEMO_EVENT_MODELS } from "@/lib/events";
 import { DEMO_VMS } from "@/lib/route-model";
 import { SPORTS, type Sport } from "@/lib/sports";
 import { RouteCard, TopoPattern } from "@/components/ui/route-card";
@@ -50,7 +51,7 @@ export function Features() {
 export function Events() {
   return (
     <div className="grid gap-4 md:grid-cols-2">
-      {DEMO_EVENTS.map((e) => {
+      {DEMO_EVENT_MODELS.map((e) => {
         const d = new Date(e.date);
         return (
           <article key={e.id} className="flex gap-4 rounded-[var(--radius-card)] bg-white p-5 shadow-card ring-1 ring-ink-100">
@@ -58,10 +59,10 @@ export function Events() {
               <div><div className="font-display text-2xl font-bold leading-none">{d.getUTCDate()}</div><div className="mt-0.5 text-[11px] uppercase tracking-wider text-ink-300">{d.toLocaleDateString("fr-FR", { month: "short", timeZone: "UTC" })}</div></div>
             </div>
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2"><Badge tone="pine">{SPORTS[e.sport].label}</Badge><DemoBadge /></div>
+              <div className="flex flex-wrap items-center gap-2">{[...new Set(e.races.map((r) => r.sport))].slice(0, 2).map((sp) => <Badge key={sp} tone="pine">{SPORTS[sp].label}</Badge>)}<DemoBadge /></div>
               <h3 className="mt-1.5 font-semibold leading-snug">{e.name}</h3>
               <p className="mt-0.5 flex items-center gap-1 text-sm text-ink-500"><MapPin className="size-3.5" />{e.region}</p>
-              <p className="mt-2 flex flex-wrap gap-x-3 text-sm text-ink-700">{e.formats.map((f) => <span key={f.label}>{f.label} · {f.km} km · {f.dplus} m D+</span>)}</p>
+              <p className="mt-2 flex flex-wrap gap-x-3 text-sm text-ink-700">{e.races.map((f) => <span key={f.id}>{f.label} · {f.distanceKm} km · {f.gainM} m D+</span>)}</p>
             </div>
           </article>
         );
@@ -95,7 +96,7 @@ export function Stats() {
     ["Parcours de démo", DEMO_ROUTES.length.toString()],
     ["Kilomètres tracés", Math.round(km).toLocaleString("fr-FR")],
     ["Dénivelé positif cumulé", `${Math.round(dp).toLocaleString("fr-FR")} m`],
-    ["Événements de démo", DEMO_EVENTS.length.toString()],
+    ["Événements de démo", DEMO_EVENT_MODELS.length.toString()],
   ];
   return (
     <div>

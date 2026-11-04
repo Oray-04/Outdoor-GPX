@@ -7,6 +7,8 @@ import { onLocalChange, setSingleMeta, singleMeta, tombKey, withApplying } from 
 import { readStore, writeStore } from "./store";
 import { thin, trackStats } from "./geo";
 import type { SavedRoute } from "./types";
+import type { EventModel } from "./events";
+import type { Collection } from "./repo";
 
 const LIST_KEYS = ["routes", "activities", "collections", "reviews", "reports", "events"] as const;
 /** clé locale → type de document dans la base */
@@ -85,6 +87,20 @@ export function toPublicRow(uid: string, r: SavedRoute) {
   };
 }
 
+/** Événement publié : seules les informations destinées au public (ni bénévoles, ni équipe, ni logistique interne). */
+export function toPublicEvent(uid: string, ev: EventModel) {
+  return {
+    id: ev.id, owner_id: uid, name: ev.name.slice(0, 160) || "Événement", organizer: ev.organizer.slice(0, 160), date: ev.date, place: ev.place.slice(0, 160), region: ev.region.slice(0, 120),
+    description: ev.description.slice(0, 5000), rules: ev.rules.slice(0, 10000), practical: ev.practical.slice(0, 5000),
+    registration_url: /^https?:\/\//i.test(ev.registrationUrl) ? ev.registrationUrl : "",
+    races: ev.races.slice(0, 30).map((r) => ({ id: r.id, label: r.label, sport: r.sport, distanceKm: r.distanceKm, gainM: r.gainM, startTime: r.startTime, maxHours: r.maxHours, routeId: r.routeId, fee: r.fee })),
+    collection_id: ev.collectionId ?? null, updated_at: iso(Date.now()),
+  };
+}
+export function toPublicCollection(uid: string, c: Collection) {
+  return { id: c.id, owner_id: uid, title: c.name.slice(0, 160) || "Collection", description: c.description.slice(0, 3000), route_ids: c.routeIds.slice(0, 100), event_id: c.eventId ?? null, updated_at: iso(Date.now()) };
+}
+
 const PUBLISHED = "sync:published";
 /** Publie les parcours « public » et retire ceux qui ne le sont plus (ou ont été supprimés). */
 export async function syncPublic(uid: string) {
@@ -101,6 +117,18 @@ export async function syncPublic(uid: string) {
   const drop = [...had].filter((id) => !keep.has(id));
   if (drop.length) { const { error } = await c.from("public_routes").delete().in("id", drop).eq("owner_id", uid); if (error) throw new Error(error.message); }
   writeStore(PUBLISHED, [...keep]);
+  await publishSimple(uid, "public_events", "sync:published:events", readStore<EventModel[]>("events", []).filter((e) => e.visibility === "public" && /^\d{4}-\d{2}-\d{2}$/.test(e.date)).map((e) => toPublicEvent(uid, e)));
+  await publishSimple(uid, "public_collections", "sync:published:collections", readStore<Collection[]>("collections", []).filter((c) => c.visibility === "public").map((c) => toPublicCollection(uid, c)));
+}
+
+/** Publie les lignes données et retire celles qui ne sont plus publiques. */
+async function publishSimple(uid: string, table: "public_events" | "public_collections", memoKey: string, rows: { id: string }[]) {
+  const c = cloud()!;
+  if (rows.length) { const { error } = await c.from(table).upsert(rows, { onConflict: "id" }); if (error) throw new Error(error.message); }
+  const keep = new Set(rows.map((r) => r.id));
+  const drop = readStore<string[]>(memoKey, []).filter((id) => !keep.has(id));
+  if (drop.length) { const { error } = await c.from(table).delete().in("id", drop).eq("owner_id", uid); if (error) throw new Error(error.message); }
+  writeStore(memoKey, [...keep]);
 }
 
 export interface SyncState { status: "off" | "idle" | "syncing" | "ok" | "error"; lastSync: number | null; error: string | null; pulled: number; pushed: number }

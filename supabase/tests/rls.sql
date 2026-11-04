@@ -52,9 +52,29 @@ select chk('fiche : coordonnées avec altitude (3 valeurs)', (select jsonb_array
 select chk('anonyme : profils lisibles (auteur affichable)', (select count(*) from public.profiles) = 3);
 select chk('anonyme : ne peut pas modifier un profil', public.t_rows($$update public.profiles set display_name = 'x'$$) = -1);
 
+-- ───── Contenus publics : événements et collections ─────
+reset role; set role authenticated; select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-0000-0000-000000000001', false);
+select chk('alice publie un événement', public.t_try($$insert into public.public_events (id, owner_id, name, organizer, date, races) values ('ev-alice-1', auth.uid(), 'Trail du Test', 'Asso', '2027-05-01', '[{"id":"r1","label":"10 km","routeId":"route-alice-1"}]')$$) = 'ok');
+select chk('alice publie une collection', public.t_try($$insert into public.public_collections (id, owner_id, title, route_ids, event_id) values ('col-alice-1', auth.uid(), 'Parcours du Trail', array['route-alice-1','route-alice-2'], 'ev-alice-1')$$) = 'ok');
+select chk('alice ne publie pas au nom de bob (événement)', public.t_try($$insert into public.public_events (id, owner_id, name, date) values ('ev-x', 'bbbbbbbb-0000-0000-0000-000000000002', 'x', '2027-01-01')$$) = '42501');
+select chk('lien d''inscription non http(s) refusé', public.t_try($$insert into public.public_events (id, owner_id, name, date, registration_url) values ('ev-js', auth.uid(), 'x', '2027-01-01', 'javascript:alert(1)')$$) = '23514');
+select chk('plus de 100 parcours dans une collection refusé', public.t_try($$insert into public.public_collections (id, owner_id, title, route_ids) values ('col-big', auth.uid(), 'x', (select array_agg('r' || g) from generate_series(1, 101) g))$$) = '23514');
+select chk('races doit être un tableau', public.t_try($$insert into public.public_events (id, owner_id, name, date, races) values ('ev-bad', auth.uid(), 'x', '2027-01-01', '{"a":1}')$$) = '23514');
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-0000-0000-000000000002', false);
+select chk('bob lit l''événement et la collection d''alice', (select count(*) from public.public_events) = 1 and (select count(*) from public.public_collections) = 1);
+select chk('bob ne modifie pas l''événement d''alice', public.t_rows($$update public.public_events set name = 'piraté'$$) = 0);
+select chk('bob ne supprime pas la collection d''alice', public.t_rows($$delete from public.public_collections$$) = 0);
+reset role; set role anon; select set_config('request.jwt.claim.sub', '', false);
+select chk('anonyme : lecture des événements et collections', (select count(*) from public.public_events) = 1 and (select count(*) from public.public_collections) = 1);
+select chk('anonyme : écriture refusée', public.t_try($$insert into public.public_collections (id, owner_id, title) values ('col-anon', 'aaaaaaaa-0000-0000-0000-000000000001', 'x')$$) = '42501');
+select chk('parcours d''une collection par identifiants', (select count(*) from public.public_routes_by_ids(array['route-alice-1','route-inconnu'])) = 1);
+select chk('géométrie simplifiée renvoyée', (select geometry->>'type' from public.public_routes_by_ids(array['route-alice-1'])) = 'LineString');
+
 -- ───── Administrateur ─────
 reset role; set role authenticated; select set_config('request.jwt.claim.sub', 'cccccccc-0000-0000-0000-000000000003', false);
 select chk('admin : ne voit toujours pas les documents privés', (select count(*) from public.documents) = 0);
+select chk('admin : supprime un événement publié (modération)', public.t_rows($$delete from public.public_events where id = 'ev-alice-1'$$) = 1);
+select chk('admin : supprime une collection publiée (modération)', public.t_rows($$delete from public.public_collections where id = 'col-alice-1'$$) = 1);
 select chk('admin : supprime un parcours publié (modération)', public.t_rows($$delete from public.public_routes where id = 'route-alice-1'$$) = 1);
 reset role;
 delete from auth.users where id = 'aaaaaaaa-0000-0000-0000-000000000001';

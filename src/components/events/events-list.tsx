@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { CalendarDays, MapPin, X } from "lucide-react";
 import { Badge, DemoBadge } from "@/components/ui/badge";
@@ -7,12 +7,18 @@ import { Button } from "@/components/ui/button";
 import { useAllEvents } from "@/lib/repo";
 import { DEFAULT_EVENT_FILTERS, filterEvents, type EventFilters } from "@/lib/events";
 import { SPORTS } from "@/lib/sports";
+import { cloudEnabled } from "@/lib/cloud";
+import { communityEvents } from "@/lib/community";
+import type { EventModel } from "@/lib/events";
 import { eventHref } from "@/lib/url";
 
 const sel = "h-10 w-full rounded-lg border border-ink-200 bg-white px-2 text-sm";
 
 export function EventsList() {
-  const all = useAllEvents();
+  const mine = useAllEvents();
+  const [shared, setShared] = useState<EventModel[]>([]);
+  useEffect(() => { if (cloudEnabled) communityEvents().then(setShared).catch(() => setShared([])); }, []);
+  const all = useMemo(() => [...mine, ...shared.filter((s) => !mine.some((m) => m.id === s.id))], [mine, shared]);
   const [f, setF] = useState<EventFilters>(DEFAULT_EVENT_FILTERS);
   const regions = useMemo(() => [...new Set(all.map((e) => e.region).filter(Boolean))].sort(), [all]);
   const list = useMemo(() => filterEvents(all, f), [all, f]);
@@ -40,7 +46,7 @@ export function EventsList() {
           <ul className="grid gap-3">{evs.map((e) => { const d = new Date(e.date + "T12:00:00"); return (
             <li key={e.id}><Link href={eventHref(e.id)} className="flex gap-4 rounded-2xl bg-white p-4 ring-1 ring-ink-100 transition hover:-translate-y-0.5 hover:shadow-card">
               <div className="grid size-16 shrink-0 place-items-center rounded-xl bg-ink-900 text-white"><div className="text-center"><div className="font-display text-2xl font-bold leading-none">{d.getDate()}</div><div className="mt-0.5 text-[11px] uppercase text-ink-300">{d.toLocaleDateString("fr-FR", { month: "short" })}</div></div></div>
-              <div className="min-w-0"><div className="flex flex-wrap items-center gap-1.5">{[...new Set(e.races.map((r) => r.sport))].map((s) => <Badge key={s} tone="pine">{SPORTS[s].label}</Badge>)}{e.origin === "demo" ? <DemoBadge /> : <Badge>Créé ici</Badge>}</div>
+              <div className="min-w-0"><div className="flex flex-wrap items-center gap-1.5">{[...new Set(e.races.map((r) => r.sport))].map((s) => <Badge key={s} tone="pine">{SPORTS[s].label}</Badge>)}{e.origin === "demo" ? <DemoBadge /> : e.origin === "community" ? <Badge tone="glacier">Organisateur</Badge> : <Badge>Créé ici</Badge>}</div>
                 <h3 className="mt-1 font-semibold">{e.name}</h3><p className="flex items-center gap-1 text-sm text-ink-500"><MapPin className="size-3.5" />{[e.place, e.region].filter(Boolean).join(" · ")}</p>
                 <p className="mt-1 text-sm text-ink-700">{e.races.map((r) => `${r.label} ${r.distanceKm} km`).join(" · ")}</p></div></Link></li>); })}</ul></section>
       ))}

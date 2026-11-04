@@ -1,4 +1,5 @@
 import { DEMO_EVENTS } from "./demo-data";
+import { DEMO_VMS } from "./route-model";
 import type { Sport } from "./sports";
 import { haversine } from "./geo";
 import type { Pt } from "./types";
@@ -30,14 +31,23 @@ export const ROLES: Record<Role, { label: string; can: string[] }> = {
 
 export interface EventModel {
   id: string; name: string; organizer: string; date: string; place: string; region: string; description: string; rules: string; practical: string; registrationUrl: string;
-  races: Race[]; posts: Post[]; volunteers: Volunteer[]; team: Member[]; origin: "demo" | "mine"; createdAt: number;
+  races: Race[]; posts: Post[]; volunteers: Volunteer[]; team: Member[]; origin: "demo" | "mine" | "community"; createdAt: number;
+  /** Visible par tous (nécessite les comptes) */
+  visibility?: "prive" | "public";
+  /** Collection regroupant les parcours de l'événement */
+  collectionId?: string;
+  /** Propriétaire (événements publiés par un membre) */
+  ownerId?: string;
 }
 
 export const DEMO_EVENT_MODELS: EventModel[] = DEMO_EVENTS.map((e) => ({
   id: e.id, name: e.name, organizer: "Organisateur de démonstration", date: e.date, place: e.place, region: e.region,
-  description: "Événement de démonstration : il n'existe pas.", rules: "", practical: "", registrationUrl: "",
-  races: e.formats.map((f, i) => ({ id: `${e.id}-r${i}`, label: f.label, sport: e.sport, distanceKm: f.km, gainM: f.dplus, startTime: "08:00", maxHours: 12 })),
-  posts: [], volunteers: [], team: [], origin: "demo", createdAt: 0,
+  description: "Événement de démonstration : il n'existe pas. Ses tracés sont des parcours de démonstration.", rules: "", practical: "", registrationUrl: "",
+  races: e.formats.map((f, i) => {
+    const r = DEMO_VMS.find((v) => v.id === f.routeId)!;
+    return { id: `${e.id}-r${i}`, label: f.label, sport: r.sport, distanceKm: +(r.stats.distanceM / 1000).toFixed(1), gainM: Math.round(r.stats.gainM), startTime: "08:00", maxHours: Math.ceil(r.durationMin / 60) + 2, routeId: f.routeId };
+  }),
+  posts: [], volunteers: [], team: [], origin: "demo" as const, createdAt: 0, visibility: "public" as const,
 }));
 
 /** Distance cumulée (m) et « effort » cumulé (km + D+/100) en chaque point de la trace. */

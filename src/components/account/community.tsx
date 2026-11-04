@@ -5,6 +5,7 @@ import { Plus, Trash2, Trophy, Target, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ProfileForm, Progress, monthKey } from "./shared";
+import { CollectionsCard } from "./collections-card";
 import { useAllRoutes } from "@/lib/route-vm";
 import { activitiesRepo, collectionsRepo, reviewsRepo, useFavorites, useProfile } from "@/lib/repo";
 import { SPORTS } from "@/lib/sports";
@@ -52,13 +53,7 @@ export function Community() {
         <Card title="Records personnels" icon={<Trophy className="size-5 text-ember-500" />}>
           {acts.length ? <ul className="grid gap-2 text-sm"><li className="flex justify-between rounded-lg bg-ink-50 p-3"><span>Sortie la plus longue</span><b>{longest.name} · {fmtKm(longest.distanceM)}</b></li><li className="flex justify-between rounded-lg bg-ink-50 p-3"><span>Plus gros dénivelé</span><b>{climb.name} · {fmtM(climb.gainM)}</b></li>{speeds.map((s) => <li key={s.s} className="flex justify-between rounded-lg bg-ink-50 p-3"><span>Meilleure vitesse moyenne · {SPORTS[s.s as keyof typeof SPORTS].label}</span><b>{s.v.toFixed(1).replace(".", ",")} km/h</b></li>)}</ul> : <p className="text-sm text-ink-500">Enregistrez des sorties avec le <Link className="font-semibold text-pine-700 underline" href="/suivi">suivi GPS</Link> pour établir vos records.</p>}
           <p className="mt-3 text-xs text-ink-400">Historique complet dans <Link className="underline" href="/compte#activites">Mon espace</Link>.</p></Card>
-        <Card id="collections" title="Collections" icon={<Plus className="size-5 text-pine-600" />}>
-          <form onSubmit={add} className="flex gap-2"><input aria-label="Nom de la collection" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex. Sorties du week-end" maxLength={80} className="h-10 flex-1 rounded-lg border border-ink-200 px-3 text-sm" /><Button type="submit" variant="brand"><Plus className="size-4" />Créer</Button></form>
-          <ul className="mt-4 grid gap-3">{cols.map((c) => (
-            <li key={c.id} className="rounded-xl bg-ink-50 p-3"><div className="flex items-center justify-between"><p className="font-semibold">{c.name} <Badge>{c.routeIds.length}</Badge></p><Button size="sm" variant="ghost" aria-label="Supprimer la collection" onClick={() => confirm(`Supprimer « ${c.name} » ?`) && collectionsRepo.remove(c.id)}><Trash2 className="size-4" /></Button></div>
-              <details className="mt-1"><summary className="cursor-pointer text-sm font-medium text-pine-700">Choisir les parcours</summary><ul className="mt-2 grid max-h-52 gap-1 overflow-y-auto">{routes.map((r) => <li key={r.id}><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={c.routeIds.includes(r.id)} onChange={() => toggle(c.id, r.id)} className="accent-[var(--color-pine-600)]" />{r.name}{favs.includes(r.id) && " ♥"}</label></li>)}</ul></details>
-              {c.routeIds.length > 0 && <ul className="mt-2 flex flex-wrap gap-1.5">{c.routeIds.map((id) => { const r = routes.find((x) => x.id === id); return r ? <li key={id}><Link href={routeHref(id)} className="rounded-full bg-white px-2.5 py-1 text-xs font-medium ring-1 ring-ink-200 hover:ring-pine-400">{r.name}</Link></li> : null; })}</ul>}
-            </li>))}{!cols.length && <li className="text-sm text-ink-500">Aucune collection.</li>}</ul></Card>
+        <Card id="collections" title="Collections" icon={<Plus className="size-5 text-pine-600" />}><p className="mb-3 text-sm text-ink-600">Regroupez des parcours (par exemple tous les formats d'un événement : 5, 10, 20, 40 km), rendez la collection publique pour la partager, et laissez les visiteurs consulter et télécharger les tracés.</p><CollectionsCard /></Card>
       </div>
     </div>
   );

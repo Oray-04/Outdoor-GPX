@@ -5,11 +5,14 @@ import { Plus, Settings, Trash2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { eventsRepo } from "@/lib/repo";
 import { ROLES, type EventModel } from "@/lib/events";
+import { ownerHref } from "@/lib/url";
+import { useAuth } from "@/lib/auth";
 import { uid } from "@/lib/types";
 import { eventHref, manageHref, withBase } from "@/lib/url";
 
 export function OrganizerHome() {
   const events = eventsRepo.useAll();
+  const auth = useAuth();
   const [f, setF] = useState({ name: "", organizer: "", date: "", place: "", region: "" });
   const field = "h-10 w-full rounded-lg border border-ink-200 bg-white px-3 text-sm";
   const create = (e: React.FormEvent) => {
@@ -21,6 +24,7 @@ export function OrganizerHome() {
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
       <h1 className="text-3xl font-extrabold sm:text-4xl">Espace organisateurs</h1>
       <p className="mt-2 max-w-2xl text-ink-600">Préparez votre événement : courses, parcours, ravitaillements, barrières horaires, bénévoles, secours et temps de passage, avec exports PDF.</p>
+      <p className="mt-3"><Link href={ownerHref(auth.user?.id ?? "me")} className="text-sm font-semibold text-pine-700 underline">Voir ma page publique d'organisateur</Link></p>
       <form onSubmit={create} className="mt-6 grid gap-3 rounded-2xl bg-white p-5 ring-1 ring-ink-100 sm:grid-cols-2">
         <h2 className="text-lg font-bold sm:col-span-2">Nouvel événement</h2>
         <label className="grid gap-1 text-sm font-medium">Nom<input required className={field} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} maxLength={120} /></label>

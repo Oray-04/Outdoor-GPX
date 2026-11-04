@@ -7,7 +7,9 @@ import clsx from "clsx";
 import { useMap } from "@/components/map/use-map";
 import { LayerControl } from "@/components/map/layer-control";
 import { Button } from "@/components/ui/button";
-import { eventsRepo, routesRepo } from "@/lib/repo";
+import { collectionsRepo, eventsRepo, routesRepo } from "@/lib/repo";
+import { cloudEnabled } from "@/lib/cloud";
+import { collectionHref } from "@/lib/url";
 import { POST_KINDS, ROLES, passageTable, positionOnTrack, type EventModel, type Member, type Post, type PostKind, type Race, type Role, type Volunteer } from "@/lib/events";
 import { SPORTS, estimateMinutes, type Sport } from "@/lib/sports";
 import { trackStats, bboxOf } from "@/lib/geo";
@@ -57,8 +59,44 @@ function Infos({ ev, save }: P) {
       <div className="md:col-span-2"><Field l="Description"><textarea rows={4} className="rounded-lg border border-ink-200 p-3 text-sm" value={ev.description} onChange={(e) => set("description", e.target.value)} /></Field></div>
       <Field l="Informations pratiques"><textarea rows={5} className="rounded-lg border border-ink-200 p-3 text-sm" value={ev.practical} onChange={(e) => set("practical", e.target.value)} placeholder="Retrait des dossards, parkings, douches…" /></Field>
       <Field l="Règlement"><textarea rows={5} className="rounded-lg border border-ink-200 p-3 text-sm" value={ev.rules} onChange={(e) => set("rules", e.target.value)} /></Field>
+      <Publication ev={ev} save={save} />
       <p className="text-xs text-ink-500 md:col-span-2">Enregistrement automatique sur cet appareil.</p>
     </div>
+  );
+}
+
+function Publication({ ev, save }: P) {
+  const routes = routesRepo.useAll();
+  const cols = collectionsRepo.useAll();
+  const linked = [...new Set(ev.races.map((r) => r.routeId).filter((x): x is string => !!x))];
+  const priv = linked.map((id) => routes.find((r) => r.id === id)).filter((r): r is NonNullable<typeof r> => !!r && r.visibility !== "public");
+  const col = cols.find((c) => c.id === ev.collectionId);
+  const makePublic = () => priv.forEach((r) => routesRepo.upsert({ ...r, visibility: "public", updatedAt: Date.now() }));
+  const createCollection = () => {
+    const id = uid();
+    collectionsRepo.upsert({ id, name: `Parcours — ${ev.name}`, description: `Tous les parcours de ${ev.name}.`, routeIds: linked, visibility: ev.visibility === "public" ? "public" : "prive", eventId: ev.id });
+    save((e) => ({ ...e, collectionId: id }));
+  };
+  const field = "h-10 w-full rounded-lg border border-ink-200 bg-white px-3 text-sm";
+  return (
+    <section className="grid gap-3 rounded-xl border border-ink-100 p-4 md:col-span-2" aria-label="Publication">
+      <h3 className="font-bold">Publication</h3>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field l="Visibilité de l'événement"><select className={field} value={ev.visibility ?? "prive"} onChange={(e) => save((x) => ({ ...x, visibility: e.target.value as "prive" | "public" }))}><option value="prive">Privé (visible seulement ici)</option><option value="public">Public (calendrier et page de l'événement)</option></select></Field>
+        <div className="grid gap-1 text-sm font-medium"><span>Collection de parcours</span>
+          {col ? <div className="flex items-center gap-2"><span className="flex-1 truncate rounded-lg bg-ink-50 px-3 py-2 text-sm">{col.name} · {col.visibility === "public" ? "publique" : "privée"}</span><Link className="text-sm font-semibold text-pine-700 underline" href={collectionHref(col.id)}>Voir</Link></div>
+            : <Button type="button" variant="secondary" disabled={!linked.length} onClick={createCollection}>Créer la collection de l'événement</Button>}
+        </div>
+      </div>
+      {ev.visibility === "public" && priv.length > 0 && (
+        <div role="alert" className="rounded-lg bg-warn/10 p-3 text-sm">
+          <p className="font-semibold">Ces parcours liés sont encore privés : les visiteurs ne verront pas leur tracé.</p>
+          <ul className="mt-1 list-disc pl-5">{priv.map((r) => <li key={r.id}>{r.name}</li>)}</ul>
+          <Button size="sm" variant="brand" className="mt-2" onClick={makePublic}>Rendre ces parcours publics</Button>
+        </div>
+      )}
+      <p className="text-xs text-ink-500">{cloudEnabled ? "Les contenus publics sont publiés à la prochaine synchronisation (quelques secondes). Seules les informations de la page publique sont partagées : jamais les bénévoles, l'équipe ni la logistique." : "Le mode public prendra effet quand les comptes seront activés (guide dans docs/supabase.md). Pour l'instant, seul cet appareil voit l'événement."}</p>
+    </section>
   );
 }
 

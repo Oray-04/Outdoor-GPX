@@ -11,3 +11,5 @@ export const editorHref = (id: string) => `/creer/?id=${encodeURIComponent(id)}`
 export const trackerHref = (id: string) => `/suivi/?route=${encodeURIComponent(id)}`;
 
 export const validId = (s: string | null | undefined) => (s && /^[\w-]{3,64}$/.test(s) ? s : undefined);
+export const collectionHref = (id: string) => `/collections/voir/?id=${encodeURIComponent(id)}`;
+export const ownerHref = (id: string) => `/organisateur/voir/?id=${encodeURIComponent(id)}`;

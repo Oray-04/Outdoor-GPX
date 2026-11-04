@@ -27,7 +27,7 @@ grant usage on schema public, extensions to anon, authenticated;
 grant usage on schema auth to anon, authenticated;
 alter database crete set search_path = "$user", public, extensions;
 SQL
-chmod 644 "$DIR/stub.sql"; cp supabase/migrations/*.sql "$DIR/mig.sql"; cp supabase/tests/rls.sql "$DIR/rls.sql"; chmod 644 "$DIR"/*.sql
+chmod 644 "$DIR/stub.sql"; cat supabase/migrations/*.sql > "$DIR/mig.sql"; cp supabase/tests/rls.sql "$DIR/rls.sql"; chmod 644 "$DIR"/*.sql
 as_pg "$PSQL -d crete -f $DIR/stub.sql"
 as_pg "psql -h $DIR -p $PORT -U postgres -d crete -v ON_ERROR_STOP=1 -q -X -c 'select 1'" >/dev/null
 as_pg "$PSQL -d crete -f $DIR/mig.sql"

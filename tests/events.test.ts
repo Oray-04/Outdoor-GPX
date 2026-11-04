@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { DEMO_VMS } from "../src/lib/route-model";
 import { passageTable, positionOnTrack, effortProfile, clockAt, filterEvents, DEFAULT_EVENT_FILTERS, DEMO_EVENT_MODELS, type Race, type Post } from "../src/lib/events";
 import type { Pt } from "../src/lib/types";
 
@@ -28,7 +29,18 @@ describe("événements", () => {
   it("effort cumulé = km + D+/100", () => { const { e } = effortProfile(coords); expect(e.at(-1)!).toBeGreaterThan(14); expect(e.at(-1)!).toBeLessThan(16); });
   it("filtre par sport, distance, dates", () => {
     expect(filterEvents(DEMO_EVENT_MODELS, { ...DEFAULT_EVENT_FILTERS, sport: "gravel" })).toHaveLength(1);
-    expect(filterEvents(DEMO_EVENT_MODELS, { ...DEFAULT_EVENT_FILTERS, minKm: 80 }).map((e) => e.id)).toEqual(expect.arrayContaining(["ev-3", "ev-4"]));
+    expect(filterEvents(DEMO_EVENT_MODELS, { ...DEFAULT_EVENT_FILTERS, minKm: 35 }).map((e) => e.id)).toEqual(expect.arrayContaining(["ev-1", "ev-4"]));
+    expect(filterEvents(DEMO_EVENT_MODELS, { ...DEFAULT_EVENT_FILTERS, minKm: 35 }).map((e) => e.id)).not.toContain("ev-2");
     expect(filterEvents(DEMO_EVENT_MODELS, { ...DEFAULT_EVENT_FILTERS, from: "2027-06-01", to: "2027-06-30" })).toHaveLength(1);
+  });
+});
+
+describe("événements de démonstration", () => {
+  it("chaque course est reliée à un parcours de démonstration existant, aux mesures cohérentes", () => {
+    for (const e of DEMO_EVENT_MODELS) for (const r of e.races) {
+      const v = DEMO_VMS.find((x) => x.id === r.routeId);
+      expect(v, `${e.name} / ${r.label}`).toBeDefined();
+      expect(r.distanceKm).toBeCloseTo(v!.stats.distanceM / 1000, 1); expect(r.gainM).toBe(Math.round(v!.stats.gainM));
+    }
   });
 });

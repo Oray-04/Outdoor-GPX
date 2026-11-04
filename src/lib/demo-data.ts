@@ -97,15 +97,16 @@ export const DEMO_ROUTES: DemoRoute[] = [
 export const getDemoRoute = (id: string) => DEMO_ROUTES.find((r) => r.id === id);
 
 export interface DemoEvent {
-  id: string; name: string; sport: Sport; date: string; place: string; region: string;
-  formats: { label: string; km: number; dplus: number }[];
+  id: string; name: string; date: string; place: string; region: string;
+  /** Chaque format est relié à un parcours de démonstration (distance et D+ en sont déduits). */
+  formats: { label: string; routeId: string }[];
 }
 
 export const DEMO_EVENTS: DemoEvent[] = [
-  { id: "ev-1", name: "Trail de démonstration des Crêtes", sport: "trail", date: "2027-04-18", place: "Lieu de démonstration", region: "Auvergne-Rhône-Alpes", formats: [{ label: "Court", km: 12, dplus: 600 }, { label: "Long", km: 32, dplus: 1800 }] },
-  { id: "ev-2", name: "Course de démonstration du Littoral", sport: "course", date: "2027-05-09", place: "Lieu de démonstration", region: "Provence-Alpes-Côte d'Azur", formats: [{ label: "10 km", km: 10, dplus: 120 }, { label: "Semi", km: 21.1, dplus: 260 }] },
-  { id: "ev-3", name: "Ultra de démonstration des Lacs", sport: "trail", date: "2027-06-26", place: "Lieu de démonstration", region: "Occitanie", formats: [{ label: "Ultra", km: 85, dplus: 5200 }, { label: "Marathon", km: 44, dplus: 2600 }] },
-  { id: "ev-4", name: "Cyclo de démonstration des Volcans", sport: "gravel", date: "2027-09-12", place: "Lieu de démonstration", region: "Auvergne-Rhône-Alpes", formats: [{ label: "Découverte", km: 60, dplus: 900 }, { label: "Expert", km: 120, dplus: 2400 }] },
+  { id: "ev-1", name: "Trail de démonstration des Crêtes", date: "2027-04-18", place: "Lieu de démonstration", region: "Auvergne-Rhône-Alpes", formats: [{ label: "Découverte", routeId: "demo-vercors-crete" }, { label: "Grand parcours", routeId: "demo-mont-blanc-boucle" }] },
+  { id: "ev-2", name: "Course de démonstration du Littoral", date: "2027-05-09", place: "Lieu de démonstration", region: "Provence-Alpes-Côte d'Azur", formats: [{ label: "Côtier", routeId: "demo-calanques-run" }] },
+  { id: "ev-3", name: "Trail de démonstration des Lacs", date: "2027-06-26", place: "Lieu de démonstration", region: "Occitanie", formats: [{ label: "Cirque et lacs", routeId: "demo-pyrenees-cirque" }] },
+  { id: "ev-4", name: "Cyclo de démonstration des Volcans", date: "2027-09-12", place: "Lieu de démonstration", region: "Auvergne-Rhône-Alpes", formats: [{ label: "Gravel", routeId: "demo-sancy-gravel" }, { label: "Route", routeId: "demo-alpes-velo" }] },
 ];
 
 export interface Destination { id: string; name: string; country: string; blurb: string; center: [number, number]; hue: number }

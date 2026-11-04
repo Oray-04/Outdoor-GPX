@@ -55,7 +55,7 @@ export const routesRepo = listKey<SavedRoute>("routes");
 export interface Activity { id: string; name: string; sport: string; startedAt: number; durationS: number; distanceM: number; gainM: number; coords: [number, number, number, number][]; routeId?: string }
 export const activitiesRepo = listKey<Activity>("activities");
 
-export interface Collection { id: string; name: string; description: string; routeIds: string[] }
+export interface Collection { id: string; name: string; description: string; routeIds: string[]; visibility?: "prive" | "public"; eventId?: string }
 export const collectionsRepo = listKey<Collection>("collections");
 
 export interface Review { id: string; routeId: string; rating: number; comment: string; at: number }

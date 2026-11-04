@@ -8,6 +8,8 @@ import { Library } from "./library/library";
 import { RoutePage } from "./route/route-page";
 import { EventPage } from "./events/event-page";
 import { OrganizerEvent } from "./organizer/organizer-event";
+import { CollectionPage } from "./collections/collection-page";
+import { OwnerPageView } from "./collections/owner-page";
 import { validId } from "@/lib/url";
 
 /** Les pages statiques lisent leurs paramètres côté navigateur (hébergement sans serveur). */
@@ -36,6 +38,12 @@ export const RouteDetailRoute = () => <Wrap><RouteInner /></Wrap>;
 
 function EventInner() { return <EventPage id={validId(useSearchParams().get("id")) ?? ""} />; }
 export const EventDetailRoute = () => <Wrap><EventInner /></Wrap>;
+
+function CollectionInner() { return <CollectionPage id={validId(useSearchParams().get("id")) ?? ""} />; }
+export const CollectionRoute = () => <Wrap><CollectionInner /></Wrap>;
+
+function OwnerInner() { const id = useSearchParams().get("id"); return <OwnerPageView id={id === "me" ? "me" : validId(id) ?? ""} />; }
+export const OwnerRoute = () => <Wrap><OwnerInner /></Wrap>;
 
 function ManageInner() { return <OrganizerEvent id={validId(useSearchParams().get("id")) ?? ""} />; }
 export const ManageEventRoute = () => <Wrap><ManageInner /></Wrap>;
