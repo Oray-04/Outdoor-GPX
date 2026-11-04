@@ -7,29 +7,36 @@ export const emptyState = (): EState => ({ waypoints: [], segs: [], pois: [] });
 
 const ll = (w: { lng: number; lat: number }): LL => [w.lng, w.lat];
 
-/** Géométrie d'un segment : tracé sur chemins si demandé et possible, sinon ligne droite. */
-async function segment(a: Waypoint, b: Waypoint, route: Router): Promise<{ line: LL[]; fallback: boolean }> {
+/**
+ * Géométrie d'un segment : tracé sur chemins si demandé et possible, sinon ligne droite.
+ * Le tracé calculé n'est PAS forcé à passer par le point cliqué : ses extrémités sont sur le chemin retrouvé,
+ * et les points de passage sont ramenés dessus (sinon de faux raccords hors chemin apparaissent).
+ */
+async function segment(a: Waypoint, b: Waypoint, route: Router): Promise<{ line: LL[]; fallback: boolean; start?: LL; end?: LL }> {
   if (b.auto) {
     const r = await route(ll(a), ll(b));
-    if (r) return { line: [ll(a), ...r.slice(1, -1), ll(b)], fallback: false };
+    if (r && r.length >= 2) return { line: r, fallback: false, start: r[0], end: r[r.length - 1] };
     return { line: [ll(a), ll(b)], fallback: true };
   }
   return { line: [ll(a), ll(b)], fallback: false };
 }
+const snapTo = (w: Waypoint, p?: LL): Waypoint => (p ? { ...w, lng: p[0], lat: p[1] } : w);
 
 export interface OpResult { state: EState; fallbacks: number }
 
 export async function addWaypoint(s: EState, lng: number, lat: number, auto: boolean, route: Router): Promise<OpResult> {
   const w: Waypoint = { lng, lat, auto };
   if (!s.waypoints.length) return { state: { ...s, waypoints: [w], segs: [] }, fallbacks: 0 };
-  const seg = await segment(s.waypoints[s.waypoints.length - 1], w, route);
-  return { state: { ...s, waypoints: [...s.waypoints, w], segs: [...s.segs, seg.line] }, fallbacks: +seg.fallback };
+  const prev = s.waypoints[s.waypoints.length - 1];
+  const seg = await segment(prev, w, route);
+  const wps = s.waypoints.length === 1 ? [snapTo(prev, seg.start)] : s.waypoints; // premier point : ramené sur le chemin
+  return { state: { ...s, waypoints: [...wps, snapTo(w, seg.end)], segs: [...s.segs, seg.line] }, fallbacks: +seg.fallback };
 }
 
 export async function moveWaypoint(s: EState, i: number, lng: number, lat: number, route: Router): Promise<OpResult> {
   const wps = s.waypoints.map((w, k) => (k === i ? { ...w, lng, lat } : w));
   const segs = [...s.segs]; let fb = 0;
-  if (i > 0) { const r = await segment(wps[i - 1], wps[i], route); segs[i - 1] = r.line; fb += +r.fallback; }
+  if (i > 0) { const r = await segment(wps[i - 1], wps[i], route); segs[i - 1] = r.line; wps[i] = snapTo(wps[i], r.end); fb += +r.fallback; }
   if (i < wps.length - 1) { const r = await segment(wps[i], wps[i + 1], route); segs[i] = r.line; fb += +r.fallback; }
   return { state: { ...s, waypoints: wps, segs }, fallbacks: fb };
 }
@@ -114,12 +121,16 @@ export function merge(a: EState, b: EState): EState {
   return { waypoints: [...a.waypoints, { ...firstB, auto: false }, ...b.waypoints.slice(1)], segs: [...a.segs, [ll(lastA), ll(firstB)], ...b.segs], pois: [...a.pois, ...b.pois] };
 }
 
-/** Trace complète (sans doublons aux jonctions). */
+/** Trace complète : le premier point d'un segment n'est omis que s'il double la fin du précédent. */
 export function trackLL(s: EState): LL[] {
   if (!s.waypoints.length) return [];
   if (!s.segs.length) return [ll(s.waypoints[0])];
   const out: LL[] = [];
-  s.segs.forEach((g, i) => out.push(...(i === 0 ? g : g.slice(1))));
+  s.segs.forEach((g, i) => {
+    const last = out[out.length - 1];
+    const dup = i > 0 && last && Math.abs(last[0] - g[0][0]) < 1e-7 && Math.abs(last[1] - g[0][1]) < 1e-7;
+    out.push(...(i === 0 || dup ? g.slice(i === 0 ? 0 : 1) : g));
+  });
   return out;
 }
 
@@ -130,4 +141,18 @@ export function fromTrack(coords: Pt[], pois: Poi[], tolM = 12): EState {
   const segs: LL[][] = [];
   for (let k = 0; k < idx.length - 1; k++) segs.push(coords.slice(idx[k], idx[k + 1] + 1).map((c) => [c[0], c[1]] as LL));
   return { waypoints, segs, pois };
+}
+
+export type Matcher = (line: LL[]) => Promise<LL[] | null>;
+
+/** Aligne chaque segment sur les chemins ; un segment non alignable est conservé tel quel. Les points de passage ne bougent pas. */
+export async function alignState(s: EState, match: Matcher, onProgress?: (done: number, total: number) => void): Promise<OpResult & { matched: number }> {
+  const segs: LL[][] = []; let matched = 0, kept = 0;
+  for (let i = 0; i < s.segs.length; i++) {
+    const g = s.segs[i];
+    const m = g.length >= 2 ? await match(g) : null;
+    if (m && m.length >= 2) { segs.push([g[0], ...m.slice(1, -1), g[g.length - 1]]); matched++; } else { segs.push(g); kept++; }
+    onProgress?.(i + 1, s.segs.length);
+  }
+  return { state: { ...s, segs }, fallbacks: kept, matched };
 }

@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Marker, GeoJSONSource } from "maplibre-gl";
-import { Undo2, Redo2, Route as RouteIcon, MousePointer2, ArrowLeftRight, Repeat, Trash2, Copy, Scissors, Flag, Upload, Download, MapPin, Loader2, Check, AlertTriangle, Plus, Merge, LocateFixed } from "lucide-react";
+import { Undo2, Redo2, Route, Route as RouteIcon, MousePointer2, ArrowLeftRight, Repeat, Trash2, Copy, Scissors, Flag, Upload, Download, MapPin, Loader2, Check, AlertTriangle, Plus, Merge, LocateFixed } from "lucide-react";
 import clsx from "clsx";
 import { useMap } from "@/components/map/use-map";
 import { LayerControl } from "@/components/map/layer-control";
@@ -9,7 +9,9 @@ import { MapFrame, StatBanner } from "@/components/map/map-frame";
 import { ElevationChart, type ChartMarker } from "@/components/route/elevation-chart";
 import { Button } from "@/components/ui/button";
 import * as E from "@/lib/editor-core";
-import { routeOnPaths, addElevation } from "@/lib/ign";
+import { addElevation } from "@/lib/ign";
+import { ENGINE_LABEL, SOURCE_LABEL, makeRouter, profileForSport, snapToPaths, type Engine, type Source } from "@/lib/routing";
+import { setEnginePref, useEnginePref } from "@/lib/map-prefs";
 import { routesRepo, useLayers, useTerrains } from "@/lib/repo";
 import { POI_TYPES, uid, type Poi, type PoiType, type Pt, type SavedRoute, type Visibility } from "@/lib/types";
 import { SPORTS, DIFFICULTY_LABEL, difficultyOf, estimateMinutes, type Sport } from "@/lib/sports";
@@ -36,6 +38,9 @@ export function Editor({ routeId }: { routeId?: string }) {
   const sourceKind = useRef<SavedRoute["source"]>("creation");
   const fileName = useRef<string | undefined>(undefined);
   const [auto, setAuto] = useState(true);
+  const engine = useEnginePref();
+  const [lastSource, setLastSource] = useState<Source | null>(null);
+  const [aligning, setAligning] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "warn" | "err"; text: string } | null>(null);
   const [sel, setSel] = useState<number | null>(null);
@@ -149,6 +154,9 @@ export function Editor({ routeId }: { routeId?: string }) {
 
   // Clic sur la carte : ajoute un waypoint / un POI, ou insère un point sur le tracé
   const stRef = useRef(st); stRef.current = st;
+  const routeProfile = profileForSport(meta.sport);
+  const routerRef = useRef(makeRouter({ engine, profile: routeProfile }));
+  routerRef.current = makeRouter({ engine, profile: routeProfile, onSource: setLastSource });
   const clickRef = useRef<(lng: number, lat: number, px: { x: number; y: number }) => void>(() => {});
   clickRef.current = (lng, lat, px) => {
     const m = map.current; if (!m || busy) return;
@@ -163,7 +171,7 @@ export function Editor({ routeId }: { routeId?: string }) {
       const next = E.insertOnSegment(st, best.s, best.v);
       if (next !== st) { commit(next); return; }
     }
-    run(() => E.addWaypoint(st, lng, lat, auto, routeOnPaths));
+    run(() => E.addWaypoint(st, lng, lat, auto, routerRef.current));
   };
   useEffect(() => {
     const m = map.current; if (!m || !ready) return;
@@ -185,7 +193,7 @@ export function Editor({ routeId }: { routeId?: string }) {
       d.setAttribute("aria-label", d.title);
       d.addEventListener("click", (ev) => { ev.stopPropagation(); setSel(i); setTab("trace"); });
       const mk = new lib.Marker({ element: d, draggable: true }).setLngLat([w.lng, w.lat]).addTo(m);
-      mk.on("dragend", () => { const p = mk.getLngLat(); run(() => E.moveWaypoint(stRef.current, i, p.lng, p.lat, routeOnPaths)); });
+      mk.on("dragend", () => { const p = mk.getLngLat(); run(() => E.moveWaypoint(stRef.current, i, p.lng, p.lat, routerRef.current)); });
       markers.current.push(mk);
     });
   }, [st.waypoints, sel, closed, ready, map, ml, run]);
@@ -217,7 +225,7 @@ export function Editor({ routeId }: { routeId?: string }) {
       const t = e.target as HTMLElement; if (/INPUT|TEXTAREA|SELECT/.test(t.tagName)) return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); }
       else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") { e.preventDefault(); redo(); }
-      else if ((e.key === "Delete" || e.key === "Backspace") && sel != null) { e.preventDefault(); const i = sel; setSel(null); run(() => E.removeWaypoint(st, i, routeOnPaths)); }
+      else if ((e.key === "Delete" || e.key === "Backspace") && sel != null) { e.preventDefault(); const i = sel; setSel(null); run(() => E.removeWaypoint(st, i, routerRef.current)); }
       else if (e.key === "Escape") { setSel(null); setPoiMode(null); }
     };
     window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h);
@@ -232,6 +240,14 @@ export function Editor({ routeId }: { routeId?: string }) {
     routesRepo.upsert({ id: nid, name, description: meta.description, sport: meta.sport, segs: state.segs, waypoints: state.waypoints, coords: pts, pois: state.pois, terrain: meta.terrain, visibility: meta.visibility, region: meta.region, country: meta.country, layer: meta.layer, source: "creation", createdAt: Date.now(), updatedAt: Date.now() });
     return nid;
   }
+  const align = async () => {
+    setAligning("Alignement…"); setMsg(null);
+    try {
+      const r = await E.alignState(st, async (l) => { const x = await snapToPaths(l, profileForSport(meta.sport)); return x.matched > 0 ? x.line : null; }, (d, t) => setAligning(`Alignement ${d}/${t}…`));
+      commit(r.state);
+      setMsg({ kind: r.fallbacks ? "warn" : "ok", text: `Alignement : ${r.matched} tronçon(s) aligné(s) sur les chemins${r.fallbacks ? `, ${r.fallbacks} conservé(s) tel(s) quel(s) (aucun chemin proche)` : ""}.` });
+    } catch { setMsg({ kind: "err", text: "Alignement impossible pour le moment (service indisponible)." }); } finally { setAligning(null); }
+  };
   const duplicate = async () => { setBusy(true); try { const nid = await saveSibling(st, `${meta.name || "Parcours"} (copie)`); window.location.assign(withBase(editorHref(nid))); } catch { setMsg({ kind: "err", text: "Duplication impossible (altitudes indisponibles)." }); } finally { setBusy(false); } };
   const split = async () => {
     if (sel == null) return; const parts = E.splitAt(st, sel);
@@ -274,7 +290,7 @@ export function Editor({ routeId }: { routeId?: string }) {
             <button className={tb} onClick={undo} disabled={hi === 0 || busy} aria-label="Annuler" title="Annuler (Ctrl+Z)"><Undo2 className="size-4" /></button>
             <button className={tb} onClick={redo} disabled={hi >= hist.length - 1 || busy} aria-label="Rétablir" title="Rétablir (Ctrl+Y)"><Redo2 className="size-4" /></button>
             <button className={tb} onClick={() => commit(E.reverse(st))} disabled={st.waypoints.length < 2 || busy} aria-label="Inverser le sens" title="Inverser le sens"><ArrowLeftRight className="size-4" /></button>
-            <button className={tb} onClick={() => run(() => E.closeLoop(st, auto, routeOnPaths))} disabled={st.waypoints.length < 3 || closed || busy} aria-label="Fermer la boucle" title="Fermer la boucle"><Repeat className="size-4" /></button>
+            <button className={tb} onClick={() => run(() => E.closeLoop(st, auto, routerRef.current))} disabled={st.waypoints.length < 3 || closed || busy} aria-label="Fermer la boucle" title="Fermer la boucle"><Repeat className="size-4" /></button>
             <button className={tb} onClick={locate} aria-label="Me localiser" title="Me localiser"><LocateFixed className="size-4" /></button>
             <button className={tb} onClick={reset} aria-label="Nouveau parcours" title="Nouveau / effacer"><Trash2 className="size-4" /></button>
           </div>
@@ -322,10 +338,16 @@ export function Editor({ routeId }: { routeId?: string }) {
             {stats && <p className="text-sm text-ink-600">Difficulté : <b>{DIFFICULTY_LABEL[difficultyOf(stats.distanceM, stats.gainM)]}</b> · {closed ? "Boucle" : "Parcours linéaire"} · Terrain : {meta.terrain.length ? meta.terrain.join(", ") : <i>à renseigner dans Infos</i>}</p>}
             <p className="text-xs text-ink-400">La durée est une estimation selon la discipline, la distance et le dénivelé.</p>
             <div className="rounded-xl border border-ink-100 p-3">
+              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-400">Calcul du tracé</p>
+              <label className="grid gap-1 text-sm font-medium">Source des chemins<select className={field} value={engine} onChange={(e) => setEnginePref(e.target.value as Engine)}>{(Object.keys(ENGINE_LABEL) as Engine[]).map((k) => <option key={k} value={k}>{ENGINE_LABEL[k]}</option>)}</select></label>
+              <p className="mt-1.5 text-xs text-ink-500">Indépendant du fond de carte affiché. En mode automatique, un chemin absent d'une source est cherché dans l'autre.{lastSource && <> Dernier tronçon : <b>{SOURCE_LABEL[lastSource]}</b>.</>}</p>
+              <Button size="sm" variant="secondary" className="mt-2" disabled={busy || !!aligning || st.segs.length === 0} onClick={align}><Route className="size-4" />{aligning ?? "Aligner sur les chemins"}</Button>
+            </div>
+            <div className="rounded-xl border border-ink-100 p-3">
               <p className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-400">{sel != null ? `Point ${sel + 1} sélectionné` : "Points de passage"}</p>
               {sel != null ? (
                 <div className="flex flex-wrap gap-2">
-                  <Button size="sm" variant="secondary" disabled={busy} onClick={() => { const i = sel; setSel(null); run(() => E.removeWaypoint(st, i, routeOnPaths)); }}><Trash2 className="size-4" />Supprimer</Button>
+                  <Button size="sm" variant="secondary" disabled={busy} onClick={() => { const i = sel; setSel(null); run(() => E.removeWaypoint(st, i, routerRef.current)); }}><Trash2 className="size-4" />Supprimer</Button>
                   <Button size="sm" variant="secondary" disabled={!closed || sel === 0 || sel === st.waypoints.length - 1} title={closed ? "" : "Disponible sur une boucle"} onClick={() => { commit(E.setStart(st, sel)); setSel(null); }}><Flag className="size-4" />Départ ici</Button>
                   <Button size="sm" variant="secondary" disabled={busy || sel === 0 || sel === st.waypoints.length - 1} onClick={split}><Scissors className="size-4" />Diviser ici</Button>
                 </div>

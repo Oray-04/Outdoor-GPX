@@ -1,6 +1,7 @@
 "use client";
 import { useStore, writeStore } from "./store";
 import { DEFAULT_BASEMAP } from "./basemaps";
+import type { Engine } from "./routing";
 
 /** Préférences de carte mémorisées sur l'appareil (communes à toutes les cartes du site). */
 const ENV_TF = process.env.NEXT_PUBLIC_THUNDERFOREST_KEY ?? "";
@@ -12,3 +13,7 @@ export const setOverlayPref = (ids: string[]) => writeStore("ui:overlays", ids);
 export const useThunderforestKey = (): string => { const k = useStore<string>("tf-key", ""); return ENV_TF || k; };
 export const setThunderforestKey = (k: string) => writeStore("tf-key", k.trim());
 export const thunderforestFromEnv = Boolean(ENV_TF);
+
+/** Moteur de tracé choisi dans l'éditeur. */
+export const useEnginePref = () => useStore<Engine>("ui:engine", "auto");
+export const setEnginePref = (e: Engine) => writeStore("ui:engine", e);

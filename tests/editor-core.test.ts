@@ -71,3 +71,20 @@ describe("éditeur", () => {
     expect(E.trackLL(s)).toHaveLength(300);
   });
 });
+
+describe("éditeur : accrochage des points sur les chemins", () => {
+  // routeur qui « accroche » à un chemin décalé de 0,001° : ses extrémités ne sont pas les points cliqués
+  const snapped: E.Router = async (a, b) => [[a[0] + 0.001, a[1]], [(a[0] + b[0]) / 2 + 0.001, (a[1] + b[1]) / 2], [b[0] + 0.001, b[1]]];
+  it("les points de passage sont ramenés sur le chemin, sans raccord hors chemin", async () => {
+    let s = E.emptyState();
+    for (const [x, y] of [[6, 45], [6.01, 45], [6.02, 45.01]] as [number, number][]) s = (await E.addWaypoint(s, x, y, true, snapped)).state;
+    expect(s.waypoints[0].lng).toBeCloseTo(6.001, 6); expect(s.waypoints[2].lng).toBeCloseTo(6.021, 6);
+    const t = E.trackLL(s);
+    expect(t[0]).toEqual([6.001, 45]);                       // la trace commence sur le chemin, pas au point cliqué
+    expect(t.some((p) => Math.abs(p[0] - 6) < 1e-9)).toBe(false);
+  });
+  it("trace continue : pas de point perdu quand les segments ne se rejoignent pas exactement", () => {
+    const s: E.EState = { waypoints: [{ lng: 0, lat: 0, auto: true }, { lng: 1, lat: 0, auto: true }, { lng: 2, lat: 0, auto: true }], segs: [[[0, 0], [1, 0]], [[1.1, 0], [2, 0]]], pois: [] };
+    expect(E.trackLL(s)).toEqual([[0, 0], [1, 0], [1.1, 0], [2, 0]]);
+  });
+});
