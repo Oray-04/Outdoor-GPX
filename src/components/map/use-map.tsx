@@ -27,6 +27,7 @@ export function useMap(opts: { center?: [number, number]; zoom?: number; scale?:
       if (o.current.scale !== false) m.addControl(new ml.ScaleControl({ unit: "metric" }), "bottom-left");
       m.on("style.load", () => { if (!dead) setReady(true); });
       mapRef.current = m;
+      try { if (localStorage.getItem("crete:debug")) (window as unknown as { __map?: unknown }).__map = m; } catch { /* stockage indisponible */ }
       ro = new ResizeObserver(() => m.resize());
       ro.observe(el.current);
     })();

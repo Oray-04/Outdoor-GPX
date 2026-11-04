@@ -5,6 +5,14 @@ const BASE = "https://data.geopf.fr";
 const elevCache = new Map<string, number>();
 const keyOf = (p: readonly number[]) => `${p[0].toFixed(5)},${p[1].toFixed(5)}`;
 
+/**
+ * Mémorise des altitudes déjà connues (fichier importé, parcours enregistré) : elles sont conservées
+ * lors des modifications, seules les nouveaux points sont interrogés auprès de l'IGN.
+ */
+export function seedElevations(coords: readonly (readonly number[])[]) {
+  for (const c of coords) if (Number.isFinite(c[2])) elevCache.set(keyOf(c), c[2]);
+}
+
 /** Altitudes (m) via le service d'altimétrie de la Géoplateforme, par lots, avec cache. */
 export async function fetchElevations(pts: LL[], signal?: AbortSignal): Promise<number[]> {
   const todo = pts.filter((p) => !elevCache.has(keyOf(p)));

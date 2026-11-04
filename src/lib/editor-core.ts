@@ -156,3 +156,18 @@ export async function alignState(s: EState, match: Matcher, onProgress?: (done: 
   }
   return { state: { ...s, segs }, fallbacks: kept, matched };
 }
+
+/** Découpe en plusieurs parties aux waypoints donnés (indices intermédiaires). Géométrie et points de passage conservés. */
+export function splitMany(s: EState, indices: number[]): EState[] {
+  const cuts = [...new Set(indices)].filter((i) => i > 0 && i < s.waypoints.length - 1).sort((a, b) => a - b);
+  if (!cuts.length) return [s];
+  const bounds = [0, ...cuts, s.waypoints.length - 1];
+  const parts: EState[] = [];
+  for (let k = 0; k < bounds.length - 1; k++) parts.push({ waypoints: s.waypoints.slice(bounds[k], bounds[k + 1] + 1), segs: s.segs.slice(bounds[k], bounds[k + 1]), pois: [] });
+  for (const p of s.pois) {
+    let best = 0, bd = Infinity;
+    parts.forEach((part, i) => { const d = nearestDist(part, p); if (d < bd) { bd = d; best = i; } });
+    parts[best].pois.push(p);
+  }
+  return parts;
+}

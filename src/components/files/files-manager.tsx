@@ -9,8 +9,9 @@ import { RouteMap } from "@/components/map/route-map";
 import { routesRepo, useLayers } from "@/lib/repo";
 import { fromSaved } from "@/lib/route-model";
 import { FORMATS, parseAny, serialize, download, safeName, GpsFileError, MAX_BYTES, type GpsFormat, type ParsedFile } from "@/lib/formats";
+import * as E from "@/lib/editor-core";
 import { fromTrack } from "@/lib/editor-core";
-import { addElevation } from "@/lib/ign";
+import { addElevation, seedElevations } from "@/lib/ign";
 import { trackStats, fmtKm, fmtM } from "@/lib/geo";
 import { uid, type Pt } from "@/lib/types";
 import { routeHref, editorHref } from "@/lib/url";
@@ -24,6 +25,9 @@ export function FilesManager() {
   const [pending, setPending] = useState<Pending[]>([]);
   const [drag, setDrag] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [mergeName, setMergeName] = useState("");
+  const [merging, setMerging] = useState(false);
 
   async function handle(files: FileList | File[]) {
     for (const f of Array.from(files)) {
@@ -59,6 +63,21 @@ export function FilesManager() {
     const file = new File([serialize("gpx", { name: r.name, coords: r.coords, pois: r.pois })], `${safeName(r.name)}.gpx`, { type: FORMATS.gpx.mime });
     if (navigator.canShare?.({ files: [file] })) { try { await navigator.share({ title: r.name, files: [file] }); } catch { /* annulé */ } }
     else { download(file.name, file, FORMATS.gpx.mime); setMsg("Le partage direct n'est pas disponible ici : le fichier GPX a été téléchargé, envoyez-le comme vous le souhaitez."); }
+  };
+  /** Fusionne les parcours cochés (dans l'ordre de sélection) en un nouveau parcours : géométrie et altitudes conservées. */
+  const mergePicked = async () => {
+    const rs = picked.map((id) => routesRepo.get(id)).filter((r): r is NonNullable<typeof r> => !!r);
+    if (rs.length < 2) return;
+    setMerging(true);
+    try {
+      rs.forEach((r) => seedElevations(r.coords));
+      let st: E.EState = { waypoints: rs[0].waypoints, segs: rs[0].segs, pois: rs[0].pois };
+      for (const r of rs.slice(1)) st = E.merge(st, { waypoints: r.waypoints, segs: r.segs, pois: r.pois });
+      const coords = await addElevation(E.trackLL(st));
+      const now = Date.now(), name = mergeName.trim() || `${rs[0].name} + ${rs.length - 1}`;
+      const res = routesRepo.upsert({ id: uid(), name, description: `Fusion de : ${rs.map((r) => r.name).join(" → ")}`, sport: rs[0].sport, segs: st.segs, waypoints: st.waypoints, coords, pois: st.pois, terrain: [], visibility: "prive", region: rs[0].region, country: rs[0].country, layer: rs[0].layer, source: "creation", createdAt: now, updatedAt: now });
+      if (res.ok) { setPicked([]); setMergeName(""); setMsg(`« ${name} » créé (${rs.length} parcours fusionnés). Les originaux sont conservés.`); } else setMsg(res.error ?? "Fusion impossible.");
+    } catch { setMsg("Fusion impossible pour le moment."); } finally { setMerging(false); }
   };
   const rename = (id: string) => { const r = routesRepo.get(id); if (!r) return; const n = prompt("Nouveau nom", r.name); if (n?.trim()) routesRepo.upsert({ ...r, name: n.trim(), updatedAt: Date.now() }); };
   const del = (id: string) => { const r = routesRepo.get(id); if (r && confirm(`Supprimer « ${r.name} » de cet appareil ?`)) routesRepo.remove(id); };
@@ -108,10 +127,12 @@ export function FilesManager() {
 
       <section className="mt-10" aria-label="Fichiers enregistrés">
         <h2 className="text-xl font-bold">Enregistrés ({mine.length})</h2>
+        {picked.length >= 2 && <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-pine-50 p-3" role="region" aria-label="Fusion de parcours"><span className="text-sm font-semibold">{picked.length} parcours sélectionnés (ordre : 1, 2…)</span><input aria-label="Nom du parcours fusionné" value={mergeName} onChange={(e) => setMergeName(e.target.value)} placeholder="Nom du nouveau parcours" className="h-9 min-w-0 flex-1 rounded-lg border border-ink-200 bg-white px-3 text-sm" /><Button size="sm" variant="brand" disabled={merging} onClick={mergePicked}>{merging ? "Fusion…" : "Fusionner"}</Button><Button size="sm" variant="ghost" onClick={() => setPicked([])}>Annuler</Button></div>}
         {!mine.length ? <p className="mt-3 rounded-xl border border-dashed border-ink-200 p-6 text-sm text-ink-500">Aucun parcours enregistré. Importez un fichier ou <Link className="font-semibold text-pine-700 underline" href="/creer">créez un parcours</Link>.</p> : (
           <ul className="mt-3 grid gap-3">
-            {mine.map((r) => { const v = fromSaved(r); return (
+            {mine.map((r) => { const v = fromSaved(r); const order = picked.indexOf(r.id); return (
               <li key={r.id} className="flex flex-wrap items-center gap-3 rounded-xl bg-white p-3 ring-1 ring-ink-100">
+                <label className="flex items-center gap-1.5" title="Sélectionner pour fusionner"><input type="checkbox" aria-label={`Sélectionner ${r.name}`} checked={order >= 0} onChange={() => setPicked((p) => (p.includes(r.id) ? p.filter((x) => x !== r.id) : [...p, r.id]))} className="size-4 accent-[var(--color-pine-600)]" />{order >= 0 && <span className="grid size-5 place-items-center rounded-full bg-pine-600 text-[11px] font-bold text-white">{order + 1}</span>}</label>
                 <div className="min-w-0 flex-1">
                   <Link href={routeHref(r.id)} className="block truncate font-semibold hover:text-pine-700">{r.name}</Link>
                   <p className="text-xs text-ink-500">{fmtKm(v.stats.distanceM)} · {fmtM(v.stats.gainM)} D+ · {r.coords.length} pts · <Badge tone={r.source === "import" ? "glacier" : "pine"}>{r.source === "import" ? `Importé${r.fileName ? " : " + r.fileName : ""}` : "Créé ici"}</Badge></p>

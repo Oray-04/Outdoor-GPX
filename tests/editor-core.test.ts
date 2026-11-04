@@ -88,3 +88,22 @@ describe("éditeur : accrochage des points sur les chemins", () => {
     expect(E.trackLL(s)).toEqual([[0, 0], [1, 0], [1.1, 0], [2, 0]]);
   });
 });
+
+describe("découpe multiple", () => {
+  it("découpe en N parties qui se raccordent et conservent toute la géométrie", async () => {
+    const s = await build(7);
+    const parts = E.splitMany(s, [4, 2, 2, 0, 6]); // doublons et extrémités ignorés
+    expect(parts).toHaveLength(3);
+    expect(parts.map((p) => p.waypoints.length)).toEqual([3, 3, 3]);
+    parts.slice(1).forEach((p, i) => expect(p.waypoints[0]).toEqual(parts[i].waypoints.at(-1)));
+    const total = parts.reduce((n, p) => n + E.trackLL(p).length, 0);
+    expect(total).toBe(E.trackLL(s).length + (parts.length - 1)); // les points de coupe sont partagés
+  });
+  it("aucune coupe valide : le parcours est renvoyé tel quel", async () => { const s = await build(4); expect(E.splitMany(s, [0, 3])).toEqual([s]); });
+  it("répartit les points d'intérêt sur la partie la plus proche", async () => {
+    let s = await build(5);
+    s = { ...s, pois: [{ id: "a", type: "eau", name: "début", lng: s.waypoints[0].lng, lat: s.waypoints[0].lat }, { id: "b", type: "eau", name: "fin", lng: s.waypoints[4].lng, lat: s.waypoints[4].lat }] };
+    const [p1, p2] = E.splitMany(s, [2]);
+    expect(p1.pois.map((x) => x.id)).toEqual(["a"]); expect(p2.pois.map((x) => x.id)).toEqual(["b"]);
+  });
+});

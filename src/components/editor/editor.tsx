@@ -9,7 +9,7 @@ import { MapFrame, StatBanner } from "@/components/map/map-frame";
 import { ElevationChart, type ChartMarker } from "@/components/route/elevation-chart";
 import { Button } from "@/components/ui/button";
 import * as E from "@/lib/editor-core";
-import { addElevation } from "@/lib/ign";
+import { addElevation, seedElevations } from "@/lib/ign";
 import { ENGINE_LABEL, SOURCE_LABEL, makeRouter, profileForSport, snapToPaths, type Engine, type Source } from "@/lib/routing";
 import { setEnginePref, useEnginePref } from "@/lib/map-prefs";
 import { routesRepo, useLayers, useTerrains } from "@/lib/repo";
@@ -41,6 +41,9 @@ export function Editor({ routeId }: { routeId?: string }) {
   const engine = useEnginePref();
   const [lastSource, setLastSource] = useState<Source | null>(null);
   const [aligning, setAligning] = useState<string | null>(null);
+  const [cutMode, setCutMode] = useState(false);
+  const [cutKeys, setCutKeys] = useState<string[]>([]);
+  const [madeParts, setMadeParts] = useState<{ id: string; name: string }[]>([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "warn" | "err"; text: string } | null>(null);
   const [sel, setSel] = useState<number | null>(null);
@@ -82,7 +85,7 @@ export function Editor({ routeId }: { routeId?: string }) {
     createdAt.current = r.createdAt; sourceKind.current = r.source; fileName.current = r.fileName;
     setMeta({ name: r.name, description: r.description, sport: r.sport, visibility: r.visibility, terrain: r.terrain, region: r.region, country: r.country, layer: r.layer === "fkt" || !r.layer ? "mine" : r.layer, sourceUrl: r.sourceUrl ?? "" });
     setHist([{ waypoints: r.waypoints, segs: r.segs, pois: r.pois }]); setHi(0);
-    setCoords(r.coords); setElev("ok"); setLoaded(true);
+    seedElevations(r.coords); setCoords(r.coords); setElev("ok"); setLoaded(true);
   }, [routeId]);
 
   const track = useMemo(() => E.trackLL(st), [st]);
@@ -164,6 +167,18 @@ export function Editor({ routeId }: { routeId?: string }) {
       const poi: Poi = { id: uid(), type: poiMode, name: POI_TYPES[poiMode].label, lng, lat };
       commit({ ...st, pois: [...st.pois, poi] }); return;
     }
+    if (cutMode) {
+      const onTrack = m.queryRenderedFeatures([[px.x - 9, px.y - 9], [px.x + 9, px.y + 9]], { layers: ["track-line"] });
+      if (!onTrack.length || !st.segs.length) { setMsg({ kind: "warn", text: "Cliquez directement sur le tracé pour placer une coupe." }); return; }
+      let b = { s: -1, v: -1, d: Infinity };
+      st.segs.forEach((g, s2) => g.forEach((p, v) => { const d = (p[0] - lng) ** 2 + (p[1] - lat) ** 2; if (d < b.d) b = { s: s2, v, d }; }));
+      const next = E.insertOnSegment(st, b.s, b.v);
+      const wi = next !== st ? b.s + 1 : b.v <= 0 ? b.s : b.s + 1;     // point de coupe : nouveau waypoint ou waypoint existant
+      if (wi <= 0 || wi >= next.waypoints.length - 1) { setMsg({ kind: "warn", text: "Une coupe ne peut pas être au tout début ni à la toute fin." }); return; }
+      if (next !== st) commit(next);
+      const w = next.waypoints[wi]; setCutKeys((k) => (k.includes(`${w.lng},${w.lat}`) ? k : [...k, `${w.lng},${w.lat}`]));
+      return;
+    }
     const hit = m.queryRenderedFeatures([[px.x - 7, px.y - 7], [px.x + 7, px.y + 7]], { layers: ["track-line"] });
     if (hit.length && st.segs.length) {
       let best = { s: -1, v: -1, d: Infinity };
@@ -187,8 +202,8 @@ export function Editor({ routeId }: { routeId?: string }) {
     st.waypoints.forEach((w, i) => {
       const d = document.createElement("button");
       const first = i === 0, last = i === n - 1 && n > 1 && !closed;
-      d.className = clsx("grid size-6 place-items-center rounded-full border-2 text-[10px] font-bold shadow-md", first ? "border-white bg-pine-600 text-white" : last ? "border-white bg-ink-900 text-white" : "border-pine-600 bg-white text-pine-700", sel === i && "ring-4 ring-ember-400/60");
-      d.textContent = first ? "D" : last ? "A" : String(i);
+      d.className = clsx("grid size-6 place-items-center rounded-full border-2 text-[10px] font-bold shadow-md", cutKeys.includes(`${w.lng},${w.lat}`) ? "border-white bg-ember-500 text-white" : first ? "border-white bg-pine-600 text-white" : last ? "border-white bg-ink-900 text-white" : "border-pine-600 bg-white text-pine-700", sel === i && "ring-4 ring-ember-400/60");
+      d.textContent = cutKeys.includes(`${w.lng},${w.lat}`) ? "✂" : first ? "D" : last ? "A" : String(i);
       d.title = `Point ${i + 1} — glissez pour déplacer, cliquez pour sélectionner`;
       d.setAttribute("aria-label", d.title);
       d.addEventListener("click", (ev) => { ev.stopPropagation(); setSel(i); setTab("trace"); });
@@ -196,7 +211,7 @@ export function Editor({ routeId }: { routeId?: string }) {
       mk.on("dragend", () => { const p = mk.getLngLat(); run(() => E.moveWaypoint(stRef.current, i, p.lng, p.lat, routerRef.current)); });
       markers.current.push(mk);
     });
-  }, [st.waypoints, sel, closed, ready, map, ml, run]);
+  }, [st.waypoints, sel, closed, cutKeys, ready, map, ml, run]);
 
   // Marqueurs de POI
   useEffect(() => {
@@ -226,7 +241,7 @@ export function Editor({ routeId }: { routeId?: string }) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); }
       else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") { e.preventDefault(); redo(); }
       else if ((e.key === "Delete" || e.key === "Backspace") && sel != null) { e.preventDefault(); const i = sel; setSel(null); run(() => E.removeWaypoint(st, i, routerRef.current)); }
-      else if (e.key === "Escape") { setSel(null); setPoiMode(null); }
+      else if (e.key === "Escape") { setSel(null); setPoiMode(null); setCutMode(false); }
     };
     window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h);
   }, [undo, redo, sel, st, run]);
@@ -256,13 +271,26 @@ export function Editor({ routeId }: { routeId?: string }) {
     try { const nid = await saveSibling(parts[1], `${meta.name || "Parcours"} (2/2)`); setMeta((m) => ({ ...m, name: `${m.name || "Parcours"} (1/2)` })); commit(parts[0]); setSel(null); setMsg({ kind: "ok", text: `Parcours divisé : la 2ᵉ partie est enregistrée à part (${nid.slice(0, 6)}…).` }); }
     catch { setMsg({ kind: "err", text: "Division impossible (altitudes indisponibles)." }); } finally { setBusy(false); }
   };
-  const mergeWith = (rid2: string) => { const r = routesRepo.get(rid2); if (!r) return; commit(E.merge(st, { waypoints: r.waypoints, segs: r.segs, pois: r.pois })); setMsg({ kind: "ok", text: `« ${r.name} » ajouté à la suite du tracé.` }); };
+  const cutAll = async () => {
+    const idx = st.waypoints.map((w, i) => (cutKeys.includes(`${w.lng},${w.lat}`) ? i : -1)).filter((i) => i > 0 && i < st.waypoints.length - 1);
+    const parts = E.splitMany(st, idx);
+    if (parts.length < 2) { setMsg({ kind: "warn", text: "Placez au moins une coupe sur le tracé." }); return; }
+    setBusy(true); setMsg(null); seedElevations(coords);
+    try {
+      const base = meta.name || "Parcours"; const made: { id: string; name: string }[] = [];
+      for (let k = 0; k < parts.length; k++) { const name = `${base} (${k + 1}/${parts.length})`; made.push({ id: await saveSibling(parts[k], name), name }); }
+      setMadeParts(made); setCutKeys([]); setCutMode(false);
+      setMsg({ kind: "ok", text: `${made.length} parcours créés. Le parcours d'origine est conservé.` });
+    } catch { setMsg({ kind: "err", text: "Découpe impossible pour le moment." }); } finally { setBusy(false); }
+  };
+  const mergeWith = (rid2: string) => { const r = routesRepo.get(rid2); if (!r) return; seedElevations(r.coords); commit(E.merge(st, { waypoints: r.waypoints, segs: r.segs, pois: r.pois })); setMsg({ kind: "ok", text: `« ${r.name} » ajouté à la suite du tracé.` }); };
 
   async function importFile(f: File, mode: "replace" | "merge") {
     setMsg(null);
     if (f.size > MAX_BYTES) { setMsg({ kind: "err", text: "Fichier trop volumineux (25 Mo max)." }); return; }
     try {
       const p = parseAny(await f.text(), f.name);
+      if (p.hadElevation) seedElevations(p.coords);
       const imp = E.fromTrack(p.coords, p.pois);
       if (mode === "merge" && st.waypoints.length) commit(E.merge(st, imp));
       else { setHist([imp]); setHi(0); setMeta((m) => ({ ...m, name: m.name || p.name })); sourceKind.current = "import"; fileName.current = f.name; fitted.current = false; }
@@ -291,12 +319,14 @@ export function Editor({ routeId }: { routeId?: string }) {
             <button className={tb} onClick={redo} disabled={hi >= hist.length - 1 || busy} aria-label="Rétablir" title="Rétablir (Ctrl+Y)"><Redo2 className="size-4" /></button>
             <button className={tb} onClick={() => commit(E.reverse(st))} disabled={st.waypoints.length < 2 || busy} aria-label="Inverser le sens" title="Inverser le sens"><ArrowLeftRight className="size-4" /></button>
             <button className={tb} onClick={() => run(() => E.closeLoop(st, auto, routerRef.current))} disabled={st.waypoints.length < 3 || closed || busy} aria-label="Fermer la boucle" title="Fermer la boucle"><Repeat className="size-4" /></button>
+            <button className={clsx(tb, cutMode && "!bg-ember-500 !text-white")} aria-pressed={cutMode} onClick={() => { setCutMode((v) => !v); setPoiMode(null); }} disabled={st.segs.length === 0} aria-label="Mode découpe" title="Découper le parcours : cliquez sur le tracé"><Scissors className="size-4" /></button>
             <button className={tb} onClick={locate} aria-label="Me localiser" title="Me localiser"><LocateFixed className="size-4" /></button>
             <button className={tb} onClick={reset} aria-label="Nouveau parcours" title="Nouveau / effacer"><Trash2 className="size-4" /></button>
           </div>
           <LayerControl map={map} ready={ready} />
           <div className="pointer-events-none absolute bottom-8 left-3 flex flex-col gap-1.5">
             {busy && <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/95 px-2.5 py-1 text-xs shadow"><Loader2 className="size-3.5 animate-spin" />Calcul du tracé…</span>}
+            {cutMode && <span className="rounded-lg bg-ember-500 px-2.5 py-1 text-xs font-semibold text-white shadow">Découpe : cliquez sur le tracé aux endroits de coupe (Échap pour quitter)</span>}
             {poiMode && <span className="rounded-lg bg-ember-500 px-2.5 py-1 text-xs font-semibold text-white shadow">Cliquez sur la carte pour placer : {POI_TYPES[poiMode].label} (Échap pour annuler)</span>}
             {msg && <span role="status" className={clsx("pointer-events-auto max-w-sm rounded-lg px-2.5 py-1.5 text-xs shadow", msg.kind === "err" ? "bg-danger text-white" : msg.kind === "warn" ? "bg-warn text-white" : "bg-pine-600 text-white")}>{msg.text}</span>}
             {!st.waypoints.length && loaded && <span className="rounded-lg bg-white/95 px-2.5 py-1.5 text-xs shadow">Cliquez sur la carte pour poser le départ, puis les points suivants.</span>}
@@ -352,6 +382,16 @@ export function Editor({ routeId }: { routeId?: string }) {
                   <Button size="sm" variant="secondary" disabled={busy || sel === 0 || sel === st.waypoints.length - 1} onClick={split}><Scissors className="size-4" />Diviser ici</Button>
                 </div>
               ) : <p className="text-sm text-ink-500">{st.waypoints.length} point(s). Cliquez sur un marqueur pour le sélectionner, glissez-le pour le déplacer, cliquez sur le tracé pour insérer un point.</p>}
+            </div>
+            <div className="rounded-xl border border-ink-100 p-3">
+              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-400">Découper en plusieurs parcours</p>
+              <p className="text-xs text-ink-500">Activez le mode découpe (ciseaux sur la carte), cliquez sur le tracé aux endroits voulus, puis créez les parcours. Géométrie, altitudes et profil sont conservés ; l'original n'est pas modifié.</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <Button size="sm" variant={cutMode ? "primary" : "secondary"} aria-pressed={cutMode} disabled={st.segs.length === 0} onClick={() => setCutMode((v) => !v)}><Scissors className="size-4" />{cutMode ? "Découpe active" : "Mode découpe"}</Button>
+                <Button size="sm" variant="brand" disabled={busy || cutKeys.length === 0} onClick={cutAll}>Créer {cutKeys.length + 1} parcours</Button>
+                {cutKeys.length > 0 && <Button size="sm" variant="ghost" onClick={() => setCutKeys([])}>Annuler les coupes</Button>}
+              </div>
+              {madeParts.length > 0 && <ul className="mt-2 grid gap-1 text-sm">{madeParts.map((m2) => <li key={m2.id}><a className="font-semibold text-pine-700 underline" href={withBase(editorHref(m2.id))}>{m2.name}</a></li>)}</ul>}
             </div>
             <div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" disabled={busy || st.waypoints.length < 2} onClick={duplicate}><Copy className="size-4" />Dupliquer</Button></div>
           </>)}
