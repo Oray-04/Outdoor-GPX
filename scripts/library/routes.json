@@ -1,0 +1,284 @@
+{
+  "_comment": "Catalogue des itinéraires de référence. Chaque entrée = une relation OpenStreetMap (ODbL). Pour ajouter un itinéraire : ajouter une entrée puis `npm run library:build -- --only <slug>` (voir docs/bibliotheque.md).",
+  "routes": [
+    {
+      "slug": "gr20",
+      "osm": 101692,
+      "category": "gr",
+      "practice": "randonnee",
+      "name": "GR 20 — Traversée de la Corse",
+      "region": "Corse",
+      "country": "FR"
+    },
+    {
+      "slug": "gr70-stevenson",
+      "osm": 223039,
+      "category": "gr",
+      "practice": "randonnee",
+      "name": "GR 70 — Chemin de Stevenson",
+      "region": "Occitanie / Auvergne-Rhône-Alpes",
+      "country": "FR"
+    },
+    {
+      "slug": "gr65-saint-jacques",
+      "osm": 11959152,
+      "category": "gr",
+      "practice": "randonnee",
+      "name": "GR 65 — Chemin de Saint-Jacques via Le Puy",
+      "region": "Auvergne-Rhône-Alpes / Occitanie / Nouvelle-Aquitaine",
+      "country": "FR"
+    },
+    {
+      "slug": "gr34-douaniers",
+      "osm": 7790332,
+      "category": "gr",
+      "practice": "randonnee",
+      "name": "GR 34 — Sentier des Douaniers",
+      "region": "Bretagne",
+      "country": "FR"
+    },
+    {
+      "slug": "gr55-vanoise",
+      "osm": 377905,
+      "category": "gr",
+      "practice": "randonnee",
+      "name": "GR 55 — La Vanoise",
+      "region": "Auvergne-Rhône-Alpes",
+      "country": "FR"
+    },
+    {
+      "slug": "gr54-oisans-ecrins",
+      "osm": 2909096,
+      "category": "gr",
+      "practice": "randonnee",
+      "name": "Tour de l'Oisans et des Écrins (GR 54)",
+      "region": "Auvergne-Rhône-Alpes / PACA",
+      "country": "FR"
+    },
+    {
+      "slug": "gr52-mercantour",
+      "osm": 3315112,
+      "category": "gr",
+      "practice": "randonnee",
+      "name": "Traversée du Mercantour (GR 52)",
+      "region": "Provence-Alpes-Côte d'Azur",
+      "country": "FR"
+    },
+    {
+      "slug": "gr58-queyras",
+      "osm": 9711201,
+      "category": "gr",
+      "practice": "randonnee",
+      "name": "Tour du Queyras (GR 58)",
+      "region": "Provence-Alpes-Côte d'Azur",
+      "country": "FR"
+    },
+    {
+      "slug": "tmb",
+      "osm": 124456,
+      "category": "gr",
+      "practice": "randonnee",
+      "name": "Tour du Mont-Blanc",
+      "region": "Auvergne-Rhône-Alpes / Italie / Suisse",
+      "country": "FR"
+    },
+    {
+      "slug": "gr9-jura-mediterranee",
+      "osm": 10670467,
+      "category": "gr",
+      "practice": "randonnee",
+      "name": "GR 9 — Du Jura à la Méditerranée",
+      "region": "Bourgogne-Franche-Comté / Auvergne-Rhône-Alpes / PACA",
+      "country": "FR"
+    },
+    {
+      "slug": "gr36-manche-pyrenees",
+      "osm": 10805122,
+      "category": "gr",
+      "practice": "randonnee",
+      "name": "GR 36 — De la Manche aux Pyrénées",
+      "region": "Normandie / Centre-Val de Loire / Nouvelle-Aquitaine / Occitanie",
+      "country": "FR"
+    },
+    {
+      "slug": "gr4-mediterranee-ocean",
+      "osm": 7457566,
+      "category": "gr",
+      "practice": "randonnee",
+      "name": "GR 4 — De la Méditerranée à l'Océan",
+      "region": "Nouvelle-Aquitaine / Auvergne-Rhône-Alpes / PACA",
+      "country": "FR"
+    },
+    {
+      "slug": "gr13-gatinais-morvan",
+      "osm": 12798892,
+      "category": "gr",
+      "practice": "randonnee",
+      "name": "GR 13 — Du Gâtinais au Morvan",
+      "region": "Île-de-France / Centre-Val de Loire / Bourgogne-Franche-Comté",
+      "country": "FR"
+    },
+    {
+      "slug": "gr653-voie-arles",
+      "osm": 11813130,
+      "category": "gr",
+      "practice": "randonnee",
+      "name": "GR 653 — Voie d'Arles",
+      "region": "Provence-Alpes-Côte d'Azur / Occitanie / Nouvelle-Aquitaine",
+      "country": "FR"
+    },
+    {
+      "slug": "gr-massif-cantalien",
+      "osm": 3728295,
+      "category": "gr",
+      "practice": "randonnee",
+      "name": "Tour du Massif Cantalien",
+      "region": "Auvergne-Rhône-Alpes",
+      "country": "FR"
+    },
+    {
+      "slug": "viarhona",
+      "osm": 6621429,
+      "category": "europe",
+      "practice": "velo-route",
+      "name": "ViaRhôna",
+      "region": "Auvergne-Rhône-Alpes / Occitanie / PACA",
+      "country": "FR"
+    },
+    {
+      "slug": "velodyssee-ev1",
+      "osm": 4774799,
+      "category": "europe",
+      "practice": "velo-route",
+      "name": "La Vélodyssée (EuroVelo 1)",
+      "region": "Bretagne / Pays de la Loire / Nouvelle-Aquitaine",
+      "country": "FR"
+    },
+    {
+      "slug": "loire-a-velo",
+      "osm": 3199605,
+      "category": "traversee",
+      "practice": "velo-route",
+      "name": "La Loire à Vélo",
+      "region": "Pays de la Loire / Centre-Val de Loire",
+      "country": "FR"
+    },
+    {
+      "slug": "mediterranee-velo-ev8",
+      "osm": 721730,
+      "category": "europe",
+      "practice": "velo-route",
+      "name": "La Méditerranée à Vélo (EuroVelo 8, section France)",
+      "region": "Provence-Alpes-Côte d'Azur / Occitanie",
+      "country": "FR"
+    },
+    {
+      "slug": "velo-francette",
+      "osm": 13057592,
+      "category": "traversee",
+      "practice": "velo-route",
+      "name": "La Vélo Francette",
+      "region": "Normandie / Pays de la Loire / Nouvelle-Aquitaine",
+      "country": "FR"
+    },
+    {
+      "slug": "canal-2-mers",
+      "osm": 416807,
+      "category": "traversee",
+      "practice": "velo-route",
+      "name": "Le Canal des 2 Mers à vélo",
+      "region": "Nouvelle-Aquitaine / Occitanie",
+      "country": "FR"
+    },
+    {
+      "slug": "grandes-alpes-velo",
+      "osm": 13884344,
+      "category": "montagne",
+      "practice": "velo-route",
+      "name": "Route des Grandes Alpes à vélo",
+      "region": "Auvergne-Rhône-Alpes / PACA",
+      "country": "FR"
+    },
+    {
+      "slug": "veloscenie",
+      "osm": 6445738,
+      "category": "traversee",
+      "practice": "velo-route",
+      "name": "La Véloscénie (Paris – Mont-Saint-Michel)",
+      "region": "Île-de-France / Normandie",
+      "country": "FR"
+    },
+    {
+      "slug": "leman-mont-blanc-velo",
+      "osm": 5336559,
+      "category": "montagne",
+      "practice": "velo-route",
+      "name": "Véloroute du Lac Léman au Mont-Blanc",
+      "region": "Auvergne-Rhône-Alpes",
+      "country": "FR"
+    },
+    {
+      "slug": "ev5-via-romea",
+      "osm": 2764534,
+      "category": "europe",
+      "practice": "velo-route",
+      "name": "EuroVelo 5 — Via Romea Francigena",
+      "region": "Europe",
+      "country": "EU"
+    },
+    {
+      "slug": "ev17-viarhona-leman",
+      "osm": 1793949,
+      "category": "europe",
+      "practice": "velo-route",
+      "name": "EuroVelo 17 — ViaRhôna, du Léman à la Méditerranée (Lyon – Genève)",
+      "region": "Auvergne-Rhône-Alpes / Suisse",
+      "country": "FR"
+    },
+    {
+      "slug": "gtmc-vtt",
+      "osm": 3858890,
+      "category": "vtt",
+      "practice": "vtt",
+      "name": "Grande Traversée du Massif Central à VTT",
+      "region": "Bourgogne-Franche-Comté / Auvergne-Rhône-Alpes / Occitanie",
+      "country": "FR"
+    },
+    {
+      "slug": "gtj-vtt",
+      "osm": 19309007,
+      "category": "vtt",
+      "practice": "vtt",
+      "name": "Grande Traversée du Jura à VTT (Mandeure – Culoz)",
+      "region": "Bourgogne-Franche-Comté / Auvergne-Rhône-Alpes",
+      "country": "FR"
+    },
+    {
+      "slug": "gt-ardeche-vtt",
+      "osm": 13097495,
+      "category": "vtt",
+      "practice": "vtt",
+      "name": "Grande Traversée de l'Ardèche à VTT",
+      "region": "Auvergne-Rhône-Alpes",
+      "country": "FR"
+    },
+    {
+      "slug": "col-galibier",
+      "osm": 12509369,
+      "category": "route",
+      "practice": "route",
+      "name": "Col du Galibier depuis Saint-Michel-de-Maurienne",
+      "region": "Auvergne-Rhône-Alpes",
+      "country": "FR"
+    },
+    {
+      "slug": "col-telegraphe",
+      "osm": 12509486,
+      "category": "route",
+      "practice": "route",
+      "name": "Col du Télégraphe depuis Saint-Michel-de-Maurienne",
+      "region": "Auvergne-Rhône-Alpes",
+      "country": "FR"
+    }
+  ]
+}

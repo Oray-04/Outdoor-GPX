@@ -5,6 +5,7 @@ export const NAV = [
   { href: "/creer", label: "Créer un parcours" },
   { href: "/generer", label: "Générer" },
   { href: "/parcours", label: "Parcours" },
+  { href: "/itineraires", label: "Itinéraires" },
   { href: "/evenements", label: "Événements" },
   { href: "/organisateurs", label: "Organisateurs" },
   { href: "/communaute", label: "Communauté" },

@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Compass, PenLine, Sparkles, Route as RouteIcon, Menu, X, CalendarDays, Users, FileUp, Footprints, WifiOff, User, Briefcase, CircleDollarSign, Palette } from "lucide-react";
+import { Compass, PenLine, Sparkles, Route as RouteIcon, Menu, X, CalendarDays, Users, FileUp, Footprints, WifiOff, User, Briefcase, CircleDollarSign, Palette, Mountain } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "@/lib/auth";
 
@@ -14,6 +14,7 @@ const MAIN = [
 ] as const;
 
 const MORE = [
+  { href: "/itineraires", label: "Itinéraires de référence", icon: Mountain },
   { href: "/evenements", label: "Événements", icon: CalendarDays },
   { href: "/organisateurs", label: "Organisateurs", icon: Briefcase },
   { href: "/communaute", label: "Communauté", icon: Users },

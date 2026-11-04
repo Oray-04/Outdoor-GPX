@@ -84,8 +84,11 @@ Le calcul **ne dépend pas du fond de carte affiché**. Il interroge deux graphe
 ### Import, découpe, fusion
 Import GPX/KML/GeoJSON/TCX ; **découpe en N parties** (mode ciseaux : clic sur le tracé) ; **fusion de plusieurs parcours** (Mes fichiers GPS : cocher, ordonner, fusionner). Les altitudes d'origine sont conservées (cache d'altitude semé par les données connues), la géométrie aussi : une découpe en 3 redonne exactement la même longueur.
 
+### Baguette magique (simplification) — `/creer`, onglet Tracé
+Réduit le nombre de points d'un tracé importé : tolérance adaptée à la sinuosité (3 / 5 / 8 m en automatique, ou niveaux Léger / Équilibré / Fort), **virages > 45° et demi-tours toujours conservés**, points trop proches retirés, extrémités inchangées. L'écart maximal réel est mesuré et affiché ; annulable (Ctrl+Z) ; les points restants sont déplaçables.
+
 ### Générateur de parcours — `/generer`
-Départ (clic, adresse ou position), pratique (trail / randonnée / VTT), curseurs de distance et de D+ : 4 propositions classées par écart aux cibles, avec D+ mesuré, part de chemins, part d'**aller-retour** (affichée et pénalisée), profil, comparaison, ouverture dans l'éditeur. Limites : le résultat dépend du réseau de chemins (en vallée ou sur le littoral, les vraies boucles sont rares : 40-60 % d'aller-retour mesurés ; en forêt dense, 10-20 %) ; aucun D+ exact n'est garanti.
+Départ (clic, adresse ou position), pratique (trail / randonnée / VTT), curseurs de distance et de D+ : 4 propositions classées par écart aux cibles, avec D+ mesuré, part de chemins, part d'**aller-retour** (affichée et pénalisée), profil, comparaison, ouverture dans l'éditeur. **D+ cible** : le D+ affiché est celui du tracé réellement généré (altitudes IGN, même calcul que partout). Marge de **±20 %** (mention sous le curseur) ; si aucune boucle n'y est, d'autres directions sont explorées selon le relief, puis le résultat est signalé honnêtement. Limites : le résultat dépend du réseau de chemins (en vallée ou sur le littoral, les vraies boucles sont rares : 40-60 % d'aller-retour mesurés ; en forêt dense, 10-20 %) ; aucun D+ exact n'est garanti.
 
 ### Météo et vent — fiche d'un parcours
 Open-Meteo : conditions à l'heure de passage **en chaque point**, vent de face / de côté / dans le dos par rapport au sens de déplacement (un aller-retour inverse automatiquement), exposition en %, bilan, rafales, pluie, bande des **meilleurs créneaux de départ** sur 24 h, tracé coloré et flèches sur la carte. Indicatif : vent à 10 m, sans relief local.
@@ -99,6 +102,9 @@ Limites : le routage utilise le profil piéton (pas de profil vélo) ; les types
 
 ### Fichiers GPS — `/fichiers`
 GPX, KML, GeoJSON, TCX : détection du format, validation (XML/JSON mal formé, coordonnées invalides, tracé trop court, fichier > 25 Mo), avertissements, prévisualisation sur carte avant enregistrement, altitudes recalculées si absentes, conversion et export dans les 4 formats, partage (Web Share si disponible, sinon téléchargement).
+
+### Itinéraires de référence — `/itineraires`
+GR/GRP, véloroutes, traversées VTT, cols : tracés OpenStreetMap (ODbL) intégrés avec source, licence, contrôle de validité, statistiques recalculées. Voir `docs/bibliotheque.md` (sources, anti-doublons, ajout d'un itinéraire).
 
 ### Fiches et profil — `/parcours`, `/parcours/[id]`
 Filtres (discipline, pays, région, distance, D+, difficulté, durée, terrain, boucle, catalogue), vue liste et vue carte. Fiche : statistiques, carte, profil altimétrique avec pente, km, points de passage, POI ; **survol du profil ↔ position sur la carte** ; export du profil en PNG et PDF ; favoris, notes, commentaires, signalement d'erreur, photos, téléchargement multi-formats.
