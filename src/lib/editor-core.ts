@@ -1,5 +1,5 @@
 import type { LL, Poi, Pt, Waypoint } from "./types";
-import { simplifyIndices } from "./geo";
+import { simplifyIndices, simplifyTrack, type SimplifyLevel } from "./geo";
 
 export interface EState { waypoints: Waypoint[]; segs: LL[][]; pois: Poi[] }
 export type Router = (a: LL, b: LL) => Promise<LL[] | null>;
@@ -170,4 +170,21 @@ export function splitMany(s: EState, indices: number[]): EState[] {
     parts[best].pois.push(p);
   }
   return parts;
+}
+
+export interface SimplifyReport { before: number; after: number; tolM: number; turns: number; maxDevM: number }
+/**
+ * Baguette magique : simplifie la trace complète (pas seulement les poignées d'édition).
+ * Les points conservés deviennent des points de passage éditables ; les points redondants disparaissent.
+ * L'altitude des points conservés est reprise (le D+/D− est à recalculer par l'éditeur).
+ */
+export function simplifyState(s: EState, level: SimplifyLevel = "auto"): { state: EState; report: SimplifyReport } | null {
+  const full = trackLL(s);
+  if (full.length < 3) return null;
+  const r = simplifyTrack(full, level);
+  if (r.indices.length >= full.length) return null;
+  const pts = r.indices.map((i) => full[i]);
+  const waypoints: Waypoint[] = pts.map((p) => ({ lng: p[0], lat: p[1], auto: false }));
+  const segs: LL[][] = []; for (let k = 0; k < pts.length - 1; k++) segs.push([pts[k], pts[k + 1]]);
+  return { state: { waypoints, segs, pois: s.pois }, report: { before: full.length, after: pts.length, tolM: r.tolM, turns: r.turns, maxDevM: r.maxDevM } };
 }

@@ -107,3 +107,33 @@ describe("découpe multiple", () => {
     expect(p1.pois.map((x) => x.id)).toEqual(["a"]); expect(p2.pois.map((x) => x.id)).toEqual(["b"]);
   });
 });
+
+describe("baguette magique (simplifyState)", () => {
+  // trace de 245 points, très redondante : lignes droites bruitées + 2 virages en épingle
+  const dense = (): [number, number, number][] => {
+    const pts: [number, number, number][] = []; let seed = 3; const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5) * 1.5e-5;
+    for (let i = 0; i < 100; i++) pts.push([6.8 + i * 4e-5 + r(), 45.9 + r(), 1000]);            // ligne est
+    for (let i = 1; i <= 45; i++) pts.push([6.804 + r(), 45.9 + i * 3e-5 + r(), 1000]);          // virage à 90° vers le nord
+    for (let i = 1; i <= 100; i++) pts.push([6.804 - i * 4e-5 + r(), 45.90135 + r(), 1000]);     // épingle : retour vers l'ouest
+    return pts;
+  };
+  it("réduit fortement le nombre de points en conservant les virages et les extrémités", () => {
+    const pts = dense(); expect(pts.length).toBe(245);
+    const st = E.fromTrack(pts, []);
+    const r = E.simplifyState(st, "auto")!;
+    expect(r.report.after).toBeLessThan(40);
+    expect(E.trackLL(r.state).length).toBe(r.report.after);
+    expect(r.report.maxDevM).toBeLessThan(8);
+    const out = E.trackLL(r.state);
+    expect(out[0]).toEqual(E.trackLL(st)[0]); expect(out[out.length - 1]).toEqual(E.trackLL(st)[E.trackLL(st).length - 1]);
+    // les deux coudes (≈ 6.804/45.9 et 6.804/45.90135) sont conservés à moins de 15 m
+    const near = (x: number, y: number) => out.some((p) => Math.hypot((p[0] - x) * 78000, (p[1] - y) * 111000) < 15);
+    expect(near(6.804, 45.9)).toBe(true); expect(near(6.804, 45.90135)).toBe(true);
+    expect(r.state.waypoints.length).toBe(r.report.after);
+  });
+  it("le niveau léger conserve au moins autant de points que le niveau fort", () => {
+    const st = E.fromTrack(dense(), []);
+    expect(E.simplifyState(st, "light")!.report.after).toBeGreaterThanOrEqual(E.simplifyState(st, "strong")!.report.after);
+  });
+  it("ne fait rien sur un tracé déjà minimal", () => { expect(E.simplifyState({ waypoints: [{ lng: 6, lat: 45, auto: false }, { lng: 6.1, lat: 45, auto: false }], segs: [[[6, 45], [6.1, 45]]], pois: [] })).toBeNull(); });
+});

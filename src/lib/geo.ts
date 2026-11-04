@@ -118,3 +118,92 @@ export const bboxOf = (pts: readonly (readonly number[])[]): [number, number, nu
 /** Emprise approximative de la France métropolitaine (Corse incluse). Exclut les territoires d'outre-mer ; déborde légèrement sur les pays voisins. */
 export const FRANCE_BBOX: [number, number, number, number] = [-5.5, 41.2, 9.8, 51.2];
 export const inFrance = (lng: number, lat: number) => lng >= FRANCE_BBOX[0] && lng <= FRANCE_BBOX[2] && lat >= FRANCE_BBOX[1] && lat <= FRANCE_BBOX[3];
+
+export type SimplifyLevel = "auto" | "light" | "balanced" | "strong";
+export interface SimplifyResult { indices: number[]; tolM: number; turns: number; maxDevM: number }
+
+/** Plus grande distance (m) entre les points d'origine et la polyligne simplifiée (qualité de l'approximation). */
+export function maxDeviation(pts: readonly (readonly number[])[], idx: number[]): number {
+  if (pts.length < 3 || idx.length < 2) return 0;
+  const kx = 111320 * Math.cos((pts[0][1] * Math.PI) / 180), ky = 110574;
+  let worst = 0;
+  for (let s = 0; s < idx.length - 1; s++) {
+    const a = idx[s], b = idx[s + 1];
+    const ax = pts[a][0] * kx, ay = pts[a][1] * ky, dx = pts[b][0] * kx - ax, dy = pts[b][1] * ky - ay, l2 = dx * dx + dy * dy;
+    for (let i = a + 1; i < b; i++) {
+      const px = pts[i][0] * kx - ax, py = pts[i][1] * ky - ay;
+      const t = l2 ? Math.max(0, Math.min(1, (px * dx + py * dy) / l2)) : 0;
+      worst = Math.max(worst, Math.hypot(px - t * dx, py - t * dy));
+    }
+  }
+  return worst;
+}
+
+const bearing = (a: readonly number[], b: readonly number[]) => Math.atan2((b[0] - a[0]) * Math.cos((a[1] * Math.PI) / 180), b[1] - a[1]);
+
+/**
+ * Simplification adaptative d'une trace GPS : retire les points redondants ou trop proches tout en gardant la forme.
+ * - la tolérance s'adapte à la sinuosité (parcours tortueux/technique → tolérance serrée, ligne droite → plus large) ;
+ * - les virages marqués (changement de cap > 45° sur ~±25 m) et les demi-tours sont toujours conservés ;
+ * - premier et dernier points inchangés. L'écart maximal réel est mesuré et renvoyé.
+ */
+export function simplifyTrack(pts: readonly (readonly number[])[], level: SimplifyLevel = "auto"): SimplifyResult {
+  const n = pts.length;
+  if (n <= 2) return { indices: pts.map((_, i) => i), tolM: 0, turns: 0, maxDevM: 0 };
+  const cum = cumulative(pts as [number, number][]);
+  const total = cum[n - 1];
+  const bb = bboxOf(pts);
+  const diag = Math.max(1, haversine([bb[0], bb[1]], [bb[2], bb[3]]));
+  const sinuosity = total / diag;
+  let tol: number;
+  if (level === "light") tol = 3; else if (level === "balanced") tol = 6; else if (level === "strong") tol = 12;
+  else tol = sinuosity > 3 ? 3 : sinuosity > 1.8 ? 5 : 8; // virages serrés/technique → fidélité maximale
+  // Virages à conserver : cap moyen avant (25 m) vs après (25 m)
+  const forced = new Set<number>();
+  const WIN = 25;
+  for (let i = 1; i < n - 1; i++) {
+    let a = i - 1; while (a > 0 && cum[i] - cum[a] < WIN) a--;
+    let b = i + 1; while (b < n - 1 && cum[b] - cum[i] < WIN) b++;
+    if (cum[i] - cum[a] < 5 || cum[b] - cum[i] < 5) continue; // points trop proches : du bruit, pas un virage
+    let d = Math.abs(bearing(pts[i], pts[b]) - bearing(pts[a], pts[i]));
+    if (d > Math.PI) d = 2 * Math.PI - d;
+    if (d > Math.PI / 4) forced.add(i);
+  }
+  // On ne garde que le sommet le plus marqué d'un même virage (évite 5 points pour un seul coude)
+  const turns: number[] = [];
+  const sorted = [...forced].sort((x, y) => x - y);
+  let cluster: number[] = [];
+  const flush = () => {
+    if (!cluster.length) return;
+    let best = cluster[0], bd = -1;
+    for (const i of cluster) {
+      let a = i - 1; while (a > 0 && cum[i] - cum[a] < WIN) a--;
+      let b = i + 1; while (b < n - 1 && cum[b] - cum[i] < WIN) b++;
+      let d = Math.abs(bearing(pts[i], pts[b]) - bearing(pts[a], pts[i])); if (d > Math.PI) d = 2 * Math.PI - d;
+      if (d > bd) { bd = d; best = i; }
+    }
+    turns.push(best); cluster = [];
+  };
+  for (const i of sorted) { if (cluster.length && cum[i] - cum[cluster[cluster.length - 1]] > WIN) flush(); cluster.push(i); }
+  flush();
+  // Douglas-Peucker par tronçons délimités par les virages conservés
+  const anchors = [0, ...turns, n - 1];
+  const keep = new Set<number>(anchors);
+  for (let k = 0; k < anchors.length - 1; k++) {
+    const a = anchors[k], b = anchors[k + 1];
+    if (b - a < 2) continue;
+    const sub = pts.slice(a, b + 1);
+    simplifyIndices(sub, tol, 100000).forEach((j) => keep.add(a + j));
+  }
+  let indices = [...keep].sort((x, y) => x - y);
+  // Points trop proches (< 8 m) : on retire le point intermédiaire si l'écart reste sous la tolérance
+  const out: number[] = [indices[0]];
+  for (let k = 1; k < indices.length - 1; k++) {
+    const i = indices[k];
+    if (haversine(pts[out[out.length - 1]] as [number, number], pts[i] as [number, number]) < 8 && !turns.includes(i)) continue;
+    out.push(i);
+  }
+  out.push(indices[indices.length - 1]);
+  indices = out;
+  return { indices, tolM: tol, turns: turns.length, maxDevM: maxDeviation(pts, indices) };
+}

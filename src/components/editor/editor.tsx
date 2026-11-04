@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Marker, GeoJSONSource } from "maplibre-gl";
-import { Undo2, Redo2, Route, Route as RouteIcon, MousePointer2, ArrowLeftRight, Repeat, Trash2, Copy, Scissors, Flag, Upload, Download, MapPin, Loader2, Check, AlertTriangle, Plus, Merge, LocateFixed } from "lucide-react";
+import { Undo2, Redo2, Route, Route as RouteIcon, MousePointer2, ArrowLeftRight, Repeat, Trash2, Copy, Scissors, Flag, Upload, Download, MapPin, Loader2, Check, AlertTriangle, Plus, Merge, LocateFixed, Wand2 } from "lucide-react";
 import clsx from "clsx";
 import { useMap } from "@/components/map/use-map";
 import { LayerControl } from "@/components/map/layer-control";
@@ -16,7 +16,7 @@ import { setEnginePref, useEnginePref } from "@/lib/map-prefs";
 import { routesRepo, useLayers, useTerrains } from "@/lib/repo";
 import { POI_TYPES, uid, type Poi, type PoiType, type Pt, type SavedRoute, type Visibility } from "@/lib/types";
 import { SPORTS, DIFFICULTY_LABEL, difficultyOf, estimateMinutes, type Sport } from "@/lib/sports";
-import { trackStats, fmtKm, fmtM, fmtDuration, bboxOf, cumulative } from "@/lib/geo";
+import { trackStats, fmtKm, fmtM, fmtDuration, bboxOf, cumulative, type SimplifyLevel } from "@/lib/geo";
 import { buildProfile, distanceAlong } from "@/lib/profile";
 import { FORMATS, parseAny, serialize, download, safeName, GpsFileError, MAX_BYTES, type GpsFormat } from "@/lib/formats";
 import { editorHref, withBase } from "@/lib/url";
@@ -265,6 +265,13 @@ export function Editor({ routeId }: { routeId?: string }) {
       setMsg({ kind: r.fallbacks ? "warn" : "ok", text: `Alignement : ${r.matched} tronçon(s) aligné(s) sur les chemins${r.fallbacks ? `, ${r.fallbacks} conservé(s) tel(s) quel(s) (aucun chemin proche)` : ""}.` });
     } catch { setMsg({ kind: "err", text: "Alignement impossible pour le moment (service indisponible)." }); } finally { setAligning(null); }
   };
+  const [simpLevel, setSimpLevel] = useState<SimplifyLevel>("auto");
+  const simplify = () => {
+    const r = E.simplifyState(st, simpLevel);
+    if (!r) { setMsg({ kind: "warn", text: "Rien à simplifier : le tracé ne contient déjà que les points nécessaires." }); return; }
+    commit(r.state); setSel(null);
+    setMsg({ kind: "ok", text: `Baguette magique : ${r.report.before} → ${r.report.after} points (tolérance ${r.report.tolM} m, ${r.report.turns} virage(s) conservé(s), écart maximal mesuré ${r.report.maxDevM.toFixed(1)} m). Annulable avec Ctrl+Z.` });
+  };
   const duplicate = async () => { setBusy(true); try { const nid = await saveSibling(st, `${meta.name || "Parcours"} (copie)`); window.location.assign(withBase(editorHref(nid))); } catch { setMsg({ kind: "err", text: "Duplication impossible (altitudes indisponibles)." }); } finally { setBusy(false); } };
   const split = async () => {
     if (sel == null) return; const parts = E.splitAt(st, sel);
@@ -374,6 +381,12 @@ export function Editor({ routeId }: { routeId?: string }) {
               <label className="grid gap-1 text-sm font-medium">Source des chemins<select className={field} value={engine} onChange={(e) => setEnginePref(e.target.value as Engine)}>{(Object.keys(ENGINE_LABEL) as Engine[]).map((k) => <option key={k} value={k}>{ENGINE_LABEL[k]}</option>)}</select></label>
               <p className="mt-1.5 text-xs text-ink-500">Indépendant du fond de carte affiché. En mode automatique, un chemin absent d'une source est cherché dans l'autre.{lastSource && <> Dernier tronçon : <b>{SOURCE_LABEL[lastSource]}</b>.</>}</p>
               <Button size="sm" variant="secondary" className="mt-2" disabled={busy || !!aligning || st.segs.length === 0} onClick={align}><Route className="size-4" />{aligning ?? "Aligner sur les chemins"}</Button>
+            </div>
+            <div className="rounded-xl border border-ink-100 p-3">
+              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-400">Baguette magique · simplifier le tracé</p>
+              <label className="grid gap-1 text-sm font-medium">Niveau<select className={field} value={simpLevel} onChange={(e) => setSimpLevel(e.target.value as SimplifyLevel)}><option value="auto">Automatique (selon la complexité)</option><option value="light">Léger (fidélité maximale)</option><option value="balanced">Équilibré</option><option value="strong">Fort (moins de points)</option></select></label>
+              <p className="mt-1.5 text-xs text-ink-500">Retire les points redondants ou trop proches ; les virages et demi-tours sont conservés. {st.segs.length > 0 && <>Tracé actuel : <b>{E.trackLL(st).length}</b> points.</>} Les points restants restent déplaçables.</p>
+              <Button size="sm" variant="secondary" className="mt-2" disabled={busy || !!aligning || st.segs.length === 0} onClick={simplify}><Wand2 className="size-4" />Simplifier</Button>
             </div>
             <div className="rounded-xl border border-ink-100 p-3">
               <p className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-400">{sel != null ? `Point ${sel + 1} sélectionné` : "Points de passage"}</p>
