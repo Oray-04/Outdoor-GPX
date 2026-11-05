@@ -75,6 +75,7 @@ async function buildLine(rootId, depth = 0, seen = new Set()) {
     else if (m.type === "relation" && depth < 2 && children < 160) {
       const t = j.elements.find((e) => e.type === "relation" && e.id === m.ref);
       // sous-relations : on ne garde que celles qui sont des itinéraires (et pas des variantes)
+      const tg = t?.tags || {}; if (/variante|alternati|liaison|boucle|connexion|d[ée]tour|branche|temporaire|provisoire|ancien|old/i.test(`${tg.name || ""} ${tg.note || ""} ${tg.description || ""}`) || /proposed|disused|abandoned/.test(tg.state || "")) continue;
       if (t && t.tags && /^(hiking|foot|bicycle|mtb|route)$/.test(t.tags.route || "route")) {
         const sub = await buildLine(m.ref, depth + 1, seen); children++;
         if (sub.line.length > 1) { parts.push({ kind: "rel", pts: sub.line }); allGaps = allGaps.concat(sub.gaps); }

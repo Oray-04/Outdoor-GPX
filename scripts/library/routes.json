@@ -209,15 +209,6 @@
       "country": "FR"
     },
     {
-      "slug": "leman-mont-blanc-velo",
-      "osm": 5336559,
-      "category": "montagne",
-      "practice": "velo-route",
-      "name": "Véloroute du Lac Léman au Mont-Blanc",
-      "region": "Auvergne-Rhône-Alpes",
-      "country": "FR"
-    },
-    {
       "slug": "ev17-viarhona-leman",
       "osm": 1793949,
       "category": "europe",
