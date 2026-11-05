@@ -218,15 +218,6 @@
       "country": "FR"
     },
     {
-      "slug": "ev5-via-romea",
-      "osm": 2764534,
-      "category": "europe",
-      "practice": "velo-route",
-      "name": "EuroVelo 5 — Via Romea Francigena",
-      "region": "Europe",
-      "country": "EU"
-    },
-    {
       "slug": "ev17-viarhona-leman",
       "osm": 1793949,
       "category": "europe",

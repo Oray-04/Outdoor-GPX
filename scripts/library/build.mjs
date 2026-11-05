@@ -137,6 +137,13 @@ for (const r of spec) {
     const coords = pts.map((p, i) => [+p[0].toFixed(5), +p[1].toFixed(5), ele[i]]);
     const st = stats(coords);
     const lons = coords.map((c) => c[0]), lats = coords.map((c) => c[1]);
+    // Porte de qualité : longueur comparée à celle calculée indépendamment par Waymarked Trails, et aucun trou important
+    const wmtHost = r.practice === "vtt" ? "mtb" : r.practice === "randonnee" ? "hiking" : "cycling";
+    const wmt = await getJson(`https://${wmtHost}.waymarkedtrails.org/api/v1/details/relation/${r.osm}`).catch(() => null);
+    const refKm = wmt?.route?.length ? wmt.route.length / 1000 : null;
+    const maxGap = Math.max(0, ...gaps);
+    if (refKm && Math.abs(st.distanceM / 1000 - refKm) / refKm > 0.15) throw new Error(`REJETÉ : longueur ${Math.round(st.distanceM / 1000)} km, référence ${Math.round(refKm)} km (assemblage non fiable)`);
+    if (maxGap > 2000) throw new Error(`REJETÉ : trou de ${(maxGap / 1000).toFixed(1)} km dans l'assemblage`);
     const hash = crypto.createHash("sha1").update(coords.map((c) => `${c[0]},${c[1]}`).join(";")).digest("hex").slice(0, 12);
     const osmKm = parseFloat(String(tags.distance || "").replace(",", ".")) || null;
     const entry = {
@@ -146,12 +153,12 @@ for (const r of spec) {
       bbox: [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)], points: coords.length,
       source: { name: "OpenStreetMap", url: `https://www.openstreetmap.org/relation/${r.osm}`, relation: r.osm, license: "ODbL 1.0", attribution: "© contributeurs OpenStreetMap", elevation: "IGN Géoplateforme (RGE ALTI / modèle mondial), Licence Ouverte Etalab 2.0", retrieved: new Date().toISOString().slice(0, 10) },
       hash,
-      quality: { gaps: gaps.length, maxGapM: Math.round(Math.max(0, ...gaps)), totalGapM: Math.round(gaps.reduce((a, b) => a + b, 0)), missingEle: missing, osmDeclaredKm: osmKm, rawKm: Math.round(rawKm / 100) / 10, subRelations: children },
+      quality: { gaps: gaps.length, maxGapM: Math.round(Math.max(0, ...gaps)), totalGapM: Math.round(gaps.reduce((a, b) => a + b, 0)), missingEle: missing, osmDeclaredKm: refKm ? Math.round(refKm) : osmKm, rawKm: Math.round(rawKm / 100) / 10, subRelations: children },
     };
     fs.writeFileSync(path.join(OUT, "routes", `${r.slug}.json`), JSON.stringify({ id: r.slug, coords }));
     const k = index.findIndex((e) => e.id === r.slug); if (k >= 0) index[k] = entry; else index.push(entry);
     if (!args.includes("--dry")) fs.writeFileSync(indexFile, JSON.stringify([...index].sort((a, b) => a.name.localeCompare(b.name, "fr"))));
     console.log(`${(st.distanceM / 1000).toFixed(0)} km, D+ ${st.gainM}, ${coords.length} pts, trous ${gaps.length}${gaps.length ? ` (max ${Math.round(Math.max(...gaps))} m)` : ""}`);
-  } catch (e) { console.log(`ÉCHEC : ${e.message}`); }
+  } catch (e) { console.log(`ÉCHEC : ${e.message}`); const k = index.findIndex((x) => x.id === r.slug); if (k >= 0) index.splice(k, 1); fs.rmSync(path.join(OUT, "routes", `${r.slug}.json`), { force: true }); }
 }
 if (!args.includes("--dry")) fs.writeFileSync(indexFile, JSON.stringify(index.sort((a, b) => a.name.localeCompare(b.name, "fr"))));
