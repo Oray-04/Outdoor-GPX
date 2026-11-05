@@ -29,15 +29,6 @@
       "country": "FR"
     },
     {
-      "slug": "gr34-douaniers",
-      "osm": 7790332,
-      "category": "gr",
-      "practice": "randonnee",
-      "name": "GR 34 — Sentier des Douaniers",
-      "region": "Bretagne",
-      "country": "FR"
-    },
-    {
       "slug": "gr55-vanoise",
       "osm": 377905,
       "category": "gr",
@@ -83,15 +74,6 @@
       "country": "FR"
     },
     {
-      "slug": "gr9-jura-mediterranee",
-      "osm": 10670467,
-      "category": "gr",
-      "practice": "randonnee",
-      "name": "GR 9 — Du Jura à la Méditerranée",
-      "region": "Bourgogne-Franche-Comté / Auvergne-Rhône-Alpes / PACA",
-      "country": "FR"
-    },
-    {
       "slug": "gr36-manche-pyrenees",
       "osm": 10805122,
       "category": "gr",
@@ -128,111 +110,12 @@
       "country": "FR"
     },
     {
-      "slug": "gr-massif-cantalien",
-      "osm": 3728295,
-      "category": "gr",
-      "practice": "randonnee",
-      "name": "Tour du Massif Cantalien",
-      "region": "Auvergne-Rhône-Alpes",
-      "country": "FR"
-    },
-    {
-      "slug": "viarhona",
-      "osm": 6621429,
-      "category": "europe",
-      "practice": "velo-route",
-      "name": "ViaRhôna",
-      "region": "Auvergne-Rhône-Alpes / Occitanie / PACA",
-      "country": "FR"
-    },
-    {
-      "slug": "velodyssee-ev1",
-      "osm": 4774799,
-      "category": "europe",
-      "practice": "velo-route",
-      "name": "La Vélodyssée (EuroVelo 1)",
-      "region": "Bretagne / Pays de la Loire / Nouvelle-Aquitaine",
-      "country": "FR"
-    },
-    {
-      "slug": "loire-a-velo",
-      "osm": 3199605,
-      "category": "traversee",
-      "practice": "velo-route",
-      "name": "La Loire à Vélo",
-      "region": "Pays de la Loire / Centre-Val de Loire",
-      "country": "FR"
-    },
-    {
-      "slug": "mediterranee-velo-ev8",
-      "osm": 721730,
-      "category": "europe",
-      "practice": "velo-route",
-      "name": "La Méditerranée à Vélo (EuroVelo 8, section France)",
-      "region": "Provence-Alpes-Côte d'Azur / Occitanie",
-      "country": "FR"
-    },
-    {
-      "slug": "velo-francette",
-      "osm": 13057592,
-      "category": "traversee",
-      "practice": "velo-route",
-      "name": "La Vélo Francette",
-      "region": "Normandie / Pays de la Loire / Nouvelle-Aquitaine",
-      "country": "FR"
-    },
-    {
-      "slug": "canal-2-mers",
-      "osm": 416807,
-      "category": "traversee",
-      "practice": "velo-route",
-      "name": "Le Canal des 2 Mers à vélo",
-      "region": "Nouvelle-Aquitaine / Occitanie",
-      "country": "FR"
-    },
-    {
       "slug": "grandes-alpes-velo",
       "osm": 13884344,
       "category": "montagne",
       "practice": "velo-route",
       "name": "Route des Grandes Alpes à vélo",
       "region": "Auvergne-Rhône-Alpes / PACA",
-      "country": "FR"
-    },
-    {
-      "slug": "veloscenie",
-      "osm": 6445738,
-      "category": "traversee",
-      "practice": "velo-route",
-      "name": "La Véloscénie (Paris – Mont-Saint-Michel)",
-      "region": "Île-de-France / Normandie",
-      "country": "FR"
-    },
-    {
-      "slug": "ev17-viarhona-leman",
-      "osm": 1793949,
-      "category": "europe",
-      "practice": "velo-route",
-      "name": "EuroVelo 17 — ViaRhôna, du Léman à la Méditerranée (Lyon – Genève)",
-      "region": "Auvergne-Rhône-Alpes / Suisse",
-      "country": "FR"
-    },
-    {
-      "slug": "gtmc-vtt",
-      "osm": 3858890,
-      "category": "vtt",
-      "practice": "vtt",
-      "name": "Grande Traversée du Massif Central à VTT",
-      "region": "Bourgogne-Franche-Comté / Auvergne-Rhône-Alpes / Occitanie",
-      "country": "FR"
-    },
-    {
-      "slug": "gtj-vtt",
-      "osm": 19309007,
-      "category": "vtt",
-      "practice": "vtt",
-      "name": "Grande Traversée du Jura à VTT (Mandeure – Culoz)",
-      "region": "Bourgogne-Franche-Comté / Auvergne-Rhône-Alpes",
       "country": "FR"
     },
     {
@@ -262,5 +145,127 @@
       "region": "Auvergne-Rhône-Alpes",
       "country": "FR"
     }
-  ]
+  ],
+  "pending": {
+    "_comment": "Relations testées mais non intégrées : l'assemblage automatique des tronçons échoue la porte de qualité (longueur ±15 % de la référence Waymarked Trails, aucun trou > 2 km). À reprendre avec un assemblage plus fin ou une autre source dont la licence permet la réutilisation.",
+    "routes": [
+      {
+        "slug": "gr34-douaniers",
+        "osm": 7790332,
+        "category": "gr",
+        "practice": "randonnee",
+        "name": "GR 34 — Sentier des Douaniers",
+        "region": "Bretagne",
+        "country": "FR"
+      },
+      {
+        "slug": "gr9-jura-mediterranee",
+        "osm": 10670467,
+        "category": "gr",
+        "practice": "randonnee",
+        "name": "GR 9 — Du Jura à la Méditerranée",
+        "region": "Bourgogne-Franche-Comté / Auvergne-Rhône-Alpes / PACA",
+        "country": "FR"
+      },
+      {
+        "slug": "gr-massif-cantalien",
+        "osm": 3728295,
+        "category": "gr",
+        "practice": "randonnee",
+        "name": "Tour du Massif Cantalien",
+        "region": "Auvergne-Rhône-Alpes",
+        "country": "FR"
+      },
+      {
+        "slug": "viarhona",
+        "osm": 6621429,
+        "category": "europe",
+        "practice": "velo-route",
+        "name": "ViaRhôna",
+        "region": "Auvergne-Rhône-Alpes / Occitanie / PACA",
+        "country": "FR"
+      },
+      {
+        "slug": "velodyssee-ev1",
+        "osm": 4774799,
+        "category": "europe",
+        "practice": "velo-route",
+        "name": "La Vélodyssée (EuroVelo 1)",
+        "region": "Bretagne / Pays de la Loire / Nouvelle-Aquitaine",
+        "country": "FR"
+      },
+      {
+        "slug": "loire-a-velo",
+        "osm": 3199605,
+        "category": "traversee",
+        "practice": "velo-route",
+        "name": "La Loire à Vélo",
+        "region": "Pays de la Loire / Centre-Val de Loire",
+        "country": "FR"
+      },
+      {
+        "slug": "mediterranee-velo-ev8",
+        "osm": 721730,
+        "category": "europe",
+        "practice": "velo-route",
+        "name": "La Méditerranée à Vélo (EuroVelo 8, section France)",
+        "region": "Provence-Alpes-Côte d'Azur / Occitanie",
+        "country": "FR"
+      },
+      {
+        "slug": "velo-francette",
+        "osm": 13057592,
+        "category": "traversee",
+        "practice": "velo-route",
+        "name": "La Vélo Francette",
+        "region": "Normandie / Pays de la Loire / Nouvelle-Aquitaine",
+        "country": "FR"
+      },
+      {
+        "slug": "canal-2-mers",
+        "osm": 416807,
+        "category": "traversee",
+        "practice": "velo-route",
+        "name": "Le Canal des 2 Mers à vélo",
+        "region": "Nouvelle-Aquitaine / Occitanie",
+        "country": "FR"
+      },
+      {
+        "slug": "veloscenie",
+        "osm": 6445738,
+        "category": "traversee",
+        "practice": "velo-route",
+        "name": "La Véloscénie (Paris – Mont-Saint-Michel)",
+        "region": "Île-de-France / Normandie",
+        "country": "FR"
+      },
+      {
+        "slug": "ev17-viarhona-leman",
+        "osm": 1793949,
+        "category": "europe",
+        "practice": "velo-route",
+        "name": "EuroVelo 17 — ViaRhôna, du Léman à la Méditerranée (Lyon – Genève)",
+        "region": "Auvergne-Rhône-Alpes / Suisse",
+        "country": "FR"
+      },
+      {
+        "slug": "gtmc-vtt",
+        "osm": 3858890,
+        "category": "vtt",
+        "practice": "vtt",
+        "name": "Grande Traversée du Massif Central à VTT",
+        "region": "Bourgogne-Franche-Comté / Auvergne-Rhône-Alpes / Occitanie",
+        "country": "FR"
+      },
+      {
+        "slug": "gtj-vtt",
+        "osm": 19309007,
+        "category": "vtt",
+        "practice": "vtt",
+        "name": "Grande Traversée du Jura à VTT (Mandeure – Culoz)",
+        "region": "Bourgogne-Franche-Comté / Auvergne-Rhône-Alpes",
+        "country": "FR"
+      }
+    ]
+  }
 }

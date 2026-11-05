@@ -113,8 +113,15 @@ async function elevations(pts) {
     if ((i / BATCH) % 20 === 0) fs.writeFileSync(f, JSON.stringify(cache));
   }
   fs.writeFileSync(f, JSON.stringify(cache));
-  let prev = null, missing = 0;
-  pts.forEach((p, i) => { let v = cache[ck(p)]; if (v === undefined || v === null || v < -1000) { missing++; v = prev ?? 0; } prev = v; out[i] = Math.round(v); });
+  // altitudes absentes : interpolation linéaire entre les voisins connus (jamais de plateau artificiel)
+  let missing = 0; const val = pts.map((p) => { const v = cache[ck(p)]; return v === undefined || v === null || v < -1000 ? null : v; });
+  const known = val.map((v, i) => (v === null ? -1 : i)).filter((i) => i >= 0);
+  pts.forEach((p, i) => {
+    if (val[i] !== null) { out[i] = Math.round(val[i]); return; }
+    missing++;
+    const a = [...known].reverse().find((k) => k < i), b = known.find((k) => k > i);
+    out[i] = Math.round(a === undefined ? val[b] : b === undefined ? val[a] : val[a] + ((val[b] - val[a]) * (i - a)) / (b - a));
+  });
   return { ele: out, missing };
 }
 

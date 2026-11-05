@@ -33,6 +33,13 @@ Les statistiques sont **recalculées à l'affichage** à partir du tracé stock�
 3. `node scripts/library/build.mjs --only <slug>` (réseau requis ; l'API OSM est interrogée avec un agent identifié et des pauses — ne pas lancer en boucle).
 4. `npm test` puis commit de `public/library/`.
 
+## Contenu actuel (16 itinéraires)
+
+GR/GRP : GR 20, GR 70 (Stevenson), GR 65, GR 55, GR 54, GR 52, GR 58, Tour du Mont-Blanc, GR 36, GR 4, GR 13, GR 653 · Vélo : Route des Grandes Alpes, cols du Galibier et du Télégraphe · VTT : Grande Traversée de l'Ardèche.
+
+**Porte de qualité** : à la construction, la longueur assemblée doit être à ±15 % de celle calculée indépendamment par Waymarked Trails et ne contenir aucun trou > 2 km. Sont **rejetés** (assemblage automatique non fiable : variantes, tronçons non ordonnés), listés dans `scripts/library/routes.json` > `pending` : GR 34, GR 9, Tour du Massif Cantalien, ViaRhôna, Vélodyssée (EV1), Loire à Vélo, Méditerranée à Vélo (EV8), Vélo Francette, Canal des 2 Mers, Véloscénie, ViaRhôna Lyon–Genève (EV17), Grande Traversée du Massif Central VTT, Grande Traversée du Jura VTT. Ils ne sont donc **pas** dans la bibliothèque ; les inclure demande un assemblage plus fin (choix de la branche principale) ou une autre source.
+Certains tracés (GR 65, GR 36, GR 4) incluent les variantes recensées dans la relation : leur longueur est celle du réseau, pas celle de l'itinéraire principal.
+
 ## Limites connues
 
 - L'assemblage des tronçons suit l'ordre des membres de la relation ; les itinéraires avec nombreuses variantes peuvent avoir de petits trous (indiqués) ou être plus courts que la longueur officielle.

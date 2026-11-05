@@ -70,7 +70,7 @@ export function validateCoords(coords: readonly (readonly number[])[], opts: { m
 export function entryIssues(e: LibEntry): string[] {
   const out: string[] = [];
   if (e.quality.maxGapM > 2000) out.push(`Trou de ${(e.quality.maxGapM / 1000).toFixed(1).replace(".", ",")} km dans l'assemblage des tronçons.`);
-  if (e.quality.missingEle > e.points * 0.02) out.push("Altitudes manquantes sur une partie du tracé.");
+  if (e.quality.missingEle > e.points * 0.1) out.push("Altitudes manquantes (interpolées) sur plus de 10 % du tracé.");
   if (e.quality.osmDeclaredKm && Math.abs(e.distanceM / 1000 - e.quality.osmDeclaredKm) / e.quality.osmDeclaredKm > 0.25) out.push(`Longueur mesurée (${Math.round(e.distanceM / 1000)} km) éloignée de celle déclarée par la source (${e.quality.osmDeclaredKm} km).`);
   return out;
 }
