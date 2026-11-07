@@ -84,11 +84,14 @@ Le calcul **ne dépend pas du fond de carte affiché**. Il interroge deux graphe
 ### Import, découpe, fusion
 Import GPX/KML/GeoJSON/TCX ; **découpe en N parties** (mode ciseaux : clic sur le tracé) ; **fusion de plusieurs parcours** (Mes fichiers GPS : cocher, ordonner, fusionner). Les altitudes d'origine sont conservées (cache d'altitude semé par les données connues), la géométrie aussi : une découpe en 3 redonne exactement la même longueur.
 
+### Modifier le tracé à la souris — `/creer`
+Cliquez-glissez **sur le tracé** : un point intermédiaire se crée sous le curseur ; un aperçu en pointillés se recalcule quand le pointeur marque une pause (pas à chaque mouvement), et au relâchement seuls les **deux tronçons voisins** sont retracés (mode Chemins ou Libre conservé, pratique conservée). Départ et arrivée restent fixes ; les points intermédiaires se déplacent, se suppriment (double-clic, ou sélection + Suppr). Annuler/Rétablir fonctionnent. Un simple clic sur le tracé insère toujours un point sans retracer.
+
 ### Baguette magique (simplification) — `/creer`, onglet Tracé
 Réduit le nombre de points d'un tracé importé : tolérance adaptée à la sinuosité (3 / 5 / 8 m en automatique, ou niveaux Léger / Équilibré / Fort), **virages > 45° et demi-tours toujours conservés**, points trop proches retirés, extrémités inchangées. L'écart maximal réel est mesuré et affiché ; annulable (Ctrl+Z) ; les points restants sont déplaçables.
 
 ### Générateur de parcours — `/generer`
-Départ (clic, adresse ou position), pratique (trail / randonnée / VTT), curseurs de distance et de D+ : 4 propositions classées par écart aux cibles, avec D+ mesuré, part de chemins, part d'**aller-retour** (affichée et pénalisée), profil, comparaison, ouverture dans l'éditeur. **D+ cible** : le D+ affiché est celui du tracé réellement généré (altitudes IGN, même calcul que partout). Marge de **±20 %** (mention sous le curseur) ; si aucune boucle n'y est, d'autres directions sont explorées selon le relief, puis le résultat est signalé honnêtement. Limites : le résultat dépend du réseau de chemins (en vallée ou sur le littoral, les vraies boucles sont rares : 40-60 % d'aller-retour mesurés ; en forêt dense, 10-20 %) ; aucun D+ exact n'est garanti.
+Départ (clic, adresse ou position), pratique (trail / randonnée / VTT), curseurs de distance et de D+ : 4 propositions classées par écart aux cibles, avec D+ mesuré, part de chemins, part d'**aller-retour** (affichée et pénalisée), profil, comparaison, ouverture dans l'éditeur. **Fiabilité** : les altitudes passent par la Géoplateforme avec cadence limitée (≤ 5 requêtes/s), reprises espacées sur 429/5xx/erreur réseau et **secours Open-Meteo** (signalé) ; les échecs sont typés — service de calcul d'itinéraires, service d'altitudes, hors ligne — et le message dit lequel et pourquoi (code, limite de requêtes…), au lieu d'un texte générique. Une direction en échec n'arrête plus les autres. **D+ cible** : le D+ affiché est celui du tracé réellement généré (altitudes IGN, même calcul que partout). Marge de **±20 %** (mention sous le curseur) ; si aucune boucle n'y est, d'autres directions sont explorées selon le relief, puis le résultat est signalé honnêtement. Limites : le résultat dépend du réseau de chemins (en vallée ou sur le littoral, les vraies boucles sont rares : 40-60 % d'aller-retour mesurés ; en forêt dense, 10-20 %) ; aucun D+ exact n'est garanti.
 
 ### Météo et vent — fiche d'un parcours
 Open-Meteo : conditions à l'heure de passage **en chaque point**, vent de face / de côté / dans le dos par rapport au sens de déplacement (un aller-retour inverse automatiquement), exposition en %, bilan, rafales, pluie, bande des **meilleurs créneaux de départ** sur 24 h, tracé coloré et flèches sur la carte. Indicatif : vent à 10 m, sans relief local.
@@ -102,6 +105,15 @@ Limites : le routage utilise le profil piéton (pas de profil vélo) ; les types
 
 ### Fichiers GPS — `/fichiers`
 GPX, KML, GeoJSON, TCX : détection du format, validation (XML/JSON mal formé, coordonnées invalides, tracé trop court, fichier > 25 Mo), avertissements, prévisualisation sur carte avant enregistrement, altitudes recalculées si absentes, conversion et export dans les 4 formats, partage (Web Share si disponible, sinon téléchargement).
+
+### Points d'intérêt
+8 catégories à pictogramme (Ravitaillement, Point d'eau, Contrôle, Point de vue, Passage, Poste de secours, Parking, Départ) : marqueurs lisibles dézoomés, fenêtre d'information au clic, ajout/renommage/suppression dans l'onglet POI. `Passage` reprend l'ancien type « passage délicat » (identifiant `danger`) : les données existantes restent valides.
+
+### Recherche géographique
+Bibliothèque : champ « Commune ou code postal » (suggestions, rayon réglable ; un code postal partagé liste toutes ses communes + « tout le code postal »). Espace organisateur : lieu par code postal ou nom, région avec autocomplétion ; rien n'est choisi automatiquement. Source : API Géo officielle (geo.api.gouv.fr).
+
+### Champs obligatoires
+Astérisque rouge + légende « * Champ obligatoire » ; la validation correspond (espaces seuls refusés, message sous le champ, envoi bloqué). Dans l'édition d'un événement (enregistrement automatique), un champ obligatoire vidé n'écrase pas la dernière valeur valide.
 
 ### Itinéraires de référence — `/itineraires`
 GR/GRP, véloroutes, traversées VTT, cols : tracés OpenStreetMap (ODbL) intégrés avec source, licence, contrôle de validité, statistiques recalculées. Voir `docs/bibliotheque.md` (sources, anti-doublons, ajout d'un itinéraire).

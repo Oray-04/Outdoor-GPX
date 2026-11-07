@@ -297,7 +297,7 @@ export function Editor({ routeId }: { routeId?: string }) {
       const d = poiMarkerEl(p.type, p.name);
       d.addEventListener("click", (ev) => {
         ev.stopPropagation(); setTab("poi"); setSelPoi(p.id);
-        new lib.Popup({ closeButton: false, offset: 18 }).setLngLat([p.lng, p.lat]).setDOMContent(poiPopupEl(p.type, p.name, "Modifiable dans l'onglet POI")).addTo(m);
+        new lib.Popup({ closeButton: true, closeOnClick: false, offset: 18 }).setLngLat([p.lng, p.lat]).setDOMContent(poiPopupEl(p.type, p.name, "Modifiable dans l'onglet POI")).addTo(m);
       });
       poiMarkers.current.push(new lib.Marker({ element: d }).setLngLat([p.lng, p.lat]).addTo(m));
     }
@@ -501,7 +501,7 @@ export function Editor({ routeId }: { routeId?: string }) {
 
           {tab === "poi" && (<>
             <p className="text-sm text-ink-600">Choisissez un type puis cliquez sur la carte.</p>
-            <div className="flex flex-wrap gap-1.5">{(Object.keys(POI_TYPES) as PoiType[]).map((t) => <button key={t} aria-pressed={poiMode === t} onClick={() => setPoiMode(poiMode === t ? null : t)} className={clsx("inline-flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-3 text-xs font-medium", poiMode === t ? "border-transparent text-white" : "border-ink-200")} style={poiMode === t ? { background: POI_TYPES[t].color } : undefined}><PoiIcon type={t} size={22} className={poiMode === t ? "ring-2 ring-white/70" : ""} />{POI_TYPES[t].label}</button>)}</div>
+            <div className="flex flex-wrap gap-1.5">{(Object.keys(POI_TYPES) as PoiType[]).map((t) => <button key={t} aria-pressed={poiMode === t} onClick={() => setPoiMode(poiMode === t ? null : t)} className={clsx("inline-flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-3 text-xs font-medium", poiMode === t ? "border-transparent text-white" : "border-ink-200")} style={poiMode === t ? { background: POI_TYPES[t].color } : undefined}><PoiIcon decorative type={t} size={22} className={poiMode === t ? "ring-2 ring-white/70" : ""} />{POI_TYPES[t].label}</button>)}</div>
             <ul className="grid gap-2">{st.pois.map((p) => (
               <li key={p.id} className={clsx("flex items-center gap-2 rounded-lg border p-2", selPoi === p.id ? "border-pine-600 bg-pine-50" : "border-ink-100")}>
                 <PoiIcon type={p.type} size={28} />

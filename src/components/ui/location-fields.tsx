@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Autocomplete, type Option } from "./autocomplete";
-import { communeSuggestions, loadRegions, matchRegions, type Commune, type Region } from "@/lib/communes";
+import { communeSuggestions, loadRegions, matchRegions, norm, type Commune, type Region } from "@/lib/communes";
 
 const req = (on?: boolean) => on && <span className="ml-0.5 text-danger" aria-hidden="true">*</span>;
 
@@ -23,6 +23,7 @@ export function LocationFields({ place, region, onChange, placeRequired, regionR
     if (regErr) throw new Error("Liste des régions indisponible : saisissez le nom à la main.");
     const all = regions ?? await loadRegions(); return matchRegions(all, q).map((r) => ({ key: r.code, label: r.nom, value: r }));
   };
+  const unknownRegion = !!region.trim() && !!regions && !regions.some((r) => norm(r.nom) === norm(region));
   return (
     <>
       <div className={className}>
@@ -33,6 +34,7 @@ export function LocationFields({ place, region, onChange, placeRequired, regionR
       </div>
       <div className={className}>
         <Autocomplete<Region> label="Région" required={regionRequired} value={region} onInput={(v) => onChange({ place, region: v })} fetchOptions={regionOpts} minChars={2} placeholder="Provence…" onSelect={(o) => onChange({ place, region: o.value.nom })} />
+        {unknownRegion && <p role="status" className="mt-1 text-xs text-warn">Région non reconnue : choisissez une suggestion de la liste (la saisie libre reste possible pour un lieu hors France).</p>}
       </div>
     </>
   );

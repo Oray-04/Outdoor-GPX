@@ -19,6 +19,9 @@ export function RouteMap({ coords, pois = [], activeIndex, className = "h-80", o
   const active = useRef<Marker | null>(null);
   const hoverCb = useRef(onTrackHover); hoverCb.current = onTrackHover;
   const coordsRef = useRef(coords); coordsRef.current = coords;
+  // clés de contenu : les marqueurs ne sont recréés que si le tracé ou les POI changent vraiment (pas à chaque survol qui re-rend la page)
+  const poisKey = pois.map((p) => `${p.id}:${p.type}:${p.name}:${p.lng}:${p.lat}`).join("|");
+  const coordsKey = `${coords.length}:${coords[0]?.join(",")}:${coords[coords.length - 1]?.join(",")}`;
 
   useEffect(() => {
     const m = map.current, lib = ml.current; if (!m || !lib || !ready) return;
@@ -48,10 +51,10 @@ export function RouteMap({ coords, pois = [], activeIndex, className = "h-80", o
     }
     for (const p of pois) {
       const el = poiMarkerEl(p.type, p.name);
-      el.addEventListener("click", (ev) => { ev.stopPropagation(); new lib.Popup({ closeButton: false, offset: 18 }).setLngLat([p.lng, p.lat]).setDOMContent(poiPopupEl(p.type, p.name)).addTo(m); });
+      el.addEventListener("click", (ev) => { ev.stopPropagation(); new lib.Popup({ closeButton: true, closeOnClick: false, offset: 18 }).setLngLat([p.lng, p.lat]).setDOMContent(poiPopupEl(p.type, p.name)).addTo(m); });
       marks.current.push(new lib.Marker({ element: el }).setLngLat([p.lng, p.lat]).addTo(m));
     }
-  }, [coords, pois, ready, map, ml]);
+  }, [coordsKey, poisKey, ready, map, ml]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Tracé coloré par segment (ex. vent de face / dans le dos) et flèches
   useEffect(() => {

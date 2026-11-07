@@ -16,12 +16,18 @@ export const POI_ICON_PATHS: Record<PoiType, string[]> = {
 export const poiIconSvg = (t: PoiType, px = 16, stroke = "#fff") =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="${px}" height="${px}" viewBox="0 0 24 24" fill="none" stroke="${stroke}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${POI_ICON_PATHS[t].map((d) => `<path d="${d}"/>`).join("")}</svg>`;
 
-/** Marqueur de carte : pastille colorée à pictogramme, assez grande pour rester lisible dézoomée. */
+/**
+ * Marqueur de carte : pastille colorée à pictogramme, assez grande pour rester lisible dézoomée.
+ * L'élément racine est positionné par MapLibre (transform) : aucune transition dessus, l'effet de survol est sur l'enveloppe interne.
+ */
 export function poiMarkerEl(t: PoiType, label: string, size = 30): HTMLButtonElement {
   const el = document.createElement("button");
-  el.type = "button"; el.className = "grid place-items-center rounded-full border-2 border-white shadow-lg ring-1 ring-black/20 transition-transform hover:scale-110 focus-visible:scale-110";
-  el.style.cssText = `width:${size}px;height:${size}px;background:${POI_TYPES[t].color}`;
-  el.innerHTML = poiIconSvg(t, Math.round(size * 0.58)); el.title = `${label} (${POI_TYPES[t].label})`; el.setAttribute("aria-label", el.title);
+  el.type = "button"; el.className = "group grid cursor-pointer place-items-center bg-transparent p-0";
+  el.style.cssText = `width:${size}px;height:${size}px`;
+  const dot = document.createElement("span");
+  dot.className = "grid size-full place-items-center rounded-full border-2 border-white shadow-lg ring-1 ring-black/20 transition-transform group-hover:scale-110 group-focus-visible:scale-110";
+  dot.style.background = POI_TYPES[t].color; dot.innerHTML = poiIconSvg(t, Math.round(size * 0.58));
+  el.append(dot); el.title = `${label} (${POI_TYPES[t].label})`; el.setAttribute("aria-label", el.title);
   return el;
 }
 
