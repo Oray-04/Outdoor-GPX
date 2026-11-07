@@ -150,7 +150,12 @@ export async function generateLoops(input: GenInput, deps: GenDeps, opts: { sign
     scored.push({ ...base, gainOk: gainWithinTolerance(st.gainM, targetGain), score: scoreProposal(base, targetKm, targetGain) });
     opts.onProgress?.({ phase: "altitudes", done: ++nEval, total: fitted.length });
   };
-  for (const f of fitted) await evaluate(f);
+  let consecutive = 0;
+  for (const f of fitted) {
+    const before = scored.length; await evaluate(f);
+    consecutive = scored.length === before ? consecutive + 1 : 0;
+    if (consecutive >= 2 && !scored.length) break; // le service d'altitudes ne répond pas : inutile d'essayer les autres boucles
+  }
   if (!scored.length && elevErr) throw new GenerationError("elevation", kindOf(elevErr));
   // Aucune boucle dans la marge : on explore d'autres directions, classées selon le relief estimé sur le cercle idéal
   // (altitudes du cercle, calibrées sur le rapport D+ réel / D+ estimé des boucles déjà tracées).

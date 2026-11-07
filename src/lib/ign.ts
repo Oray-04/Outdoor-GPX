@@ -25,6 +25,10 @@ const sleep = (ms: number, signal?: AbortSignal) => new Promise<void>((ok, ko) =
 let gate = Promise.resolve();
 const paced = () => { const mine = gate.then(() => new Promise<void>((ok) => setTimeout(ok, 220))); gate = mine; return mine; };
 
+/** Disjoncteur : après un échec définitif, on n'insiste pas pendant un moment (évite des minutes de reprises par lot quand un service est coupé). */
+let ignDownUntil = 0, allDown: { until: number; err: ElevationError } | null = null;
+export const resetElevationBreaker = () => { ignDownUntil = 0; allDown = null; };
+
 /** Requête JSON avec délai maximal, reprises espacées (429, 5xx, réseau) et erreur typée. */
 async function getJsonRetry<T>(url: string, signal: AbortSignal | undefined, tries = 4): Promise<T> {
   let last: ElevationError = new ElevationError("network");
@@ -70,11 +74,20 @@ export async function fetchElevations(pts: LL[], signal?: AbortSignal): Promise<
     while (next < batches.length) {
       const b = batches[next++];
       const url = `${BASE}/altimetrie/1.0/calcul/alti/rest/elevation.json?lon=${b.map((p) => p[0].toFixed(5)).join("|")}&lat=${b.map((p) => p[1].toFixed(5)).join("|")}&resource=ign_rge_alti_wld&zonly=true`;
+      if (allDown && Date.now() < allDown.until) throw allDown.err; // les deux services viennent d'échouer : échec immédiat, même erreur
       let ele: number[];
-      try { ele = (await getJsonRetry<{ elevations: number[] }>(url, signal)).elevations; }
-      catch (e) {
+      try {
+        if (Date.now() < ignDownUntil) throw new ElevationError("server"); // IGN récemment indisponible : directement le secours
+        ele = (await getJsonRetry<{ elevations: number[] }>(url, signal, 3)).elevations;
+      } catch (e) {
         if ((e as Error).name === "AbortError") throw e;
-        ele = await openMeteoElevations(b, signal); fallback = true; // si le secours échoue aussi, l'erreur typée remonte
+        ignDownUntil = Date.now() + 60000;
+        try { ele = await openMeteoElevations(b, signal); fallback = true; }
+        catch (e2) {
+          if ((e2 as Error).name === "AbortError") throw e2;
+          const err = e2 instanceof ElevationError ? e2 : e instanceof ElevationError ? e : new ElevationError("network");
+          allDown = { until: Date.now() + 30000, err }; throw err; // le secours a échoué aussi : erreur typée
+        }
       }
       b.forEach((p, i) => elevCache.set(keyOf(p), ele[i]));
     }

@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { fetchElevations, ElevationError, lastElevationSource } from "../src/lib/ign";
+import { fetchElevations, ElevationError, lastElevationSource, resetElevationBreaker } from "../src/lib/ign";
 import { generateLoops, GenerationError, type GenDeps } from "../src/lib/generator";
 import { RoutingError } from "../src/lib/routing";
 import type { LL, Pt } from "../src/lib/types";
 
-afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
+afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); resetElevationBreaker(); });
 const pts = (n: number, o = 0): LL[] => Array.from({ length: n }, (_, i) => [6 + o + i * 0.0001, 45 + o] as LL);
 const ok = (elevations: number[]) => new Response(JSON.stringify({ elevations }), { status: 200 });
 
@@ -28,6 +28,17 @@ describe("service d'altitudes : reprises et secours", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 429 })));
     await expect(fetchElevations(pts(3, 13))).rejects.toMatchObject({ kind: "rate", status: 429 });
   }, 30000);
+  it("service coupé : après un échec, les lots suivants échouent vite (pas de reprises à chaque lot)", async () => {
+    const f = vi.fn(async () => new Response("", { status: 503 })); vi.stubGlobal("fetch", f);
+    await expect(fetchElevations(pts(300, 15))).rejects.toBeInstanceOf(ElevationError);
+    const calls = f.mock.calls.length; const t0 = Date.now();
+    await expect(fetchElevations(pts(300, 16))).rejects.toBeInstanceOf(ElevationError);
+    expect(f.mock.calls.length).toBe(calls); expect(Date.now() - t0).toBeLessThan(500); // aucune nouvelle requête
+  }, 40000);
+  it("IGN coupé, secours disponible : les lots suivants passent directement par le secours", async () => {
+    let ign = 0; vi.stubGlobal("fetch", vi.fn(async (u: string) => { if (String(u).includes("open-meteo")) { const n = new URL(String(u)).searchParams.get("latitude")!.split(",").length; return new Response(JSON.stringify({ elevation: Array(n).fill(700) }), { status: 200 }); } ign++; return new Response("", { status: 503 }); }));
+    await fetchElevations(pts(130, 17)); const first = ign; await fetchElevations(pts(130, 18)); expect(ign).toBe(first); expect(lastElevationSource).toBe("open-meteo");
+  }, 40000);
   it("lots de 120 points, plus de 2 requêtes simultanées jamais", async () => {
     let cur = 0, max = 0;
     vi.stubGlobal("fetch", vi.fn(async (u: string) => { cur++; max = Math.max(max, cur); await new Promise((r) => setTimeout(r, 30)); cur--; const n = new URL(u).searchParams.get("lon")!.split("|").length; return ok(Array(n).fill(900)); }));
