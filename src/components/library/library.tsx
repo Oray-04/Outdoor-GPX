@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { RoutesMap } from "./routes-map";
 import { useAllRoutes, useVerified } from "@/lib/route-vm";
 import { DEFAULT_FILTERS, filterRoutes, type Filters } from "@/lib/route-model";
+import { Autocomplete, type Option } from "@/components/ui/autocomplete";
+import { communeSuggestions } from "@/lib/communes";
 import { SPORTS, DIFFICULTY_LABEL } from "@/lib/sports";
 import { DEMO_LAYER, useLayers, useTerrains } from "@/lib/repo";
 
@@ -35,12 +37,24 @@ export function Library({ initialSport }: { initialSport?: string }) {
     return s;
   }, [all, f, verified, sort]);
 
+  const [placeQ, setPlaceQ] = useState("");
+  const placeOptions = async (q: string, signal: AbortSignal): Promise<Option<{ label: string; centers: [number, number][] }>[] | null> => {
+    const r = await communeSuggestions(q, signal, true); if (!r) return null;
+    return r.map((x) => ({ key: x.key, label: x.label, hint: x.hint, value: { label: x.communes.length > 1 ? `Code postal ${q.trim()} (${x.communes.length} communes)` : x.label, centers: x.communes.map((c) => [c.lng, c.lat] as [number, number]) } }));
+  };
   const dirty = JSON.stringify(f) !== JSON.stringify(DEFAULT_FILTERS);
   const chip = (on: boolean) => clsx("rounded-full border px-3 py-1.5 text-sm font-medium transition", on ? "border-pine-600 bg-pine-600 text-white" : "border-ink-200 bg-white text-ink-700 hover:border-pine-400");
   const sel = "h-10 w-full rounded-lg border border-ink-200 bg-white px-2 text-sm";
 
   const panel = (
     <div className="grid gap-5">
+      <div className="grid gap-2">
+        <Autocomplete label="Commune ou code postal" value={placeQ} onInput={setPlaceQ} fetchOptions={placeOptions} placeholder="04000, Digne, Chamonix…" help="Saisissez 5 chiffres (code postal) ou le début d'un nom de commune."
+          onSelect={(o) => { setPlaceQ(o.value.label); setF((x) => ({ ...x, place: { label: o.value.label, centers: o.value.centers, radiusKm: x.place?.radiusKm ?? 20 } })); }} />
+        {f.place && <div className="flex flex-wrap items-center gap-2 rounded-lg bg-pine-50 px-3 py-2 text-sm"><span className="font-medium text-pine-700">Zone : {f.place.label}</span>
+          <label className="ml-auto flex items-center gap-1.5 text-xs">Rayon<select aria-label="Rayon de la zone" className="h-8 rounded-md border border-ink-200 bg-white px-1.5 text-xs" value={f.place.radiusKm} onChange={(e) => setF((x) => ({ ...x, place: x.place && { ...x.place, radiusKm: +e.target.value } }))}>{[5, 10, 20, 50, 100].map((r) => <option key={r} value={r}>{r} km</option>)}</select></label>
+          <button type="button" aria-label="Retirer la zone" className="grid size-7 place-items-center rounded-md hover:bg-white" onClick={() => { setF((x) => ({ ...x, place: null })); setPlaceQ(""); }}><X className="size-4" /></button></div>}
+      </div>
       <label className="grid gap-1 text-sm font-medium">Recherche<input className={sel} placeholder="Nom, lieu…" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} /></label>
       <fieldset><legend className="mb-2 text-sm font-medium">Discipline</legend><div className="flex flex-wrap gap-1.5">{Object.entries(SPORTS).map(([k, v]) => <button key={k} aria-pressed={f.sports.includes(k)} className={chip(f.sports.includes(k))} onClick={() => setF({ ...f, sports: toggle(f.sports, k) })}>{v.label}</button>)}</div></fieldset>
       <div className="grid grid-cols-2 gap-2">
@@ -58,7 +72,7 @@ export function Library({ initialSport }: { initialSport?: string }) {
       <fieldset><legend className="mb-2 text-sm font-medium">Calques</legend><div className="flex flex-wrap gap-1.5">{allLayers.map((l) => <button key={l.id} aria-pressed={f.layers.includes(l.id)} className={chip(f.layers.includes(l.id))} onClick={() => setF({ ...f, layers: toggle(f.layers, l.id) })}><span className="mr-1.5 inline-block size-2 rounded-full" style={{ background: l.color }} />{l.name}</button>)}</div></fieldset>
       <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={f.loopOnly} onChange={(e) => setF({ ...f, loopOnly: e.target.checked })} className="accent-[var(--color-pine-600)]" />Parcours en boucle uniquement</label>
       <label className="grid gap-1 text-sm font-medium">Catalogue<select className={sel} value={f.scope} onChange={(e) => setF({ ...f, scope: e.target.value as Filters["scope"] })}><option value="all">Tous</option><option value="public">Mes parcours publics</option><option value="private">Mes parcours privés</option><option value="verified">Officiels vérifiés</option><option value="demo">Démonstration</option></select></label>
-      {dirty && <Button variant="secondary" size="sm" onClick={() => setF(DEFAULT_FILTERS)}><X className="size-4" />Réinitialiser</Button>}
+      {dirty && <Button variant="secondary" size="sm" onClick={() => { setF(DEFAULT_FILTERS); setPlaceQ(""); }}><X className="size-4" />Réinitialiser</Button>}
     </div>
   );
 

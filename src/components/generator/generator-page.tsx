@@ -23,7 +23,7 @@ import type { Sport } from "@/lib/sports";
 
 const PRACTICES: { id: "trail" | "rando" | "vtt"; label: string; sport: Sport }[] = [{ id: "trail", label: "Trail", sport: "trail" }, { id: "rando", label: "Randonnée", sport: "rando" }, { id: "vtt", label: "VTT", sport: "vtt" }];
 const COLORS = ["#f0612b", "#3ba6c9", "#7a4bd1", "#1e7a58", "#c98a0b", "#d4202a"];
-const PHASE: Record<Progress["phase"], string> = { tracé: "Calcul des boucles", altitudes: "Mesure des dénivelés", analyse: "Analyse des chemins" };
+const PHASE: Record<Progress["phase"], string> = { relief: "Mesure du relief autour du départ", tracé: "Calcul des boucles", altitudes: "Mesure des dénivelés", analyse: "Analyse des chemins" };
 
 export function GeneratorPage() {
   const { el, map, ml, ready } = useMap();

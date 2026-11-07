@@ -55,7 +55,7 @@ describe("générateur de boucles", () => {
     expect(res).toHaveLength(4);
     for (let i = 1; i < res.length; i++) expect(res[i].score).toBeGreaterThanOrEqual(res[i - 1].score);
     res.forEach((p) => { expect(Math.abs(p.distanceM / 1000 - 12) / 12).toBeLessThan(0.25); expect(p.coords.length).toBe(p.line.length); expect(p.offRoadPct).toBe(80); });
-    expect(new Set(seen)).toEqual(new Set(["tracé", "altitudes", "analyse"]));
+    expect(new Set(seen)).toEqual(new Set(["relief", "tracé", "altitudes", "analyse"]));
   });
   it("annulation propagée au routeur", async () => {
     const ctrl = new AbortController(); let got: AbortSignal | undefined;

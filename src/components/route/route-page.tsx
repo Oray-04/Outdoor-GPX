@@ -16,6 +16,8 @@ import { buildProfile, distanceAlong } from "@/lib/profile";
 import { cumulative, fmtKm, fmtM, fmtDuration } from "@/lib/geo";
 import { SPORTS, DIFFICULTY_LABEL } from "@/lib/sports";
 import { POI_TYPES, uid } from "@/lib/types";
+import { Field } from "@/components/ui/field";
+import { PoiIcon } from "@/components/ui/poi-icon";
 import { FORMATS, serialize, download, safeName, type GpsFormat } from "@/lib/formats";
 import { chartToPng, chartToPdf } from "@/lib/export-profile";
 import { cloudEnabled } from "@/lib/cloud";
@@ -47,7 +49,7 @@ export function RoutePage({ id }: { id: string }) {
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState("");
   const [reporting, setReporting] = useState(false);
-  const [report, setReport] = useState("");
+  const [report, setReport] = useState(""); const [reportErr, setReportErr] = useState(false);
   const fileIn = useRef<HTMLInputElement>(null);
 
   const profile = useMemo(() => (route ? buildProfile(route.coords) : []), [route]);
@@ -83,7 +85,7 @@ export function RoutePage({ id }: { id: string }) {
     } catch { setMsg("Export du profil impossible."); }
   };
   const sendReview = () => { if (!rating) { setMsg("Choisissez une note de 1 à 5."); return; } reviewsRepo.upsert({ id: uid(), routeId: route.id, rating, comment: comment.trim(), at: Date.now() }); setRating(0); setComment(""); setMsg("Avis enregistré sur cet appareil."); };
-  const sendReport = () => { if (!report.trim()) return; reportsRepo.upsert({ id: uid(), routeId: route.id, routeName: route.name, message: report.trim(), at: Date.now(), status: "ouvert" }); setReport(""); setReporting(false); setMsg("Signalement enregistré : il apparaît dans l'administration."); };
+  const sendReport = () => { if (!report.trim()) { setReportErr(true); return; } setReportErr(false); reportsRepo.upsert({ id: uid(), routeId: route.id, routeName: route.name, message: report.trim(), at: Date.now(), status: "ouvert" }); setReport(""); setReporting(false); setMsg("Signalement enregistré : il apparaît dans l'administration."); };
   /** Copie d'un parcours publié sur l'appareil (consultation et navigation hors ligne). */
   const saveCopy = () => {
     const st = fromTrack(route.coords, route.pois); const now = Date.now();
@@ -151,11 +153,11 @@ export function RoutePage({ id }: { id: string }) {
             <div className="mt-3 flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={() => { navigator.clipboard?.writeText(`${start[1].toFixed(5)}, ${start[0].toFixed(5)}`); setMsg("Coordonnées copiées."); }}><Copy className="size-4" />Copier</Button>
               <a className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-ink-200 bg-white px-3.5 text-sm font-semibold hover:bg-ink-50" target="_blank" rel="noreferrer" href={`https://www.openstreetmap.org/directions?to=${start[1]},${start[0]}`}><ExternalLink className="size-4" />Itinéraire d'accès</a></div></section>
           <section className="rounded-2xl bg-white p-5 ring-1 ring-ink-100"><h2 className="text-lg font-bold">Points d'intérêt</h2>
-            {route.pois.length ? <ul className="mt-3 grid gap-2">{route.pois.map((p) => <li key={p.id} className="flex items-center gap-2 text-sm"><span className="grid size-6 place-items-center rounded-full text-[10px] font-bold text-white" style={{ background: POI_TYPES[p.type].color }}>{POI_TYPES[p.type].letter}</span><span className="flex-1">{p.name}</span><span className="text-ink-400">km {(distanceAlong(route.coords, cum, p) / 1000).toFixed(1).replace(".", ",")}</span></li>)}</ul> : <p className="mt-2 text-sm text-ink-500">Aucun point d'intérêt renseigné.</p>}</section>
+            {route.pois.length ? <ul className="mt-3 grid gap-2">{route.pois.map((p) => <li key={p.id} className="flex items-center gap-2 text-sm"><PoiIcon type={p.type} size={26} /><span className="flex-1">{p.name}</span><span className="text-ink-400">km {(distanceAlong(route.coords, cum, p) / 1000).toFixed(1).replace(".", ",")}</span></li>)}</ul> : <p className="mt-2 text-sm text-ink-500">Aucun point d'intérêt renseigné.</p>}</section>
           <section className="rounded-2xl bg-white p-5 ring-1 ring-ink-100"><h2 className="text-lg font-bold">Télécharger</h2><div className="mt-3 grid grid-cols-2 gap-2">{(Object.keys(FORMATS) as GpsFormat[]).map((f) => <Button key={f} size="sm" variant="secondary" onClick={() => exp(f)}><Download className="size-4" />{FORMATS[f].label}</Button>)}</div></section>
           <section className="rounded-2xl bg-white p-5 ring-1 ring-ink-100">
             <Button size="sm" variant="ghost" onClick={() => setReporting(!reporting)}><Flag className="size-4" />Signaler une erreur</Button>
-            {reporting && <div className="mt-2 grid gap-2"><textarea value={report} onChange={(e) => setReport(e.target.value)} rows={3} placeholder="Décrivez le problème (tracé, point, description…)" className="rounded-lg border border-ink-200 p-3 text-sm" /><Button size="sm" variant="brand" onClick={sendReport}>Envoyer</Button></div>}
+            {reporting && <div className="mt-2 grid gap-2"><Field l="Description du problème" required error={reportErr && !report.trim() ? "Décrivez le problème avant d'envoyer." : null}><textarea required aria-invalid={reportErr && !report.trim()} value={report} onChange={(e) => setReport(e.target.value)} rows={3} placeholder="Tracé, point, description…" className="rounded-lg border border-ink-200 p-3 text-sm font-normal" /></Field><Button size="sm" variant="brand" onClick={sendReport}>Envoyer</Button></div>}
             {mine && <Button size="sm" variant="ghost" className="text-danger" onClick={del}><Trash2 className="size-4" />Supprimer ce parcours</Button>}
           </section>
         </div>

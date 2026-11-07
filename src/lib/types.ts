@@ -3,15 +3,17 @@ import type { Sport } from "./sports";
 export type Pt = [lng: number, lat: number, ele: number];
 export type LL = [lng: number, lat: number];
 
-export type PoiType = "ravito" | "eau" | "controle" | "vue" | "danger" | "secours" | "parking";
+export type PoiType = "ravito" | "eau" | "controle" | "vue" | "danger" | "secours" | "parking" | "depart";
+/** `danger` = « Passage » (passage délicat ou point de franchissement) : identifiant conservé pour les données déjà enregistrées. */
 export const POI_TYPES: Record<PoiType, { label: string; letter: string; color: string }> = {
   ravito: { label: "Ravitaillement", letter: "R", color: "#f0612b" },
   eau: { label: "Point d'eau", letter: "E", color: "#3ba6c9" },
-  controle: { label: "Point de contrôle", letter: "C", color: "#7a4bd1" },
+  controle: { label: "Contrôle", letter: "C", color: "#7a4bd1" },
   vue: { label: "Point de vue", letter: "V", color: "#1e7a58" },
-  danger: { label: "Passage délicat", letter: "!", color: "#c8372d" },
+  danger: { label: "Passage", letter: "!", color: "#c8372d" },
   secours: { label: "Poste de secours", letter: "+", color: "#d4202a" },
-  parking: { label: "Parking / départ", letter: "P", color: "#36504a" },
+  parking: { label: "Parking", letter: "P", color: "#36504a" },
+  depart: { label: "Départ", letter: "D", color: "#0d1b17" },
 };
 
 export interface Poi { id: string; type: PoiType; name: string; lng: number; lat: number }

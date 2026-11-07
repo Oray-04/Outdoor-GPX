@@ -5,7 +5,8 @@ import { useMap } from "./use-map";
 import { bboxOf, trackStats, fmtKm, fmtM } from "@/lib/geo";
 import { MapFrame, StatBanner } from "./map-frame";
 import { LayerControl } from "./layer-control";
-import { POI_TYPES, type Poi, type Pt } from "@/lib/types";
+import { type Poi, type Pt } from "@/lib/types";
+import { poiMarkerEl, poiPopupEl } from "@/lib/poi-icons";
 
 /** Carte en lecture seule : trace, départ/arrivée, POI, position active (survol du profil). */
 export interface MapOverlay { segments: { from: number; to: number; color: string }[]; arrows: { lng: number; lat: number; toDeg: number; label: string; color: string; title: string }[] }
@@ -45,7 +46,11 @@ export function RouteMap({ coords, pois = [], activeIndex, className = "h-80", o
       if (loop) pin("D/A", "#1e7a58", [f[0], f[1]], "Départ et arrivée"); else { pin("D", "#1e7a58", [f[0], f[1]], "Départ"); pin("A", "#0d1b17", [l[0], l[1]], "Arrivée"); }
       const b = bboxOf(coords); m.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 50, maxZoom: 15, duration: 0 });
     }
-    for (const p of pois) pin(POI_TYPES[p.type].letter, POI_TYPES[p.type].color, [p.lng, p.lat], `${p.name} (${POI_TYPES[p.type].label})`, "size-5");
+    for (const p of pois) {
+      const el = poiMarkerEl(p.type, p.name);
+      el.addEventListener("click", (ev) => { ev.stopPropagation(); new lib.Popup({ closeButton: false, offset: 18 }).setLngLat([p.lng, p.lat]).setDOMContent(poiPopupEl(p.type, p.name)).addTo(m); });
+      marks.current.push(new lib.Marker({ element: el }).setLngLat([p.lng, p.lat]).addTo(m));
+    }
   }, [coords, pois, ready, map, ml]);
 
   // Tracé coloré par segment (ex. vent de face / dans le dos) et flèches

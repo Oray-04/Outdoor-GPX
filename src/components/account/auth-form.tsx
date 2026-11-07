@@ -1,4 +1,5 @@
 "use client";
+import { Field, RequiredLegend } from "@/components/ui/field";
 import { useState } from "react";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
@@ -32,9 +33,9 @@ export function AuthForm() {
     <div className="mx-auto max-w-md px-4 py-14 sm:px-6">
       <h1 className="text-3xl font-extrabold">{auth.user ? "Mon compte" : TITLES[mode]}</h1>
       {!auth.enabled || auth.user ? <div className="mt-6 rounded-2xl bg-white p-5 ring-1 ring-ink-100"><CloudCard /></div> : (
-        <form onSubmit={submit} className="mt-6 grid gap-4 rounded-2xl bg-white p-5 ring-1 ring-ink-100">
-          <label className="grid gap-1 text-sm font-medium">Adresse e-mail<input required type="email" autoComplete="email" className={inp} value={email} onChange={(e) => setEmail(e.target.value)} /></label>
-          {(mode === "signin" || mode === "signup") && <label className="grid gap-1 text-sm font-medium">Mot de passe<input required type="password" minLength={mode === "signup" ? 8 : undefined} autoComplete={mode === "signup" ? "new-password" : "current-password"} className={inp} value={pw} onChange={(e) => setPw(e.target.value)} /></label>}
+        <form onSubmit={submit} className="mt-6 grid gap-4 rounded-2xl bg-white p-5 ring-1 ring-ink-100"><RequiredLegend />
+          <Field l="Adresse e-mail" required><input required type="email" autoComplete="email" className={inp} value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
+          {(mode === "signin" || mode === "signup") && <Field l="Mot de passe" required hint={mode === "signup" ? "8 caractères minimum." : undefined}><input required type="password" minLength={mode === "signup" ? 8 : undefined} autoComplete={mode === "signup" ? "new-password" : "current-password"} className={inp} value={pw} onChange={(e) => setPw(e.target.value)} /></Field>}
           <Button type="submit" size="lg" disabled={busy || !auth.ready}>{busy && <Loader2 className="size-4 animate-spin" />}{mode === "signin" ? "Se connecter" : mode === "signup" ? "Créer mon compte" : "Envoyer"}</Button>
           {msg && <p role={msg.ok ? "status" : "alert"} className={msg.ok ? "text-sm text-pine-700" : "text-sm text-danger"}>{msg.text}</p>}
           <div className="grid gap-1 text-sm">

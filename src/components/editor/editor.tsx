@@ -9,6 +9,8 @@ import { Sheet, type SheetState } from "@/components/layout/sheet";
 import { MapFrame, StatBanner } from "@/components/map/map-frame";
 import { ElevationChart, type ChartMarker } from "@/components/route/elevation-chart";
 import { Button } from "@/components/ui/button";
+import { PoiIcon } from "@/components/ui/poi-icon";
+import { poiMarkerEl, poiPopupEl } from "@/lib/poi-icons";
 import * as E from "@/lib/editor-core";
 import { addElevation, seedElevations } from "@/lib/ign";
 import { ENGINE_LABEL, SOURCE_LABEL, makeRouter, profileForSport, snapToPaths, type Engine, type Source } from "@/lib/routing";
@@ -51,6 +53,7 @@ export function Editor({ routeId }: { routeId?: string }) {
   const [sel, setSel] = useState<number | null>(null);
   const [tab, setTab] = useState<Tab>("trace");
   const [poiMode, setPoiMode] = useState<PoiType | null>(null);
+  const [selPoi, setSelPoi] = useState<string | null>(null);
   const [coords, setCoords] = useState<Pt[]>([]);
   const [elev, setElev] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [saved, setSaved] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -291,9 +294,11 @@ export function Editor({ routeId }: { routeId?: string }) {
     const m = map.current, lib = ml.current; if (!m || !lib || !ready) return;
     poiMarkers.current.forEach((x) => x.remove()); poiMarkers.current = [];
     for (const p of st.pois) {
-      const d = document.createElement("div");
-      d.className = "grid size-5 place-items-center rounded-full border-2 border-white text-[10px] font-bold text-white shadow";
-      d.style.background = POI_TYPES[p.type].color; d.textContent = POI_TYPES[p.type].letter; d.title = `${p.name} (${POI_TYPES[p.type].label})`;
+      const d = poiMarkerEl(p.type, p.name);
+      d.addEventListener("click", (ev) => {
+        ev.stopPropagation(); setTab("poi"); setSelPoi(p.id);
+        new lib.Popup({ closeButton: false, offset: 18 }).setLngLat([p.lng, p.lat]).setDOMContent(poiPopupEl(p.type, p.name, "Modifiable dans l'onglet POI")).addTo(m);
+      });
       poiMarkers.current.push(new lib.Marker({ element: d }).setLngLat([p.lng, p.lat]).addTo(m));
     }
   }, [st.pois, ready, map, ml]);
@@ -496,10 +501,10 @@ export function Editor({ routeId }: { routeId?: string }) {
 
           {tab === "poi" && (<>
             <p className="text-sm text-ink-600">Choisissez un type puis cliquez sur la carte.</p>
-            <div className="flex flex-wrap gap-1.5">{(Object.keys(POI_TYPES) as PoiType[]).map((t) => <button key={t} aria-pressed={poiMode === t} onClick={() => setPoiMode(poiMode === t ? null : t)} className={clsx("inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium", poiMode === t ? "border-transparent text-white" : "border-ink-200")} style={poiMode === t ? { background: POI_TYPES[t].color } : undefined}><MapPin className="size-3.5" />{POI_TYPES[t].label}</button>)}</div>
+            <div className="flex flex-wrap gap-1.5">{(Object.keys(POI_TYPES) as PoiType[]).map((t) => <button key={t} aria-pressed={poiMode === t} onClick={() => setPoiMode(poiMode === t ? null : t)} className={clsx("inline-flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-3 text-xs font-medium", poiMode === t ? "border-transparent text-white" : "border-ink-200")} style={poiMode === t ? { background: POI_TYPES[t].color } : undefined}><PoiIcon type={t} size={22} className={poiMode === t ? "ring-2 ring-white/70" : ""} />{POI_TYPES[t].label}</button>)}</div>
             <ul className="grid gap-2">{st.pois.map((p) => (
-              <li key={p.id} className="flex items-center gap-2 rounded-lg border border-ink-100 p-2">
-                <span className="grid size-6 shrink-0 place-items-center rounded-full text-[10px] font-bold text-white" style={{ background: POI_TYPES[p.type].color }}>{POI_TYPES[p.type].letter}</span>
+              <li key={p.id} className={clsx("flex items-center gap-2 rounded-lg border p-2", selPoi === p.id ? "border-pine-600 bg-pine-50" : "border-ink-100")}>
+                <PoiIcon type={p.type} size={28} />
                 <input aria-label="Nom du point" className="min-w-0 flex-1 rounded border border-transparent px-1 py-0.5 text-sm hover:border-ink-200" value={p.name} onChange={(e) => commit({ ...st, pois: st.pois.map((x) => (x.id === p.id ? { ...x, name: e.target.value } : x)) })} />
                 <button aria-label="Supprimer le point" className="grid size-7 place-items-center rounded hover:bg-ink-100" onClick={() => commit({ ...st, pois: st.pois.filter((x) => x.id !== p.id) })}><Trash2 className="size-4" /></button>
               </li>))}

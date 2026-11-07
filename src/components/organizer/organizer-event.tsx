@@ -1,4 +1,6 @@
 "use client";
+import { Field, RequiredLegend, filled } from "@/components/ui/field";
+import { LocationFields } from "@/components/ui/location-fields";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { GeoJSONSource, Marker } from "maplibre-gl";
@@ -46,17 +48,21 @@ export function OrganizerEvent({ id }: { id: string }) {
   );
 }
 type P = { ev: EventModel; save: (fn: (e: EventModel) => EventModel) => void };
-const Field = ({ l, children }: { l: string; children: React.ReactNode }) => <label className="grid gap-1 text-sm font-medium">{l}{children}</label>;
 
 function Infos({ ev, save }: P) {
   const set = (k: keyof EventModel, v: string) => save((e) => ({ ...e, [k]: v }));
+  // Nom, organisateur, date et lieu sont obligatoires : on les garde en brouillon et on n'enregistre que des valeurs renseignées (la dernière valeur valide reste en base)
+  const [d, setD] = useState({ name: ev.name, organizer: ev.organizer, date: ev.date, place: ev.place });
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const edit = (k: "name" | "organizer" | "date" | "place", v: string) => { setD((x) => ({ ...x, [k]: v })); setTouched((t) => ({ ...t, [k]: true })); if (filled(v)) set(k, v); };
+  const err = (k: "name" | "organizer" | "date" | "place", label: string) => (touched[k] && !filled(d[k]) ? `${label} est obligatoire : la dernière valeur enregistrée est conservée.` : null);
   return (
     <div className="grid gap-4 md:grid-cols-2">
-      <Field l="Nom"><input className={inp} value={ev.name} onChange={(e) => set("name", e.target.value)} /></Field>
-      <Field l="Organisateur"><input className={inp} value={ev.organizer} onChange={(e) => set("organizer", e.target.value)} /></Field>
-      <Field l="Date"><input type="date" className={inp} value={ev.date} onChange={(e) => set("date", e.target.value)} /></Field>
-      <Field l="Lieu"><input className={inp} value={ev.place} onChange={(e) => set("place", e.target.value)} /></Field>
-      <Field l="Région"><input className={inp} value={ev.region} onChange={(e) => set("region", e.target.value)} /></Field>
+      <RequiredLegend className="md:col-span-2" />
+      <Field l="Nom" required error={err("name", "Le nom")}><input required aria-invalid={!!err("name", "")} className={inp} value={d.name} onChange={(e) => edit("name", e.target.value)} /></Field>
+      <Field l="Organisateur" required error={err("organizer", "L'organisateur")}><input required aria-invalid={!!err("organizer", "")} className={inp} value={d.organizer} onChange={(e) => edit("organizer", e.target.value)} /></Field>
+      <Field l="Date" required error={err("date", "La date")}><input required aria-invalid={!!err("date", "")} type="date" className={inp} value={d.date} onChange={(e) => edit("date", e.target.value)} /></Field>
+      <LocationFields place={d.place} region={ev.region} onChange={(v) => { if (v.region !== ev.region) set("region", v.region); edit("place", v.place); }} placeRequired placeError={err("place", "Le lieu")} />
       <Field l="Lien d'inscription (https://…)"><input className={inp} value={ev.registrationUrl} onChange={(e) => set("registrationUrl", e.target.value)} placeholder="https://" /></Field>
       <div className="md:col-span-2"><Field l="Description"><textarea rows={4} className="rounded-lg border border-ink-200 p-3 text-sm" value={ev.description} onChange={(e) => set("description", e.target.value)} /></Field></div>
       <Field l="Informations pratiques"><textarea rows={5} className="rounded-lg border border-ink-200 p-3 text-sm" value={ev.practical} onChange={(e) => set("practical", e.target.value)} placeholder="Retrait des dossards, parkings, douches…" /></Field>
@@ -225,13 +231,14 @@ function Logistics({ ev, save }: P) {
 
 function Volunteers({ ev, save }: P) {
   const [f, setF] = useState({ name: "", phone: "", postId: "", from: "", to: "", instructions: "" });
-  const add = (e: React.FormEvent) => { e.preventDefault(); save((x) => ({ ...x, volunteers: [...x.volunteers, { id: uid(), ...f, name: f.name.trim() }] })); setF({ name: "", phone: "", postId: "", from: "", to: "", instructions: "" }); };
+  const [nameErr, setNameErr] = useState(false);
+  const add = (e: React.FormEvent) => { e.preventDefault(); if (!filled(f.name)) { setNameErr(true); return; } setNameErr(false); save((x) => ({ ...x, volunteers: [...x.volunteers, { id: uid(), ...f, name: f.name.trim() }] })); setF({ name: "", phone: "", postId: "", from: "", to: "", instructions: "" }); };
   const pdf = async (vols: Volunteer[], name: string) => download(`${safeName(ev.name)}-${name}.pdf`, await volunteersPdf(ev, vols, ev.posts), "application/pdf");
   const count = (postId: string) => ev.volunteers.filter((v) => v.postId === postId).length;
   return (
     <div className="grid gap-6 lg:grid-cols-[22rem_1fr]">
-      <form onSubmit={add} className="grid content-start gap-3 rounded-2xl bg-white p-4 ring-1 ring-ink-100"><h2 className="font-bold">Nouvelle fiche bénévole</h2>
-        <Field l="Nom"><input required className={inp} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
+      <form onSubmit={add} noValidate className="grid content-start gap-3 rounded-2xl bg-white p-4 ring-1 ring-ink-100"><h2 className="font-bold">Nouvelle fiche bénévole</h2><RequiredLegend />
+        <Field l="Nom" required error={nameErr && !filled(f.name) ? "Le nom du bénévole est obligatoire." : null}><input required aria-invalid={nameErr && !filled(f.name)} className={inp} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
         <Field l="Téléphone"><input className={inp} value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} /></Field>
         <Field l="Poste"><select className={inp} value={f.postId} onChange={(e) => setF({ ...f, postId: e.target.value })}><option value="">Non affecté</option>{ev.posts.map((p) => <option key={p.id} value={p.id}>{p.name} (km {p.km})</option>)}</select></Field>
         <div className="grid grid-cols-2 gap-2"><Field l="De"><input type="time" className={inp} value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} /></Field><Field l="À"><input type="time" className={inp} value={f.to} onChange={(e) => setF({ ...f, to: e.target.value })} /></Field></div>
@@ -277,10 +284,11 @@ function Passages({ ev }: { ev: EventModel }) {
 
 function Team({ ev, save }: P) {
   const [f, setF] = useState<{ name: string; email: string; role: Role }>({ name: "", email: "", role: "lecture" });
+  const [nameErr, setNameErr] = useState(false);
   return (
     <div className="grid gap-6 lg:grid-cols-[22rem_1fr]">
-      <form onSubmit={(e) => { e.preventDefault(); save((x) => ({ ...x, team: [...x.team, { id: uid(), ...f } as Member] })); setF({ name: "", email: "", role: "lecture" }); }} className="grid content-start gap-3 rounded-2xl bg-white p-4 ring-1 ring-ink-100"><h2 className="font-bold">Ajouter un collaborateur</h2>
-        <Field l="Nom"><input required className={inp} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
+      <form noValidate onSubmit={(e) => { e.preventDefault(); if (!filled(f.name)) { setNameErr(true); return; } setNameErr(false); save((x) => ({ ...x, team: [...x.team, { id: uid(), ...f, name: f.name.trim() } as Member] })); setF({ name: "", email: "", role: "lecture" }); }} className="grid content-start gap-3 rounded-2xl bg-white p-4 ring-1 ring-ink-100"><h2 className="font-bold">Ajouter un collaborateur</h2><RequiredLegend />
+        <Field l="Nom" required error={nameErr && !filled(f.name) ? "Le nom du collaborateur est obligatoire." : null}><input required aria-invalid={nameErr && !filled(f.name)} className={inp} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
         <Field l="E-mail"><input type="email" className={inp} value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
         <Field l="Rôle"><select className={inp} value={f.role} onChange={(e) => setF({ ...f, role: e.target.value as Role })}>{Object.entries(ROLES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></Field>
         <Button type="submit" variant="brand"><Plus className="size-4" />Ajouter</Button></form>

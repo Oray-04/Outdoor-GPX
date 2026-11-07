@@ -31,7 +31,7 @@ export interface GenDeps {
 export class GenerationError extends Error {
   constructor(public kind: "routing" | "elevation", public detail: { status?: number; reason?: "rate" | "server" | "network" } = {}) { super(`Génération impossible : ${kind}`); }
 }
-export interface Progress { phase: "tracé" | "altitudes" | "analyse"; done: number; total: number }
+export interface Progress { phase: "relief" | "tracé" | "altitudes" | "analyse"; done: number; total: number }
 
 const R_EARTH = 6371008.8;
 const rad = (d: number) => (d * Math.PI) / 180, deg = (r: number) => (r * 180) / Math.PI;
@@ -108,7 +108,21 @@ export function pickDistinct<T extends { bearing: number; score: number }>(sorte
 export async function generateLoops(input: GenInput, deps: GenDeps, opts: { signal?: AbortSignal; onProgress?: (p: Progress) => void } = {}): Promise<Proposal[]> {
   const { start, targetKm, targetGain, profile } = input;
   const n = input.directions ?? 12, count = input.count ?? 4;
-  const thetas = Array.from({ length: n }, (_, i) => (i * 360) / n);
+  // Avec une cible de D+ : on mesure d'abord le relief sur le cercle idéal de chaque direction (une requête d'altitudes par direction ;
+  // l'estimation colle au D+ réel du tracé routé, mesuré à ±20 % sur 12 directions à Chamonix) et on ne trace que les directions dont
+  // le D+ estimé est le plus proche de la cible.
+  const pool = Array.from({ length: n * 2 }, (_, i) => (i * 360) / (n * 2));
+  const ringGain = new Map<number, number>();
+  const ringRadius = (targetKm * 1000) / (2 * Math.PI * DETOUR);
+  let thetas = Array.from({ length: n }, (_, i) => (i * 360) / n);
+  if (targetGain != null) {
+    let r = 0;
+    for (const t of pool) {
+      try { ringGain.set(t, trackStats(await deps.elevate(loopWaypoints(start, ringRadius, t, 23), opts.signal), 3).gainM); } catch (e) { if ((e as Error).name === "AbortError") throw e; /* direction ignorée */ }
+      opts.onProgress?.({ phase: "relief", done: ++r, total: pool.length });
+    }
+    if (ringGain.size >= n) thetas = [...ringGain.keys()].sort((a, b) => Math.abs(ringGain.get(a)! - targetGain) - Math.abs(ringGain.get(b)! - targetGain)).slice(0, n);
+  }
   const fitted: { theta: number; line: LL[]; km: number }[] = [];
   let done = 0, svcErr: unknown = null, elevErr: unknown = null;
   const kindOf = (e: unknown) => { const x = e as { kind?: "rate" | "server" | "network"; status?: number }; return { reason: x?.kind ?? "network", status: x?.status }; };
@@ -140,21 +154,16 @@ export async function generateLoops(input: GenInput, deps: GenDeps, opts: { sign
   if (!scored.length && elevErr) throw new GenerationError("elevation", kindOf(elevErr));
   // Aucune boucle dans la marge : on explore d'autres directions, classées selon le relief estimé sur le cercle idéal
   // (altitudes du cercle, calibrées sur le rapport D+ réel / D+ estimé des boucles déjà tracées).
-  if (targetGain != null && !scored.some((p) => p.gainOk)) {
+  if (targetGain != null && !scored.some((p) => p.gainOk) && ringGain.size) {
     const tried = new Set(thetas);
-    const extra = Array.from({ length: n }, (_, i) => (i * 360) / n + 180 / n).filter((t) => !tried.has(t));
-    const radius = (targetKm * 1000) / (2 * Math.PI * DETOUR);
-    const est = async (theta: number) => { const ring = loopWaypoints(start, radius, theta, 11); const c = await deps.elevate(ring, opts.signal).catch(() => null); return c ? trackStats(c, 3).gainM : 0; };
-    const ratios: number[] = [];
-    for (const p of scored.slice(0, 4)) { const g = await est(p.bearing); if (g > 5) ratios.push(p.gainM / g); }
+    const ratios = scored.slice(0, 4).map((p) => { const g = ringGain.get(p.bearing); return g && g > 5 ? p.gainM / g : null; }).filter((x): x is number => x != null);
     const ratio = ratios.length ? ratios.reduce((a, b) => a + b, 0) / ratios.length : 1;
-    const ranked: { theta: number; err: number }[] = [];
-    for (const t of extra) ranked.push({ theta: t, err: Math.abs((await est(t)) * ratio - targetGain) });
-    ranked.sort((a, b) => a.err - b.err);
-    const picks = ranked.slice(0, 4).map((r) => r.theta);
-    for (const theta of picks) {
-      const r = await fitLoop(start, theta, targetKm, profile, deps, { signal: opts.signal });
-      if (r && Math.abs(r.km - targetKm) / targetKm <= 0.25) { fitted.push({ theta, ...r }); await evaluate({ theta, line: r.line }); }
+    const rest = [...ringGain.keys()].filter((t) => !tried.has(t)).sort((a, b) => Math.abs(ringGain.get(a)! * ratio - targetGain) - Math.abs(ringGain.get(b)! * ratio - targetGain)).slice(0, 4);
+    for (const theta of rest) {
+      try {
+        const r = await fitLoop(start, theta, targetKm, profile, deps, { signal: opts.signal });
+        if (r && Math.abs(r.km - targetKm) / targetKm <= 0.25) { fitted.push({ theta, ...r }); await evaluate({ theta, line: r.line }); }
+      } catch (e) { if ((e as Error).name === "AbortError") throw e; }
     }
   }
   // les boucles dans la marge de D+ passent d'abord, puis le score

@@ -1,5 +1,5 @@
 import { DEMO_ROUTES } from "./demo-data";
-import { trackStats, type TrackStats } from "./geo";
+import { haversine, trackStats, type TrackStats } from "./geo";
 import { difficultyOf, estimateMinutes, type Difficulty, type Sport } from "./sports";
 import type { Poi, Pt, SavedRoute, Visibility } from "./types";
 
@@ -25,10 +25,29 @@ export const sparkOf = (c: Pt[], n = 50) => { const step = Math.max(1, Math.floo
 export interface Filters {
   q: string; sports: string[]; country: string; region: string; minKm: number; maxKm: number; maxGain: number; maxHours: number;
   difficulties: string[]; terrains: string[]; layers: string[]; loopOnly: boolean; scope: "all" | "public" | "private" | "verified" | "demo";
+  /** Zone géographique (commune, ou toutes les communes d'un code postal) : parcours passant à moins de `radiusKm` d'un des centres. */
+  place: Place | null;
 }
-export const DEFAULT_FILTERS: Filters = { q: "", sports: [], country: "", region: "", minKm: 0, maxKm: 200, maxGain: 8000, maxHours: 24, difficulties: [], terrains: [], layers: [], loopOnly: false, scope: "all" };
+export interface Place { label: string; centers: [number, number][]; radiusKm: number }
+export const DEFAULT_FILTERS: Filters = { q: "", sports: [], country: "", region: "", minKm: 0, maxKm: 200, maxGain: 8000, maxHours: 24, difficulties: [], terrains: [], layers: [], loopOnly: false, scope: "all", place: null };
 
 const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+/** Le parcours passe-t-il à moins de `radiusKm` d'un des centres ? (emprise d'abord, puis distance au point le plus proche) */
+export function routeNear(coords: readonly (readonly number[])[], centers: [number, number][], radiusKm: number): boolean {
+  if (!coords.length || !centers.length) return false;
+  const latPad = radiusKm / 110.5;
+  for (const c of centers) {
+    const lonPad = radiusKm / (111.3 * Math.max(0.1, Math.cos((c[1] * Math.PI) / 180)));
+    let w = Infinity, e = -Infinity, so = Infinity, n = -Infinity;
+    for (const p of coords) { if (p[0] < w) w = p[0]; if (p[0] > e) e = p[0]; if (p[1] < so) so = p[1]; if (p[1] > n) n = p[1]; }
+    if (c[0] < w - lonPad || c[0] > e + lonPad || c[1] < so - latPad || c[1] > n + latPad) continue;
+    const stride = Math.max(1, Math.floor(coords.length / 400));
+    for (let i = 0; i < coords.length; i += stride) if (haversine([coords[i][0], coords[i][1]], c) <= radiusKm * 1000) return true;
+    const l = coords[coords.length - 1]; if (haversine([l[0], l[1]], c) <= radiusKm * 1000) return true;
+  }
+  return false;
+}
 
 export function filterRoutes(routes: RouteVM[], f: Filters, verified: string[]): RouteVM[] {
   const q = norm(f.q.trim());
@@ -36,6 +55,7 @@ export function filterRoutes(routes: RouteVM[], f: Filters, verified: string[]):
     const km = r.stats.distanceM / 1000;
     if (q && !norm(`${r.name} ${r.region} ${r.country} ${r.description}`).includes(q)) return false;
     if (f.sports.length && !f.sports.includes(r.sport)) return false;
+    if (f.place && !routeNear(r.coords, f.place.centers, f.place.radiusKm)) return false;
     if (f.country && r.country !== f.country) return false;
     if (f.region && r.region !== f.region) return false;
     if (km < f.minKm || km > f.maxKm) return false;

@@ -19,11 +19,11 @@ export function CollectionsCard() {
   const cols = collectionsRepo.useAll();
   const events = eventsRepo.useAll().filter((e) => e.origin === "mine");
   const favs = useFavorites();
-  const [name, setName] = useState("");
+  const [name, setName] = useState(""); const [nameErr, setNameErr] = useState(false);
   const [vis, setVis] = useState<"prive" | "public">("prive");
   const [note, setNote] = useState<string | null>(null);
 
-  const add = (e: React.FormEvent) => { e.preventDefault(); if (!name.trim()) return; collectionsRepo.upsert({ id: uid(), name: name.trim(), description: "", routeIds: [], visibility: vis }); setName(""); };
+  const add = (e: React.FormEvent) => { e.preventDefault(); if (!name.trim()) { setNameErr(true); return; } setNameErr(false); collectionsRepo.upsert({ id: uid(), name: name.trim(), description: "", routeIds: [], visibility: vis }); setName(""); };
   const patch = (c: Collection, p: Partial<Collection>) => collectionsRepo.upsert({ ...c, ...p });
   const toggle = (c: Collection, rid: string) => patch(c, { routeIds: c.routeIds.includes(rid) ? c.routeIds.filter((x) => x !== rid) : [...c.routeIds, rid] });
   const copy = async (c: Collection) => { try { await navigator.clipboard.writeText(`${location.origin}${BASE}${collectionHref(c.id)}`); setNote("Lien copié."); } catch { setNote("Copie impossible : sélectionnez le lien manuellement."); } };
@@ -36,11 +36,12 @@ export function CollectionsCard() {
 
   return (
     <div>
-      <form onSubmit={add} className="flex flex-wrap gap-2">
-        <input aria-label="Nom de la collection" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex. Parcours du trail 2027" maxLength={80} className="h-10 min-w-0 flex-1 rounded-lg border border-ink-200 px-3 text-sm" />
+      <form onSubmit={add} noValidate className="flex flex-wrap gap-2">
+        <input aria-label="Nom de la collection (obligatoire)" required aria-invalid={nameErr && !name.trim()} value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom de la collection * — ex. Parcours du trail 2027" maxLength={80} className="h-10 min-w-0 flex-1 rounded-lg border border-ink-200 px-3 text-sm" />
         <select aria-label="Visibilité" value={vis} onChange={(e) => setVis(e.target.value as "prive" | "public")} className="h-10 rounded-lg border border-ink-200 bg-white px-2 text-sm"><option value="prive">Privée</option><option value="public">Publique</option></select>
         <Button type="submit" variant="brand"><Plus className="size-4" />Créer</Button>
       </form>
+      {nameErr && !name.trim() && <p role="alert" className="mt-1 text-xs text-danger">Le nom de la collection est obligatoire.</p>}
       {note && <p role="status" className="mt-2 text-sm text-pine-700">{note}</p>}
       <ul className="mt-4 grid gap-3">{cols.map((c) => {
         const inside = c.routeIds.map((id) => routes.find((r) => r.id === id)).filter((r): r is NonNullable<typeof r> => !!r);
