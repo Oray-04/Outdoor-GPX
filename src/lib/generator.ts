@@ -27,6 +27,10 @@ export interface GenDeps {
   /** Part de sentiers (facultatif). */
   surface?(line: LL[], profile: Profile, signal?: AbortSignal): Promise<{ offRoadPct: number; pathPct: number } | null>;
 }
+/** Cause précise d'un échec de génération (pour un message utile plutôt que générique). */
+export class GenerationError extends Error {
+  constructor(public kind: "routing" | "elevation", public detail: { status?: number; reason?: "rate" | "server" | "network" } = {}) { super(`Génération impossible : ${kind}`); }
+}
 export interface Progress { phase: "tracé" | "altitudes" | "analyse"; done: number; total: number }
 
 const R_EARTH = 6371008.8;
@@ -106,27 +110,34 @@ export async function generateLoops(input: GenInput, deps: GenDeps, opts: { sign
   const n = input.directions ?? 12, count = input.count ?? 4;
   const thetas = Array.from({ length: n }, (_, i) => (i * 360) / n);
   const fitted: { theta: number; line: LL[]; km: number }[] = [];
-  let done = 0;
+  let done = 0, svcErr: unknown = null, elevErr: unknown = null;
+  const kindOf = (e: unknown) => { const x = e as { kind?: "rate" | "server" | "network"; status?: number }; return { reason: x?.kind ?? "network", status: x?.status }; };
   // tracés : 2 boucles en parallèle (le serveur est public, on reste raisonnable)
   const queue = [...thetas];
   await Promise.all([0, 1].map(async () => {
     while (queue.length) {
       const theta = queue.shift()!;
-      const r = await fitLoop(start, theta, targetKm, profile, deps, { signal: opts.signal });
-      if (r && Math.abs(r.km - targetKm) / targetKm <= 0.25) fitted.push({ theta, ...r });
+      try {
+        const r = await fitLoop(start, theta, targetKm, profile, deps, { signal: opts.signal });
+        if (r && Math.abs(r.km - targetKm) / targetKm <= 0.25) fitted.push({ theta, ...r });
+      } catch (e) { if ((e as Error).name === "AbortError") throw e; svcErr = e; } // une direction en échec n'arrête pas les autres
       opts.onProgress?.({ phase: "tracé", done: ++done, total: n });
     }
   }));
+  // Aucun tracé obtenu parce que le service de calcul est en panne (et non parce qu'aucun chemin n'existe) : on le dit précisément
+  if (!fitted.length && svcErr) throw new GenerationError("routing", kindOf(svcErr));
   // altitudes + score : le D+ est celui du tracé réellement généré (altitudes IGN, même calcul que partout sur le site)
-  const scored: Proposal[] = []; let e = 0;
+  const scored: Proposal[] = []; let nEval = 0;
   const evaluate = async (f: { theta: number; line: LL[] }) => {
-    const coords = await deps.elevate(f.line, opts.signal);
+    let coords: Pt[];
+    try { coords = await deps.elevate(f.line, opts.signal); } catch (e) { if ((e as Error).name === "AbortError") throw e; elevErr = e; opts.onProgress?.({ phase: "altitudes", done: ++nEval, total: fitted.length }); return; }
     const st = trackStats(coords, 3), ov = Math.round(overlapRatio(f.line) * 100);
     const base = { id: `g-${Math.round(f.theta)}`, bearing: f.theta, line: f.line, coords, distanceM: st.distanceM, gainM: st.gainM, lossM: st.lossM, overlapPct: ov };
     scored.push({ ...base, gainOk: gainWithinTolerance(st.gainM, targetGain), score: scoreProposal(base, targetKm, targetGain) });
-    opts.onProgress?.({ phase: "altitudes", done: ++e, total: fitted.length });
+    opts.onProgress?.({ phase: "altitudes", done: ++nEval, total: fitted.length });
   };
   for (const f of fitted) await evaluate(f);
+  if (!scored.length && elevErr) throw new GenerationError("elevation", kindOf(elevErr));
   // Aucune boucle dans la marge : on explore d'autres directions, classées selon le relief estimé sur le cercle idéal
   // (altitudes du cercle, calibrées sur le rapport D+ réel / D+ estimé des boucles déjà tracées).
   if (targetGain != null && !scored.some((p) => p.gainOk)) {

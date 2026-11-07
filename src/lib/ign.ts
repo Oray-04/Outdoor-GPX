@@ -13,24 +13,74 @@ export function seedElevations(coords: readonly (readonly number[])[]) {
   for (const c of coords) if (Number.isFinite(c[2])) elevCache.set(keyOf(c), c[2]);
 }
 
-/** Altitudes (m) via le service d'altimétrie de la Géoplateforme, par lots, avec cache. */
+/** Échec du service d'altitudes : `rate` (limite de requêtes), `server` (erreur du service), `network` (injoignable / hors ligne). */
+export class ElevationError extends Error {
+  constructor(public kind: "rate" | "server" | "network", public status?: number) { super(`Altimétrie ${kind}${status ? ` (${status})` : ""}`); }
+}
+/** Source des dernières altitudes obtenues (pour informer l'utilisateur d'un repli). */
+export let lastElevationSource: "ign" | "open-meteo" = "ign";
+
+const sleep = (ms: number, signal?: AbortSignal) => new Promise<void>((ok, ko) => { const t = setTimeout(ok, ms); signal?.addEventListener("abort", () => { clearTimeout(t); ko(new DOMException("Aborted", "AbortError")); }, { once: true }); });
+/** Cadence : une requête d'altimétrie démarre au plus toutes les 220 ms (la Géoplateforme limite à ~5 requêtes/s par adresse). */
+let gate = Promise.resolve();
+const paced = () => { const mine = gate.then(() => new Promise<void>((ok) => setTimeout(ok, 220))); gate = mine; return mine; };
+
+/** Requête JSON avec délai maximal, reprises espacées (429, 5xx, réseau) et erreur typée. */
+async function getJsonRetry<T>(url: string, signal: AbortSignal | undefined, tries = 4): Promise<T> {
+  let last: ElevationError = new ElevationError("network");
+  for (let a = 0; a < tries; a++) {
+    await paced();
+    const ctrl = new AbortController(), t = setTimeout(() => ctrl.abort(), 20000);
+    const onAbort = () => ctrl.abort(); signal?.addEventListener("abort", onAbort, { once: true });
+    try {
+      const r = await fetch(url, { signal: ctrl.signal });
+      if (r.ok) return (await r.json()) as T;
+      last = new ElevationError(r.status === 429 ? "rate" : r.status >= 500 ? "server" : "network", r.status);
+      if (r.status !== 429 && r.status < 500) throw last; // 4xx hors limite : inutile de recommencer
+    } catch (e) {
+      if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+      if (e instanceof ElevationError && e.status && e.status !== 429 && e.status < 500) throw e;
+      if (!(e instanceof ElevationError)) last = new ElevationError("network"); // dont CORS : le service coupé par la limite de débit répond sans en-têtes
+    } finally { clearTimeout(t); signal?.removeEventListener("abort", onAbort); }
+    if (a < tries - 1) await sleep(700 * 2 ** a + Math.random() * 300, signal);
+  }
+  throw last;
+}
+
+/** Repli : altitudes mondiales Open-Meteo (modèle Copernicus 90 m), moins précises que le RGE ALTI de l'IGN. */
+async function openMeteoElevations(b: LL[], signal?: AbortSignal): Promise<number[]> {
+  const out: number[] = [];
+  for (let i = 0; i < b.length; i += 100) {
+    const c = b.slice(i, i + 100);
+    const r = await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${c.map((p) => p[1].toFixed(5)).join(",")}&longitude=${c.map((p) => p[0].toFixed(5)).join(",")}`, { signal });
+    if (!r.ok) throw new ElevationError(r.status === 429 ? "rate" : "server", r.status);
+    out.push(...((await r.json()) as { elevation: number[] }).elevation);
+  }
+  return out;
+}
+
+/** Altitudes (m) : Géoplateforme (RGE ALTI) par lots avec reprises ; repli Open-Meteo si le service reste indisponible. */
 export async function fetchElevations(pts: LL[], signal?: AbortSignal): Promise<number[]> {
   const todo = pts.filter((p) => !elevCache.has(keyOf(p)));
   const uniq = [...new Map(todo.map((p) => [keyOf(p), p])).values()];
   const batches: LL[][] = [];
   for (let i = 0; i < uniq.length; i += 120) batches.push(uniq.slice(i, i + 120));
-  let next = 0;
+  let next = 0, fallback = false;
   const worker = async () => {
     while (next < batches.length) {
       const b = batches[next++];
-      const url = `${BASE}/altimetrie/1.0/calcul/alti/rest/elevation.json?lon=${b.map((p) => p[0].toFixed(5)).join("|")}&lat=${b.map((p) => p[1].toFixed(5)).join("|")}&resource=ign_rge_alti_wld&delimiter=|&indent=false&measures=false&zonly=true`;
-      const r = await fetch(url, { signal });
-      if (!r.ok) throw new Error(`Altimétrie ${r.status}`);
-      const j = (await r.json()) as { elevations: number[] };
-      b.forEach((p, i) => elevCache.set(keyOf(p), j.elevations[i]));
+      const url = `${BASE}/altimetrie/1.0/calcul/alti/rest/elevation.json?lon=${b.map((p) => p[0].toFixed(5)).join("|")}&lat=${b.map((p) => p[1].toFixed(5)).join("|")}&resource=ign_rge_alti_wld&zonly=true`;
+      let ele: number[];
+      try { ele = (await getJsonRetry<{ elevations: number[] }>(url, signal)).elevations; }
+      catch (e) {
+        if ((e as Error).name === "AbortError") throw e;
+        ele = await openMeteoElevations(b, signal); fallback = true; // si le secours échoue aussi, l'erreur typée remonte
+      }
+      b.forEach((p, i) => elevCache.set(keyOf(p), ele[i]));
     }
   };
-  await Promise.all(Array.from({ length: Math.min(4, batches.length) }, worker));
+  await Promise.all(Array.from({ length: Math.min(2, batches.length) }, worker));
+  if (batches.length) lastElevationSource = fallback ? "open-meteo" : "ign";
   let prev = 0;
   return pts.map((p) => {
     const v = elevCache.get(keyOf(p));

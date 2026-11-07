@@ -8,9 +8,9 @@ import { LayerControl } from "@/components/map/layer-control";
 import { MapFrame, StatBanner } from "@/components/map/map-frame";
 import { ElevationChart } from "@/components/route/elevation-chart";
 import { Button } from "@/components/ui/button";
-import { generateLoops, type Proposal, type Progress } from "@/lib/generator";
+import { generateLoops, GenerationError, type Proposal, type Progress } from "@/lib/generator";
 import { profileForSport, routeVia, surfaceShare } from "@/lib/routing";
-import { addElevation } from "@/lib/ign";
+import { addElevation, lastElevationSource } from "@/lib/ign";
 import { buildProfile } from "@/lib/profile";
 import { fromTrack } from "@/lib/editor-core";
 import { routesRepo } from "@/lib/repo";
@@ -100,6 +100,19 @@ export function GeneratorPage() {
     catch { setMsg({ kind: "err", text: "Recherche indisponible pour le moment." }); }
   };
 
+  /** Message selon la vraie cause (hors ligne, limite de requêtes, panne d'un service…). */
+  const explain = (e: unknown): string => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) return "Pas de connexion Internet : la génération a besoin du réseau (calcul d'itinéraires et altitudes).";
+    if (e instanceof GenerationError) {
+      const { reason, status } = e.detail; const code = status ? ` (code ${status})` : "";
+      const why = reason === "rate" ? `limite de requêtes atteinte${code}` : reason === "server" ? `le service a renvoyé une erreur${code}` : "service injoignable (réseau, délai dépassé ou blocage du navigateur)";
+      return e.kind === "routing"
+        ? `Le service de calcul d'itinéraires (OpenStreetMap / FOSSGIS) n'a pas répondu : ${why}. Vos critères ne sont pas en cause ; réessayez dans une minute ou choisissez un départ plus proche d'un chemin.`
+        : `Les boucles ont été calculées mais le service d'altitudes (IGN, puis Open-Meteo en secours) n'a pas répondu : ${why}. Sans altitudes le dénivelé ne peut pas être mesuré ; réessayez dans une minute.`;
+    }
+    return `Erreur inattendue pendant la génération (${e instanceof Error ? e.message : "inconnue"}). Réessayez ; si elle persiste, signalez-la avec ce texte.`;
+  };
+
   async function run() {
     if (!start) { setMsg({ kind: "warn", text: "Choisissez d'abord un point de départ (clic sur la carte, adresse ou position)." }); return; }
     ctrl.current?.abort(); const c = new AbortController(); ctrl.current = c;
@@ -108,12 +121,13 @@ export function GeneratorPage() {
       const res = await generateLoops({ start, targetKm: km, targetGain: anyGain ? null : gain, profile: profileForSport(PRACTICES.find((x) => x.id === practice)!.sport), count: 4 },
         { via: routeVia, elevate: addElevation, surface: surfaceShare }, { signal: c.signal, onProgress: setProgress });
       setProps(res); setSel(res[0]?.id ?? null);
+      if (res.length && lastElevationSource === "open-meteo") setMsg({ kind: "warn", text: "Altitudes IGN indisponibles : les dénivelés sont mesurés avec le modèle mondial Open-Meteo (90 m), moins précis ; ils seront recalculés avec l'IGN à l'ouverture dans l'éditeur." });
       if (!res.length) setMsg({ kind: "warn", text: "Aucune boucle trouvée depuis ce départ : essayez un autre point, une distance plus courte, ou une autre pratique." });
       else {
         if (!anyGain && !res.some((p) => p.gainOk)) setMsg({ kind: "warn", text: `Aucune boucle de ${km} km ne respecte ${gain} m de D+ (±20 %) depuis ce départ : le relief accessible ne le permet pas. Les propositions les plus proches sont affichées avec leur D+ réel.` });
         const b = bboxOf(res.flatMap((p) => p.line)); map.current?.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 60, maxZoom: 15 });
       }
-    } catch (e) { if ((e as Error).name !== "AbortError") setMsg({ kind: "err", text: "Génération impossible pour le moment (service de calcul indisponible). Réessayez dans un instant." }); }
+    } catch (e) { if ((e as Error).name !== "AbortError") setMsg({ kind: "err", text: explain(e) }); }
     finally { setBusy(false); setProgress(null); }
   }
 

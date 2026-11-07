@@ -14,7 +14,7 @@ import { addElevation, seedElevations } from "@/lib/ign";
 import { ENGINE_LABEL, SOURCE_LABEL, makeRouter, profileForSport, snapToPaths, type Engine, type Source } from "@/lib/routing";
 import { setEnginePref, useEnginePref } from "@/lib/map-prefs";
 import { routesRepo, useLayers, useTerrains } from "@/lib/repo";
-import { POI_TYPES, uid, type Poi, type PoiType, type Pt, type SavedRoute, type Visibility } from "@/lib/types";
+import { POI_TYPES, uid, type LL, type Poi, type PoiType, type Pt, type SavedRoute, type Visibility } from "@/lib/types";
 import { SPORTS, DIFFICULTY_LABEL, difficultyOf, estimateMinutes, type Sport } from "@/lib/sports";
 import { trackStats, fmtKm, fmtM, fmtDuration, bboxOf, cumulative, type SimplifyLevel } from "@/lib/geo";
 import { buildProfile, distanceAlong } from "@/lib/profile";
@@ -147,7 +147,9 @@ export function Editor({ routeId }: { routeId?: string }) {
     m.addSource("track", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
     m.addLayer({ id: "track-casing", type: "line", source: "track", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#fff", "line-width": 8 } });
     m.addLayer({ id: "track-line", type: "line", source: "track", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": SEG_COLOR, "line-width": 4.5 } });
-    m.on("mouseenter", "track-line", () => (m.getCanvas().style.cursor = "copy"));
+    m.addSource("drag-prev", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    m.addLayer({ id: "drag-prev-line", type: "line", source: "drag-prev", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#f0612b", "line-width": 5, "line-dasharray": [1.5, 1.2] } });
+    m.on("mouseenter", "track-line", () => (m.getCanvas().style.cursor = "grab"));
     m.on("mouseleave", "track-line", () => (m.getCanvas().style.cursor = ""));
   }, [ready, map]);
 
@@ -165,6 +167,7 @@ export function Editor({ routeId }: { routeId?: string }) {
   const clickRef = useRef<(lng: number, lat: number, px: { x: number; y: number }) => void>(() => {});
   clickRef.current = (lng, lat, px) => {
     const m = map.current; if (!m || busy) return;
+    if (Date.now() - suppressClick.current < 400) return; // clic fantôme à la fin d'un tirage
     if (poiMode) {
       const poi: Poi = { id: uid(), type: poiMode, name: POI_TYPES[poiMode].label, lng, lat };
       commit({ ...st, pois: [...st.pois, poi] }); return;
@@ -196,6 +199,61 @@ export function Editor({ routeId }: { routeId?: string }) {
     m.on("click", h); return () => { m.off("click", h); };
   }, [ready, map]);
 
+  // ── Point intermédiaire tiré depuis le tracé (clic maintenu + glisser) ──
+  const modesRef = useRef({ cutMode, poiMode, busy, auto }); modesRef.current = { cutMode, poiMode, busy, auto };
+  const dragRef = useRef<{ seg: number; sx: number; sy: number; moved: boolean; ghost: Marker | null; timer: ReturnType<typeof setTimeout> | null; token: number; pos: [number, number] } | null>(null);
+  const suppressClick = useRef(0);
+  const setPreview = useCallback((lines: LL[][]) => {
+    (map.current?.getSource("drag-prev") as GeoJSONSource | undefined)?.setData({ type: "FeatureCollection", features: lines.map((l) => ({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: l } })) });
+  }, [map]);
+  /** Aperçu recalculé seulement quand le pointeur marque une pause (pas à chaque mouvement de souris). */
+  const schedulePreview = useCallback((compute: () => Promise<{ lines: LL[][] } | null>, straight: LL[][]) => {
+    const d = dragRef.current; if (!d) return;
+    setPreview(straight);
+    if (d.timer) clearTimeout(d.timer);
+    const token = ++d.token;
+    d.timer = setTimeout(async () => {
+      try { const r = await compute(); if (r && dragRef.current && dragRef.current.token === token) setPreview(r.lines); } catch { /* l'aperçu en ligne droite reste affiché */ }
+    }, 280);
+  }, [setPreview]);
+  useEffect(() => {
+    const m = map.current, lib = ml.current; if (!m || !lib || !ready) return;
+    const start = (e: { lngLat: { lng: number; lat: number }; point: { x: number; y: number }; originalEvent: MouseEvent | TouchEvent; preventDefault: () => void }) => {
+      const md = modesRef.current; const oe = e.originalEvent;
+      if (md.cutMode || md.poiMode || md.busy || dragRef.current || stRef.current.segs.length === 0) return;
+      if ((oe.target as HTMLElement | null)?.closest?.(".maplibregl-marker")) return; // un marqueur existant gère son propre glissement
+      if ("button" in oe && oe.button !== 0) return;
+      if ("touches" in oe && oe.touches.length !== 1) return;
+      const seg = E.nearestSegment(stRef.current, e.lngLat.lng, e.lngLat.lat); if (seg < 0) return;
+      e.preventDefault(); // empêche le déplacement de la carte pendant le tirage
+      dragRef.current = { seg, sx: e.point.x, sy: e.point.y, moved: false, ghost: null, timer: null, token: 0, pos: [e.lngLat.lng, e.lngLat.lat] };
+    };
+    const move = (e: { lngLat: { lng: number; lat: number }; point: { x: number; y: number } }) => {
+      const d = dragRef.current; if (!d) return;
+      if (!d.moved) { if (Math.hypot(e.point.x - d.sx, e.point.y - d.sy) < 5) return; d.moved = true;
+        const el = document.createElement("div"); el.className = "size-6 rounded-full border-2 border-white bg-ember-500 shadow-lg ring-4 ring-ember-500/30"; el.setAttribute("aria-hidden", "true");
+        d.ghost = new lib.Marker({ element: el }).setLngLat([e.lngLat.lng, e.lngLat.lat]).addTo(m); m.getCanvas().style.cursor = "grabbing"; }
+      d.pos = [e.lngLat.lng, e.lngLat.lat]; d.ghost?.setLngLat(d.pos);
+      const st0 = stRef.current, a = st0.waypoints[d.seg], b = st0.waypoints[d.seg + 1]; if (!a || !b) return;
+      schedulePreview(async () => { const r = await E.insertWaypointRouted(st0, d.seg, d.pos[0], d.pos[1], modesRef.current.auto, routerRef.current); return { lines: [r.state.segs[d.seg], r.state.segs[d.seg + 1]] }; },
+        [[[a.lng, a.lat], d.pos], [d.pos, [b.lng, b.lat]]]);
+    };
+    const end = () => {
+      const d = dragRef.current; if (!d) return;
+      dragRef.current = null; if (d.timer) clearTimeout(d.timer);
+      d.ghost?.remove(); setPreview([]); m.getCanvas().style.cursor = "";
+      if (!d.moved) return; // simple clic : géré par le clic habituel
+      suppressClick.current = Date.now();
+      const st0 = stRef.current;
+      run(() => E.insertWaypointRouted(st0, d.seg, d.pos[0], d.pos[1], modesRef.current.auto, routerRef.current));
+    };
+    const esc = (ev: KeyboardEvent) => { if (ev.key === "Escape" && dragRef.current) { const d = dragRef.current; dragRef.current = null; if (d.timer) clearTimeout(d.timer); d.ghost?.remove(); setPreview([]); suppressClick.current = Date.now(); } };
+    m.on("mousedown", "track-line", start); m.on("touchstart", "track-line", start);
+    m.on("mousemove", move); m.on("touchmove", move); m.on("mouseup", end); m.on("touchend", end);
+    window.addEventListener("mouseup", end); window.addEventListener("keydown", esc);
+    return () => { m.off("mousedown", "track-line", start); m.off("touchstart", "track-line", start); m.off("mousemove", move); m.off("touchmove", move); m.off("mouseup", end); m.off("touchend", end); window.removeEventListener("mouseup", end); window.removeEventListener("keydown", esc); };
+  }, [ready, map, ml, run, schedulePreview, setPreview]);
+
   // Marqueurs de waypoints (déplaçables)
   useEffect(() => {
     const m = map.current, lib = ml.current; if (!m || !lib || !ready) return;
@@ -209,8 +267,21 @@ export function Editor({ routeId }: { routeId?: string }) {
       d.title = `Point ${i + 1} — glissez pour déplacer, cliquez pour sélectionner`;
       d.setAttribute("aria-label", d.title);
       d.addEventListener("click", (ev) => { ev.stopPropagation(); setSel(i); setTab("trace"); });
-      const mk = new lib.Marker({ element: d, draggable: true }).setLngLat([w.lng, w.lat]).addTo(m);
-      mk.on("dragend", () => { const p = mk.getLngLat(); run(() => E.moveWaypoint(stRef.current, i, p.lng, p.lat, routerRef.current)); });
+      // Départ et arrivée restent fixes dès qu'il y a un tracé ; seuls les points intermédiaires se déplacent
+      const fixed = n > 1 && (first || i === n - 1);
+      if (fixed) d.title = `${first ? "Départ" : "Arrivée"} — fixe (sélectionnez-le puis Suppr pour le retirer)`;
+      else if (n > 2) d.title = `Point ${i + 1} — glissez pour déplacer, double-clic pour supprimer`;
+      d.setAttribute("aria-label", d.title);
+      d.addEventListener("dblclick", (ev) => { ev.stopPropagation(); ev.preventDefault(); if (!fixed && !modesRef.current.busy) { setSel(null); run(() => E.removeWaypoint(stRef.current, i, routerRef.current)); } });
+      const mk = new lib.Marker({ element: d, draggable: !fixed }).setLngLat([w.lng, w.lat]).addTo(m);
+      let tmr: ReturnType<typeof setTimeout> | null = null, tok = 0;
+      mk.on("drag", () => { // aperçu recalculé à la pause du pointeur
+        const p = mk.getLngLat(), st0 = stRef.current; const a = st0.waypoints[i - 1], b = st0.waypoints[i + 1];
+        (map.current?.getSource("drag-prev") as GeoJSONSource | undefined)?.setData({ type: "FeatureCollection", features: [a && [[a.lng, a.lat], [p.lng, p.lat]], b && [[p.lng, p.lat], [b.lng, b.lat]]].filter(Boolean).map((l) => ({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: l as number[][] } })) });
+        if (tmr) clearTimeout(tmr); const my = ++tok;
+        tmr = setTimeout(async () => { try { const r = await E.moveWaypoint(st0, i, p.lng, p.lat, routerRef.current); if (my === tok) (map.current?.getSource("drag-prev") as GeoJSONSource | undefined)?.setData({ type: "FeatureCollection", features: [r.state.segs[i - 1], r.state.segs[i]].filter(Boolean).map((l) => ({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: l } })) }); } catch { /* aperçu facultatif */ } }, 280);
+      });
+      mk.on("dragend", () => { tok++; if (tmr) clearTimeout(tmr); (map.current?.getSource("drag-prev") as GeoJSONSource | undefined)?.setData({ type: "FeatureCollection", features: [] }); const p = mk.getLngLat(); run(() => E.moveWaypoint(stRef.current, i, p.lng, p.lat, routerRef.current)); });
       markers.current.push(mk);
     });
   }, [st.waypoints, sel, closed, cutKeys, ready, map, ml, run]);

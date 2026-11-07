@@ -137,3 +137,44 @@ describe("baguette magique (simplifyState)", () => {
   });
   it("ne fait rien sur un tracé déjà minimal", () => { expect(E.simplifyState({ waypoints: [{ lng: 6, lat: 45, auto: false }, { lng: 6.1, lat: 45, auto: false }], segs: [[[6, 45], [6.1, 45]]], pois: [] })).toBeNull(); });
 });
+
+describe("point intermédiaire tiré depuis le tracé (insertWaypointRouted)", () => {
+  // routeur factice : suit un « chemin » en créneau (passe par un coude) et décale légèrement ses extrémités (accrochage au réseau)
+  const calls: [LL, LL][] = [];
+  const router: E.Router = async (a, b) => { calls.push([a, b]); const mid: LL = [(a[0] + b[0]) / 2, Math.max(a[1], b[1]) + 0.001]; return [[a[0] + 2e-6, a[1] + 2e-6], mid, [b[0] - 2e-6, b[1] - 2e-6]]; };
+  const base = async () => { let s = E.emptyState(); s = (await E.addWaypoint(s, 6, 45, true, router)).state; s = (await E.addWaypoint(s, 6.2, 45, true, router)).state; return s; };
+  it("insère un waypoint, recalcule exactement les deux tronçons voisins, garde départ et arrivée", async () => {
+    const s0 = await base(); calls.length = 0;
+    const r = await E.insertWaypointRouted(s0, 0, 6.1, 45.05, true, router);
+    expect(r.state.waypoints).toHaveLength(3); expect(r.state.segs).toHaveLength(2);
+    expect(calls).toHaveLength(2); // deux tronçons recalculés, pas le parcours entier
+    expect(r.state.waypoints[0]).toEqual(s0.waypoints[0]); expect(r.state.waypoints[2]).toEqual(s0.waypoints[1]); // A et B fixes
+    const w = r.state.waypoints[1]; expect(Math.abs(w.lng - 6.1)).toBeLessThan(1e-3); // le point est ramené sur le chemin, tout près de la cible
+  });
+  it("le tracé reste connecté : le 2ᵉ tronçon part exactement du point intermédiaire", async () => {
+    const r = await E.insertWaypointRouted(await base(), 0, 6.1, 45.05, true, router);
+    const [g1, g2] = r.state.segs; const w = r.state.waypoints[1];
+    expect(g1.at(-1)).toEqual([w.lng, w.lat]); expect(g2[0]).toEqual([w.lng, w.lat]);
+    const t = E.trackLL(r.state); for (let i = 1; i < t.length; i++) expect(Math.hypot(t[i][0] - t[i - 1][0], t[i][1] - t[i - 1][1])).toBeLessThan(0.2); // aucun saut
+  });
+  it("conserve le mode : Libre → lignes droites, Chemins → routeur", async () => {
+    calls.length = 0; const libre = await E.insertWaypointRouted(await base(), 0, 6.1, 45.05, false, router);
+    expect(libre.state.segs[0]).toHaveLength(2); expect(libre.state.waypoints[1].auto).toBe(false);
+    const chem = await E.insertWaypointRouted(await base(), 0, 6.1, 45.05, true, router);
+    expect(chem.state.waypoints[1].auto).toBe(true); expect(chem.state.segs[0].length).toBeGreaterThan(2);
+  });
+  it("plusieurs points successifs, déplacement puis suppression, sans toucher départ/arrivée", async () => {
+    let s = await base(); const A = s.waypoints[0], B = s.waypoints[1];
+    s = (await E.insertWaypointRouted(s, 0, 6.05, 45.04, true, router)).state;                // 3 points
+    s = (await E.insertWaypointRouted(s, E.nearestSegment(s, 6.15, 45.002), 6.15, 45.04, true, router)).state; // 4 points
+    expect(s.waypoints).toHaveLength(4); expect(s.segs).toHaveLength(3);
+    s = (await E.moveWaypoint(s, 1, 6.06, 45.06, router)).state;
+    expect(Math.abs(s.waypoints[1].lat - 45.06)).toBeLessThan(1e-3);
+    s = (await E.removeWaypoint(s, 1, router)).state; expect(s.waypoints).toHaveLength(3); expect(s.segs).toHaveLength(2);
+    expect(s.waypoints[0]).toEqual(A); expect(s.waypoints.at(-1)).toEqual(B);
+  });
+  it("nearestSegment : choisit le tronçon le plus proche", async () => {
+    let s = await base(); s = (await E.insertWaypointRouted(s, 0, 6.1, 45.0, false, router)).state;
+    expect(E.nearestSegment(s, 6.03, 45)).toBe(0); expect(E.nearestSegment(s, 6.17, 45)).toBe(1);
+  });
+});

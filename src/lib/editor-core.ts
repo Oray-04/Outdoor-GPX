@@ -20,6 +20,9 @@ async function segment(a: Waypoint, b: Waypoint, route: Router): Promise<{ line:
   }
   return { line: [ll(a), ll(b)], fallback: false };
 }
+/** Le tronçon suivant part exactement du waypoint (même point que la fin du tronçon précédent) : tracé continu, sans micro-saut. */
+const joinFrom = (w: { lng: number; lat: number }, line: LL[]): LL[] =>
+  line.length && Math.abs(line[0][0] - w.lng) < 1e-7 && Math.abs(line[0][1] - w.lat) < 1e-7 ? line : [[w.lng, w.lat], ...line];
 const snapTo = (w: Waypoint, p?: LL): Waypoint => (p ? { ...w, lng: p[0], lat: p[1] } : w);
 
 export interface OpResult { state: EState; fallbacks: number }
@@ -37,7 +40,7 @@ export async function moveWaypoint(s: EState, i: number, lng: number, lat: numbe
   const wps = s.waypoints.map((w, k) => (k === i ? { ...w, lng, lat } : w));
   const segs = [...s.segs]; let fb = 0;
   if (i > 0) { const r = await segment(wps[i - 1], wps[i], route); segs[i - 1] = r.line; wps[i] = snapTo(wps[i], r.end); fb += +r.fallback; }
-  if (i < wps.length - 1) { const r = await segment(wps[i], wps[i + 1], route); segs[i] = r.line; fb += +r.fallback; }
+  if (i < wps.length - 1) { const r = await segment(wps[i], wps[i + 1], route); segs[i] = joinFrom(wps[i], r.line); fb += +r.fallback; }
   return { state: { ...s, waypoints: wps, segs }, fallbacks: fb };
 }
 
@@ -49,6 +52,37 @@ export async function removeWaypoint(s: EState, i: number, route: Router): Promi
   if (i === n - 1) return { state: { ...s, waypoints: wps, segs: s.segs.slice(0, -1) }, fallbacks: 0 };
   const r = await segment(wps[i - 1], wps[i], route);
   return { state: { ...s, waypoints: wps, segs: [...s.segs.slice(0, i - 1), r.line, ...s.segs.slice(i + 1)] }, fallbacks: +r.fallback };
+}
+
+/**
+ * Point intermédiaire tiré depuis le tracé : nouveau waypoint inséré entre les waypoints `segIndex` et `segIndex+1`,
+ * puis les DEUX tronçons voisins sont recalculés (via le routeur) pour passer par lui. Départ et arrivée ne bougent pas.
+ * Le waypoint est ramené sur le chemin retrouvé (comme moveWaypoint) pour éviter les raccords hors réseau.
+ */
+export async function insertWaypointRouted(s: EState, segIndex: number, lng: number, lat: number, auto: boolean, route: Router): Promise<OpResult> {
+  if (segIndex < 0 || segIndex >= s.segs.length) return { state: s, fallbacks: 0 };
+  let w: Waypoint = { lng, lat, auto };
+  const prev = s.waypoints[segIndex], next = s.waypoints[segIndex + 1];
+  const a = await segment(prev, w, route);
+  w = snapTo(w, a.end);
+  const b0 = await segment(w, next, route), b = { ...b0, line: joinFrom(w, b0.line) };
+  return {
+    state: { ...s, waypoints: [...s.waypoints.slice(0, segIndex + 1), w, ...s.waypoints.slice(segIndex + 1)], segs: [...s.segs.slice(0, segIndex), a.line, b.line, ...s.segs.slice(segIndex + 1)] },
+    fallbacks: +a.fallback + +b.fallback,
+  };
+}
+
+/** Segment du tracé le plus proche d'un point (indice du tronçon entre waypoints), ou -1. */
+export function nearestSegment(s: EState, lng: number, lat: number): number {
+  let best = -1, bd = Infinity; const k = Math.cos((lat * Math.PI) / 180);
+  s.segs.forEach((g, i) => {
+    for (let v = 1; v < g.length; v++) {
+      const ax = (g[v - 1][0] - lng) * k, ay = g[v - 1][1] - lat, bx = (g[v][0] - lng) * k, by = g[v][1] - lat, dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+      const t = l2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / l2)) : 0, d = Math.hypot(ax + t * dx, ay + t * dy);
+      if (d < bd) { bd = d; best = i; }
+    }
+  });
+  return best;
 }
 
 /** Insère un waypoint sur un segment existant sans retracer : on coupe la géométrie au sommet v. */

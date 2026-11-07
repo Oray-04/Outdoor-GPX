@@ -55,15 +55,27 @@ async function slot<T>(fn: () => Promise<T>): Promise<T> {
   inflight++;
   try { return await fn(); } finally { inflight--; waiting.shift()?.(); }
 }
-async function postJson<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T | null> {
-  for (let attempt = 0; attempt < 2; attempt++) {
+/** Échec du service de calcul d'itinéraires (≠ « aucun chemin ») : limite de requêtes, erreur serveur ou service injoignable. */
+export class RoutingError extends Error {
+  constructor(public kind: "rate" | "server" | "network", public status?: number) { super(`Routage ${kind}${status ? ` (${status})` : ""}`); }
+}
+async function postJson<T>(path: string, body: unknown, signal?: AbortSignal, strict = false): Promise<T | null> {
+  let fail: RoutingError | null = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const ctrl = new AbortController(), t = setTimeout(() => ctrl.abort(), 25000);
+    const onAbort = () => ctrl.abort(); signal?.addEventListener("abort", onAbort, { once: true });
     try {
-      const r = await slot(() => fetch(VALHALLA + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal }));
+      const r = await slot(() => fetch(VALHALLA + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: ctrl.signal }));
       if (r.ok) return (await r.json()) as T;
-      if (r.status === 429 || r.status >= 500) { await new Promise((ok) => setTimeout(ok, 800 * (attempt + 1))); continue; }
-      return null; // 400 : aucun chemin / aucun tronçon proche
-    } catch (e) { if ((e as Error).name === "AbortError") throw e; if (attempt === 1) return null; }
+      if (r.status === 429 || r.status >= 500) { fail = new RoutingError(r.status === 429 ? "rate" : "server", r.status); }
+      else return null; // 400 : aucun chemin / aucun tronçon proche (ce n'est pas une panne)
+    } catch (e) {
+      if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+      fail = new RoutingError("network");
+    } finally { clearTimeout(t); signal?.removeEventListener("abort", onAbort); }
+    if (attempt < 2) await new Promise((ok) => setTimeout(ok, 900 * (attempt + 1) + Math.random() * 300));
   }
+  if (strict && fail) throw fail;
   return null;
 }
 
@@ -180,7 +192,7 @@ export async function surfaceShare(line: LL[], profile: Profile, signal?: AbortS
 /** Itinéraire passant par plusieurs points (une seule requête, demi-tours autorisés à chaque étape). */
 export async function routeVia(points: LL[], profile: Profile, signal?: AbortSignal): Promise<LL[] | null> {
   const c = COSTING[profile];
-  const d = await postJson<Trip>("/route", { locations: points.map((p) => loc(p)), costing: c.costing, costing_options: { [c.costing]: c.options }, directions_type: "none" }, signal);
+  const d = await postJson<Trip>("/route", { locations: points.map((p) => loc(p)), costing: c.costing, costing_options: { [c.costing]: c.options }, directions_type: "none" }, signal, true);
   const l = d?.trip.legs.flatMap((g, i) => { const x = decodePolyline(g.shape); return i ? x.slice(1) : x; });
   return l && l.length > 1 ? l : null;
 }
