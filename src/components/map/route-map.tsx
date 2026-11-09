@@ -7,6 +7,7 @@ import { MapFrame, StatBanner } from "./map-frame";
 import { LayerControl } from "./layer-control";
 import { type Poi, type Pt } from "@/lib/types";
 import { poiMarkerEl, poiPopupEl } from "@/lib/poi-icons";
+import { routeMarkerEl } from "@/lib/route-markers";
 
 /** Carte en lecture seule : trace, départ/arrivée, POI, position active (survol du profil). */
 export interface MapOverlay { segments: { from: number; to: number; color: string }[]; arrows: { lng: number; lat: number; toDeg: number; label: string; color: string; title: string }[] }
@@ -46,13 +47,14 @@ export function RouteMap({ coords, pois = [], activeIndex, className = "h-80", o
     if (coords.length > 1) {
       const f = coords[0], l = coords[coords.length - 1];
       const loop = Math.abs(f[0] - l[0]) < 1e-4 && Math.abs(f[1] - l[1]) < 1e-4;
-      if (loop) pin("D/A", "#1e7a58", [f[0], f[1]], "Départ et arrivée"); else { pin("D", "#1e7a58", [f[0], f[1]], "Départ"); pin("A", "#0d1b17", [l[0], l[1]], "Arrivée"); }
+      const flag = (k: "start" | "finish" | "loop", at: readonly number[]) => marks.current.push(new lib.Marker({ element: routeMarkerEl(k), anchor: "bottom" }).setLngLat([at[0], at[1]]).addTo(m));
+      if (loop) flag("loop", f); else { flag("start", f); flag("finish", l); }
       const b = bboxOf(coords); m.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 50, maxZoom: 15, duration: 0 });
     }
     for (const p of pois) {
       const el = poiMarkerEl(p.type, p.name);
-      el.addEventListener("click", (ev) => { ev.stopPropagation(); new lib.Popup({ closeButton: true, closeOnClick: false, offset: 18 }).setLngLat([p.lng, p.lat]).setDOMContent(poiPopupEl(p.type, p.name)).addTo(m); });
-      marks.current.push(new lib.Marker({ element: el }).setLngLat([p.lng, p.lat]).addTo(m));
+      el.addEventListener("click", (ev) => { ev.stopPropagation(); new lib.Popup({ closeButton: true, closeOnClick: false, offset: 40 }).setLngLat([p.lng, p.lat]).setDOMContent(poiPopupEl(p.type, p.name)).addTo(m); });
+      marks.current.push(new lib.Marker({ element: el, anchor: "bottom" }).setLngLat([p.lng, p.lat]).addTo(m));
     }
   }, [coordsKey, poisKey, ready, map, ml]); // eslint-disable-line react-hooks/exhaustive-deps
 

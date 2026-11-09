@@ -178,3 +178,34 @@ describe("point intermédiaire tiré depuis le tracé (insertWaypointRouted)", (
     expect(E.nearestSegment(s, 6.03, 45)).toBe(0); expect(E.nearestSegment(s, 6.17, 45)).toBe(1);
   });
 });
+
+describe("clôture du parcours (closeLoop)", () => {
+  const calls: [LL, LL][] = [];
+  // routeur factice : passe par un coude et s'arrête ~3 m AVANT la destination (comme un vrai moteur accroché au réseau)
+  const router: E.Router = async (a, b) => { calls.push([a, b]); return [a, [(a[0] + b[0]) / 2, a[1] + 0.002], [b[0] - 3e-5, b[1]]]; };
+  const open3 = async () => { let s = E.emptyState(); for (const [x, y] of [[6, 45], [6.02, 45.01], [6.04, 45]]) s = (await E.addWaypoint(s, x, y, false, router)).state; return s; };
+  it("ajoute un tronçon routé de la fin vers le départ ; l'arrivée est exactement le départ", async () => {
+    const s0 = await open3(); calls.length = 0;
+    const r = await E.closeLoop(s0, true, router);
+    expect(calls).toHaveLength(1); expect(calls[0][1]).toEqual([s0.waypoints[0].lng, s0.waypoints[0].lat]);
+    expect(r.fallbacks).toBe(0); expect(E.isClosed(r.state)).toBe(true);
+    const t = E.trackLL(r.state); expect(t.at(-1)).toEqual(t[0]);                               // boucle complète, coordonnées identiques
+    expect(r.state.waypoints.at(-1)).toMatchObject({ lng: s0.waypoints[0].lng, lat: s0.waypoints[0].lat, auto: true });
+    const back = r.state.segs.at(-1)!; expect(back.length).toBeGreaterThan(2);                   // pas une ligne droite : géométrie du routeur
+    expect(back[0]).toEqual([s0.waypoints[2].lng, s0.waypoints[2].lat]);                          // connecté au dernier point
+    expect(r.state.segs.slice(0, -1)).toEqual(s0.segs);                                           // le reste du tracé est intact
+  });
+  it("fonctionne dès 2 points ; sans effet sur une boucle déjà fermée ; signale l'absence de chemin", async () => {
+    let s = E.emptyState(); s = (await E.addWaypoint(s, 6, 45, false, router)).state; s = (await E.addWaypoint(s, 6.02, 45.01, false, router)).state;
+    const r = await E.closeLoop(s, true, router); expect(E.isClosed(r.state)).toBe(true);
+    expect((await E.closeLoop(r.state, true, router)).state).toBe(r.state);
+    const none = await E.closeLoop(s, true, async () => null); expect(none.fallbacks).toBe(1);
+  });
+  it("le retour reste modifiable : un point tiré sur le tronçon de fermeture le recalcule, la boucle reste fermée", async () => {
+    const r = await E.closeLoop(await open3(), true, router);
+    const k = r.state.segs.length - 1;
+    const m = await E.insertWaypointRouted(r.state, k, 6.02, 44.99, true, router);
+    expect(m.state.waypoints).toHaveLength(r.state.waypoints.length + 1); expect(E.isClosed(m.state)).toBe(true);
+    const t = E.trackLL(m.state); expect(t.at(-1)).toEqual(t[0]);
+  });
+});

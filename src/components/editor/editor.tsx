@@ -11,14 +11,15 @@ import { ElevationChart, type ChartMarker } from "@/components/route/elevation-c
 import { Button } from "@/components/ui/button";
 import { PoiIcon } from "@/components/ui/poi-icon";
 import { poiMarkerEl, poiPopupEl } from "@/lib/poi-icons";
+import { routeMarkerEl } from "@/lib/route-markers";
 import * as E from "@/lib/editor-core";
 import { addElevation, seedElevations } from "@/lib/ign";
 import { ENGINE_LABEL, SOURCE_LABEL, makeRouter, profileForSport, snapToPaths, type Engine, type Source } from "@/lib/routing";
 import { setEnginePref, useEnginePref } from "@/lib/map-prefs";
 import { routesRepo, useLayers, useTerrains } from "@/lib/repo";
-import { POI_TYPES, uid, type LL, type Poi, type PoiType, type Pt, type SavedRoute, type Visibility } from "@/lib/types";
+import { POI_TYPES, normalizePois, uid, type LL, type Poi, type PoiType, type Pt, type SavedRoute, type Visibility } from "@/lib/types";
 import { SPORTS, DIFFICULTY_LABEL, difficultyOf, estimateMinutes, type Sport } from "@/lib/sports";
-import { trackStats, fmtKm, fmtM, fmtDuration, bboxOf, cumulative, type SimplifyLevel } from "@/lib/geo";
+import { haversine, trackStats, fmtKm, fmtM, fmtDuration, bboxOf, cumulative, type SimplifyLevel } from "@/lib/geo";
 import { buildProfile, distanceAlong } from "@/lib/profile";
 import { FORMATS, parseAny, serialize, download, safeName, GpsFileError, MAX_BYTES, type GpsFormat } from "@/lib/formats";
 import { editorHref, withBase } from "@/lib/url";
@@ -89,7 +90,7 @@ export function Editor({ routeId }: { routeId?: string }) {
     if (!r) { setMsg({ kind: "err", text: "Parcours introuvable sur cet appareil." }); setLoaded(true); return; }
     createdAt.current = r.createdAt; sourceKind.current = r.source; fileName.current = r.fileName;
     setMeta({ name: r.name, description: r.description, sport: r.sport, visibility: r.visibility, terrain: r.terrain, region: r.region, country: r.country, layer: r.layer === "fkt" || !r.layer ? "mine" : r.layer, sourceUrl: r.sourceUrl ?? "" });
-    setHist([{ waypoints: r.waypoints, segs: r.segs, pois: r.pois }]); setHi(0);
+    setHist([{ waypoints: r.waypoints, segs: r.segs, pois: normalizePois(r.pois) }]); setHi(0);
     seedElevations(r.coords); setCoords(r.coords); setElev("ok"); setLoaded(true);
   }, [routeId]);
 
@@ -263,20 +264,25 @@ export function Editor({ routeId }: { routeId?: string }) {
     markers.current.forEach((x) => x.remove()); markers.current = [];
     const n = st.waypoints.length;
     st.waypoints.forEach((w, i) => {
-      const d = document.createElement("button");
       const first = i === 0, last = i === n - 1 && n > 1 && !closed;
-      d.className = clsx("grid size-6 place-items-center rounded-full border-2 text-[10px] font-bold shadow-md", cutKeys.includes(`${w.lng},${w.lat}`) ? "border-white bg-ember-500 text-white" : first ? "border-white bg-pine-600 text-white" : last ? "border-white bg-ink-900 text-white" : "border-pine-600 bg-white text-pine-700", sel === i && "ring-4 ring-ember-400/60");
-      d.textContent = cutKeys.includes(`${w.lng},${w.lat}`) ? "✂" : first ? "D" : last ? "A" : String(i);
+      if (closed && i === n - 1) return; // boucle : un seul marqueur (double drapeau) au départ/arrivée
+      const cut = cutKeys.includes(`${w.lng},${w.lat}`);
+      const flag = !cut && (first || last) ? (first ? (closed ? "loop" : "start") : "finish") : null;
+      const d = flag ? routeMarkerEl(flag) : document.createElement("button");
+      if (!flag) {
+        d.className = clsx("grid size-6 place-items-center rounded-full border-2 text-[10px] font-bold shadow-md", cut ? "border-white bg-ember-500 text-white" : "border-pine-600 bg-white text-pine-700", sel === i && "ring-4 ring-ember-400/60");
+        d.textContent = cut ? "✂" : String(i);
+      } else if (sel === i) (d.firstElementChild as HTMLElement).style.filter = "drop-shadow(0 0 5px #ff8556)";
       d.title = `Point ${i + 1} — glissez pour déplacer, cliquez pour sélectionner`;
       d.setAttribute("aria-label", d.title);
       d.addEventListener("click", (ev) => { ev.stopPropagation(); setSel(i); setTab("trace"); });
       // Départ et arrivée restent fixes dès qu'il y a un tracé ; seuls les points intermédiaires se déplacent
       const fixed = n > 1 && (first || i === n - 1);
-      if (fixed) d.title = `${first ? "Départ" : "Arrivée"} — fixe (sélectionnez-le puis Suppr pour le retirer)`;
+      if (fixed) d.title = `${closed ? "Départ et arrivée (boucle)" : first ? "Départ" : "Arrivée"} — fixe (sélectionnez-le puis Suppr pour le retirer)`;
       else if (n > 2) d.title = `Point ${i + 1} — glissez pour déplacer, double-clic pour supprimer`;
       d.setAttribute("aria-label", d.title);
       d.addEventListener("dblclick", (ev) => { ev.stopPropagation(); ev.preventDefault(); if (!fixed && !modesRef.current.busy) { setSel(null); run(() => E.removeWaypoint(stRef.current, i, routerRef.current)); } });
-      const mk = new lib.Marker({ element: d, draggable: !fixed }).setLngLat([w.lng, w.lat]).addTo(m);
+      const mk = new lib.Marker({ element: d, draggable: !fixed, anchor: flag ? "bottom" : "center" }).setLngLat([w.lng, w.lat]).addTo(m);
       let tmr: ReturnType<typeof setTimeout> | null = null, tok = 0;
       mk.on("drag", () => { // aperçu recalculé à la pause du pointeur
         const p = mk.getLngLat(), st0 = stRef.current; const a = st0.waypoints[i - 1], b = st0.waypoints[i + 1];
@@ -297,9 +303,9 @@ export function Editor({ routeId }: { routeId?: string }) {
       const d = poiMarkerEl(p.type, p.name);
       d.addEventListener("click", (ev) => {
         ev.stopPropagation(); setTab("poi"); setSelPoi(p.id);
-        new lib.Popup({ closeButton: true, closeOnClick: false, offset: 18 }).setLngLat([p.lng, p.lat]).setDOMContent(poiPopupEl(p.type, p.name, "Modifiable dans l'onglet POI")).addTo(m);
+        new lib.Popup({ closeButton: true, closeOnClick: false, offset: 40 }).setLngLat([p.lng, p.lat]).setDOMContent(poiPopupEl(p.type, p.name, "Modifiable dans l'onglet POI")).addTo(m);
       });
-      poiMarkers.current.push(new lib.Marker({ element: d }).setLngLat([p.lng, p.lat]).addTo(m));
+      poiMarkers.current.push(new lib.Marker({ element: d, anchor: "bottom" }).setLngLat([p.lng, p.lat]).addTo(m));
     }
   }, [st.pois, ready, map, ml]);
 
@@ -347,6 +353,19 @@ export function Editor({ routeId }: { routeId?: string }) {
     if (!r) { setMsg({ kind: "warn", text: "Rien à simplifier : le tracé ne contient déjà que les points nécessaires." }); return; }
     commit(r.state); setSel(null);
     setMsg({ kind: "ok", text: `Baguette magique : ${r.report.before} → ${r.report.after} points (tolérance ${r.report.tolM} m, ${r.report.turns} virage(s) conservé(s), écart maximal mesuré ${r.report.maxDevM.toFixed(1)} m). Annulable avec Ctrl+Z.` });
+  };
+  // Clôture : retour au départ calculé par le moteur d'itinéraire (jamais une simple ligne droite, même en mode Libre)
+  const canClose = !busy && !closed && st.waypoints.length >= 2 && st.segs.length >= 1;
+  const closeRoute = async () => {
+    if (!canClose) return;
+    setBusy(true); setMsg(null);
+    try {
+      const r = await E.closeLoop(st, true, routerRef.current);
+      if (r.fallbacks) { setMsg({ kind: "err", text: "Clôture impossible : aucun chemin praticable trouvé entre l'arrivée et le départ pour cette pratique. Rapprochez l'arrivée d'un chemin, ou ajoutez un point intermédiaire." }); return; }
+      commit(r.state); setSel(null);
+      const back = r.state.segs[r.state.segs.length - 1]; let m = 0; for (let k = 1; k < back.length; k++) m += haversine(back[k - 1], back[k]);
+      setMsg({ kind: "ok", text: `Parcours clôturé : retour au départ de ${fmtKm(m)} ajouté par les chemins. Distance et dénivelés sont recalculés. Pour modifier ce retour, glissez-le depuis le tracé.` });
+    } catch { setMsg({ kind: "err", text: "Clôture impossible pour le moment (service de calcul indisponible). Réessayez." }); } finally { setBusy(false); }
   };
   const duplicate = async () => { setBusy(true); try { const nid = await saveSibling(st, `${meta.name || "Parcours"} (copie)`); window.location.assign(withBase(editorHref(nid))); } catch { setMsg({ kind: "err", text: "Duplication impossible (altitudes indisponibles)." }); } finally { setBusy(false); } };
   const split = async () => {
@@ -403,7 +422,7 @@ export function Editor({ routeId }: { routeId?: string }) {
             <button className={tb} onClick={undo} disabled={hi === 0 || busy} aria-label="Annuler" title="Annuler (Ctrl+Z)"><Undo2 className="size-4" /></button>
             <button className={tb} onClick={redo} disabled={hi >= hist.length - 1 || busy} aria-label="Rétablir" title="Rétablir (Ctrl+Y)"><Redo2 className="size-4" /></button>
             <button className={tb} onClick={() => commit(E.reverse(st))} disabled={st.waypoints.length < 2 || busy} aria-label="Inverser le sens" title="Inverser le sens"><ArrowLeftRight className="size-4" /></button>
-            <button className={tb} onClick={() => run(() => E.closeLoop(st, auto, routerRef.current))} disabled={st.waypoints.length < 3 || closed || busy} aria-label="Fermer la boucle" title="Fermer la boucle"><Repeat className="size-4" /></button>
+            <button className={clsx(tb, "!w-auto gap-1.5 px-2.5 text-xs font-semibold")} onClick={closeRoute} disabled={!canClose} aria-label="Clôturer le parcours" title={closed ? "Le parcours est déjà une boucle" : "Clôturer le parcours : retour au départ par les chemins"}><Repeat className="size-4" /><span className="hidden sm:inline">Clôturer</span></button>
             <button className={clsx(tb, cutMode && "!bg-ember-500 !text-white")} aria-pressed={cutMode} onClick={() => { setCutMode((v) => !v); setPoiMode(null); }} disabled={st.segs.length === 0} aria-label="Mode découpe" title="Découper le parcours : cliquez sur le tracé"><Scissors className="size-4" /></button>
             <button className={tb} onClick={locate} aria-label="Me localiser" title="Me localiser"><LocateFixed className="size-4" /></button>
             <button className={tb} onClick={reset} aria-label="Nouveau parcours" title="Nouveau / effacer"><Trash2 className="size-4" /></button>
@@ -472,7 +491,7 @@ export function Editor({ routeId }: { routeId?: string }) {
                   <Button size="sm" variant="secondary" disabled={!closed || sel === 0 || sel === st.waypoints.length - 1} title={closed ? "" : "Disponible sur une boucle"} onClick={() => { commit(E.setStart(st, sel)); setSel(null); }}><Flag className="size-4" />Départ ici</Button>
                   <Button size="sm" variant="secondary" disabled={busy || sel === 0 || sel === st.waypoints.length - 1} onClick={split}><Scissors className="size-4" />Diviser ici</Button>
                 </div>
-              ) : <p className="text-sm text-ink-500">{st.waypoints.length} point(s). Cliquez sur un marqueur pour le sélectionner, glissez-le pour le déplacer, cliquez sur le tracé pour insérer un point.</p>}
+              ) : <><Button size="sm" variant={closed ? "secondary" : "brand"} className="mb-2" disabled={!canClose} onClick={closeRoute}><Repeat className="size-4" />{closed ? "Parcours en boucle" : "Clôturer le parcours"}</Button><p className="text-sm text-ink-500">{st.waypoints.length} point(s). Cliquez sur un marqueur pour le sélectionner, glissez-le pour le déplacer, cliquez sur le tracé pour insérer un point.</p></>}
             </div>
             <div className="rounded-xl border border-ink-100 p-3">
               <p className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-400">Découper en plusieurs parcours</p>

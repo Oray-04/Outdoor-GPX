@@ -51,7 +51,6 @@ function poiTypeFrom(s: string): PoiType {
   if (/danger|warn|!|passage|franchi|crossing/.test(t)) return "danger";
   if (/secours|first|medic/.test(t)) return "secours";
   if (/park/.test(t)) return "parking";
-  if (/d[ée]part|start|flag|drapeau/.test(t)) return "depart";
   return "vue";
 }
 

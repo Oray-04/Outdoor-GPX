@@ -23,6 +23,11 @@ async function segment(a: Waypoint, b: Waypoint, route: Router): Promise<{ line:
 /** Le tronçon suivant part exactement du waypoint (même point que la fin du tronçon précédent) : tracé continu, sans micro-saut. */
 const joinFrom = (w: { lng: number; lat: number }, line: LL[]): LL[] =>
   line.length && Math.abs(line[0][0] - w.lng) < 1e-7 && Math.abs(line[0][1] - w.lat) < 1e-7 ? line : [[w.lng, w.lat], ...line];
+/** Le tronçon se termine exactement sur le waypoint suivant (qui ne bouge pas) : pas de micro-trou, boucle réellement fermée. */
+const joinTo = (line: LL[], w: { lng: number; lat: number }): LL[] => {
+  const l = line[line.length - 1];
+  return l && Math.abs(l[0] - w.lng) < 1e-7 && Math.abs(l[1] - w.lat) < 1e-7 ? line : [...line, [w.lng, w.lat]];
+};
 const snapTo = (w: Waypoint, p?: LL): Waypoint => (p ? { ...w, lng: p[0], lat: p[1] } : w);
 
 export interface OpResult { state: EState; fallbacks: number }
@@ -40,7 +45,7 @@ export async function moveWaypoint(s: EState, i: number, lng: number, lat: numbe
   const wps = s.waypoints.map((w, k) => (k === i ? { ...w, lng, lat } : w));
   const segs = [...s.segs]; let fb = 0;
   if (i > 0) { const r = await segment(wps[i - 1], wps[i], route); segs[i - 1] = r.line; wps[i] = snapTo(wps[i], r.end); fb += +r.fallback; }
-  if (i < wps.length - 1) { const r = await segment(wps[i], wps[i + 1], route); segs[i] = joinFrom(wps[i], r.line); fb += +r.fallback; }
+  if (i < wps.length - 1) { const r = await segment(wps[i], wps[i + 1], route); segs[i] = joinTo(joinFrom(wps[i], r.line), wps[i + 1]); fb += +r.fallback; }
   return { state: { ...s, waypoints: wps, segs }, fallbacks: fb };
 }
 
@@ -65,7 +70,7 @@ export async function insertWaypointRouted(s: EState, segIndex: number, lng: num
   const prev = s.waypoints[segIndex], next = s.waypoints[segIndex + 1];
   const a = await segment(prev, w, route);
   w = snapTo(w, a.end);
-  const b0 = await segment(w, next, route), b = { ...b0, line: joinFrom(w, b0.line) };
+  const b0 = await segment(w, next, route), b = { ...b0, line: joinTo(joinFrom(w, b0.line), next) };
   return {
     state: { ...s, waypoints: [...s.waypoints.slice(0, segIndex + 1), w, ...s.waypoints.slice(segIndex + 1)], segs: [...s.segs.slice(0, segIndex), a.line, b.line, ...s.segs.slice(segIndex + 1)] },
     fallbacks: +a.fallback + +b.fallback,
@@ -110,10 +115,19 @@ export const isClosed = (s: EState, tolDeg = 1e-5) => {
   return Math.abs(w[0].lng - w[w.length - 1].lng) < tolDeg && Math.abs(w[0].lat - w[w.length - 1].lat) < tolDeg;
 };
 
+/**
+ * Clôture : ajoute un tronçon de retour du dernier point vers le départ. L'arrivée est EXACTEMENT le départ (mêmes coordonnées) :
+ * le tronçon calculé est prolongé jusqu'à lui si le routeur s'arrête quelques mètres avant. `fallbacks` > 0 = aucun chemin trouvé.
+ */
 export async function closeLoop(s: EState, auto: boolean, route: Router): Promise<OpResult> {
   if (s.waypoints.length < 2 || isClosed(s)) return { state: s, fallbacks: 0 };
-  const f = s.waypoints[0];
-  return addWaypoint(s, f.lng, f.lat, auto, route);
+  const f = s.waypoints[0], prev = s.waypoints[s.waypoints.length - 1];
+  const end: Waypoint = { lng: f.lng, lat: f.lat, auto };
+  const seg = await segment(prev, end, route);
+  let line = joinFrom(prev, seg.line);
+  const l = line[line.length - 1];
+  if (l[0] !== f.lng || l[1] !== f.lat) line = [...line, [f.lng, f.lat]];
+  return { state: { ...s, waypoints: [...s.waypoints, end], segs: [...s.segs, line] }, fallbacks: +seg.fallback };
 }
 
 /** Change le point de départ d'une boucle : le waypoint k devient départ et arrivée. */

@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { searchCommunes, communeSuggestions, matchRegions, isPostal, norm, CommuneServiceError, type Region } from "../src/lib/communes";
 import { routeNear, filterRoutes, DEFAULT_FILTERS, DEMO_VMS } from "../src/lib/route-model";
-import { POI_TYPES } from "../src/lib/types";
-import { POI_ICON_PATHS, poiIconSvg } from "../src/lib/poi-icons";
+import { POI_TYPES, normalizePois } from "../src/lib/types";
+import { POI_GLYPHS, poiIconSvg, poiPinSvg } from "../src/lib/poi-icons";
 import { filled } from "../src/components/ui/field";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -54,13 +54,17 @@ describe("filtre de la bibliothèque par zone", () => {
 });
 
 describe("pictogrammes de POI", () => {
-  it("les 8 catégories demandées ont chacune un pictogramme distinct et une couleur", () => {
-    const want = ["ravito", "eau", "controle", "vue", "danger", "secours", "parking", "depart"] as const;
-    expect(Object.keys(POI_TYPES).sort()).toEqual([...want].sort());
-    const sigs = want.map((t) => POI_ICON_PATHS[t].join("|")); expect(new Set(sigs).size).toBe(8);
-    expect(new Set(want.map((t) => POI_TYPES[t].color)).size).toBeGreaterThanOrEqual(7);
-    for (const t of want) { const svg = poiIconSvg(t, 20); expect(svg).toMatch(/^<svg[^>]+width="20"/); expect(svg).toContain("<path"); }
-    expect(POI_TYPES.danger.label).toBe("Passage"); expect(POI_TYPES.depart.label).toBe("Départ");
+  it("7 catégories (plus de « Départ »), chacune avec un pictogramme distinct, une couleur distincte et une épingle", () => {
+    const want = ["ravito", "eau", "controle", "vue", "danger", "secours", "parking"] as const;
+    expect(Object.keys(POI_TYPES).sort()).toEqual([...want].sort()); expect("depart" in POI_TYPES).toBe(false);
+    expect(new Set(want.map((t) => POI_GLYPHS[t].map((g) => g.d).join("|"))).size).toBe(7);
+    expect(new Set(want.map((t) => POI_TYPES[t].color)).size).toBe(7);
+    for (const t of want) { expect(poiIconSvg(t, 20)).toMatch(/^<svg[^>]+width="20"/); const pin = poiPinSvg(t); expect(pin).toContain(POI_TYPES[t].color); expect(pin).not.toMatch(/\d\.\d*0[ "a-zA-Z-]/); }
+    expect(POI_TYPES.danger.label).toBe("Passage");
+  });
+  it("anciens POI « Départ » et types inconnus : convertis sans perte (données enregistrées préservées)", () => {
+    const old = [{ id: "a", type: "depart", name: "Départ course", lng: 6, lat: 45 }, { id: "b", type: "eau", name: "Fontaine", lng: 6, lat: 45 }, { id: "c", type: "zzz", name: "?", lng: 6, lat: 45 }] as unknown as Parameters<typeof normalizePois>[0];
+    const r = normalizePois(old); expect(r.map((p) => p.type)).toEqual(["parking", "eau", "vue"]); expect(r[0].name).toBe("Départ course"); expect(normalizePois(undefined)).toEqual([]);
   });
 });
 
