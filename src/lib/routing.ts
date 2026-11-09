@@ -190,9 +190,19 @@ export async function surfaceShare(line: LL[], profile: Profile, signal?: AbortS
 }
 
 /** Itinéraire passant par plusieurs points (une seule requête, demi-tours autorisés à chaque étape). */
-export async function routeVia(points: LL[], profile: Profile, signal?: AbortSignal): Promise<LL[] | null> {
+/**
+ * `avoid` : points par lesquels le tracé ne doit pas repasser (le tronçon le plus proche de chacun est exclu) — sert à chercher
+ * un retour différent de l'aller. 50 points au plus (limite du service).
+ */
+export async function routeVia(points: LL[], profile: Profile, signal?: AbortSignal, avoid?: LL[]): Promise<LL[] | null> {
   const c = COSTING[profile];
-  const d = await postJson<Trip>("/route", { locations: points.map((p) => loc(p)), costing: c.costing, costing_options: { [c.costing]: c.options }, directions_type: "none" }, signal, true);
+  const ask = (through: boolean) => postJson<Trip>("/route", {
+    // « through » : le tracé traverse le point intermédiaire sans y faire demi-tour (évite les petits allers-retours autour des points de passage)
+    locations: points.map((p, i) => ({ ...loc(p), type: through && i > 0 && i < points.length - 1 ? "through" : "break" })),
+    costing: c.costing, costing_options: { [c.costing]: c.options }, directions_type: "none",
+    ...(avoid?.length ? { exclude_locations: avoid.slice(0, 50).map((p) => loc(p)) } : {}),
+  }, signal, true);
+  const d = (points.length > 2 ? await ask(true) : null) ?? await ask(false); // point en cul-de-sac : pas de traversée possible, on accepte le demi-tour
   const l = d?.trip.legs.flatMap((g, i) => { const x = decodePolyline(g.shape); return i ? x.slice(1) : x; });
   return l && l.length > 1 ? l : null;
 }

@@ -183,6 +183,7 @@ export function GeneratorPage() {
                     <span><b className="font-display">{fmtM(p.gainM)}</b> D+<br /><small className="text-ink-400">{anyGain ? "" : `${dg >= 0 ? "+" : ""}${Math.round(dg)} m`}</small></span>
                     <span><b className="font-display">{p.offRoadPct != null ? `${p.offRoadPct} %` : "—"}</b><br /><small className="text-ink-400">chemins</small></span></span>
                   {p.gainOk != null && <span className={clsx("mt-1 flex items-center gap-1 text-xs", p.gainOk ? "text-pine-700" : "text-warn")}>{p.gainOk ? <><Check className="size-3.5" />D+ mesuré dans la marge de ±20 % ({Math.round(gain * 0.8)}–{Math.round(gain * 1.2)} m)</> : <><TriangleAlert className="size-3.5" />D+ hors de la marge de ±20 %</>}</span>}
+                  {p.cleanedM >= 50 && <span className="mt-1 flex items-center gap-1 text-xs text-ink-500"><Check className="size-3.5" />{fmtKm(p.cleanedM)} d'allers-retours parasites retirés</span>}
                   {p.overlapPct >= 15 && <span className="mt-1 flex items-center gap-1 text-xs text-warn"><TriangleAlert className="size-3.5" />{p.overlapPct} % en aller-retour</span>}
                 </button></li>);
             })}</ul>

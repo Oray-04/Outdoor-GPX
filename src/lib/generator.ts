@@ -14,6 +14,10 @@ export interface Proposal {
   distanceM: number; gainM: number; lossM: number; overlapPct: number; offRoadPct?: number; pathPct?: number; score: number;
   /** D+ mesuré sur le tracé réellement généré, dans la marge acceptée autour de la cible (null = pas de cible). */
   gainOk: boolean | null;
+  /** Longueur d'allers-retours parasites retirée du tracé brut (m) ; les statistiques sont celles du tracé nettoyé. */
+  cleanedM: number;
+  /** Plus long saut entre deux points consécutifs (m), pour repérer un tracé incohérent. */
+  maxStepM: number;
 }
 /** Marge acceptée sur le dénivelé cible (±20 %). */
 export const GAIN_TOLERANCE = 0.2;
@@ -21,7 +25,7 @@ export const gainWithinTolerance = (gainM: number, target: number | null, tol = 
   target == null ? null : target <= 0 ? gainM <= 100 : Math.abs(gainM - target) <= tol * target;
 export interface GenDeps {
   /** Itinéraire passant par les points donnés, ou null s'il n'existe pas. */
-  via(points: LL[], profile: Profile, signal?: AbortSignal): Promise<LL[] | null>;
+  via(points: LL[], profile: Profile, signal?: AbortSignal, avoid?: LL[]): Promise<LL[] | null>;
   /** Ajoute l'altitude à chaque point. */
   elevate(line: LL[], signal?: AbortSignal): Promise<Pt[]>;
   /** Part de sentiers (facultatif). */
@@ -74,16 +78,87 @@ export function overlapRatio(line: LL[], cellM = 20): number {
 
 export const lineKm = (l: LL[]) => { let d = 0; for (let i = 1; i < l.length; i++) { const a = l[i - 1], b = l[i]; const dx = rad(b[0] - a[0]) * Math.cos(rad((a[1] + b[1]) / 2)), dy = rad(b[1] - a[1]); d += Math.hypot(dx, dy) * R_EARTH; } return d / 1000; };
 
+const distM = (a: LL, b: LL) => { const dx = rad(b[0] - a[0]) * Math.cos(rad((a[1] + b[1]) / 2)), dy = rad(b[1] - a[1]); return Math.hypot(dx, dy) * R_EARTH; };
+
+/**
+ * Supprime les allers-retours parasites : portions où le tracé part sur un chemin puis revient exactement par le même
+ * (antenne en cul-de-sac autour d'un point de passage imposé). Détection par symétrie autour du point de demi-tour :
+ * les sommets avant et après coïncident deux à deux (un moteur d'itinéraire renvoie la même géométrie dans les deux sens).
+ * Garde-fous : rien n'est retiré si l'antenne fait moins de `minM` (bruit), ni si son aller-retour dépasse `maxShare` du parcours
+ * (un long aller-retour est un vrai choix d'itinéraire, signalé à part) ; les extrémités ne bougent jamais ; le tracé reste continu.
+ */
+export function removeSpurs(line: LL[], o: { tolM?: number; minM?: number; maxShare?: number } = {}): { line: LL[]; removedM: number; spurs: number } {
+  const tol = o.tolM ?? 4, minM = o.minM ?? 20, maxShare = o.maxShare ?? 0.2;
+  let cur = line, removedM = 0, spurs = 0;
+  for (let pass = 0; pass < 6; pass++) {
+    const n = cur.length; if (n < 5) break;
+    const cum = [0]; for (let i = 1; i < n; i++) cum.push(cum[i - 1] + distM(cur[i - 1], cur[i]));
+    const total = cum[n - 1], drop = new Uint8Array(n); let changed = false;
+    for (let t = 1; t < n - 1; t++) {
+      // t = sommet de rebroussement : les sommets à égale distance avant et après coïncident
+      let m = 0; while (t - m - 1 >= 0 && t + m + 1 < n && distM(cur[t - m - 1], cur[t + m + 1]) <= tol) m++;
+      if (!m) continue;
+      if (t - m === 0 && t + m === n - 1) continue;               // tout le parcours est un aller-retour : ce n'est pas une antenne
+      if (t + m === n - 1 || t - m === 0) m--;                     // ne jamais retirer le départ ni l'arrivée
+      if (m < 1) continue;
+      const len = cum[t] - cum[t - m];
+      if (len < minM || 2 * len > maxShare * total) continue;
+      for (let k = t - m + 1; k <= t + m; k++) drop[k] = 1;         // on garde le point d'embranchement cur[t-m], on reprend après son doublon cur[t+m]
+      removedM += 2 * len; spurs++; changed = true; t += m;
+    }
+    if (!changed) break;
+    cur = cur.filter((_, i) => !drop[i]);
+  }
+  return { line: cur, removedM, spurs };
+}
+
+/** Plus long saut entre deux points consécutifs (m) : un tracé routé n'en a pas de très grand. */
+export const maxStepM = (line: LL[]) => { let m = 0; for (let i = 1; i < line.length; i++) m = Math.max(m, distM(line[i - 1], line[i])); return m; };
+
+/** Points régulièrement espacés le long d'une ligne, en ignorant `skipM` mètres à chaque extrémité (au plus `max` points). */
+export function samplesAlong(line: LL[], skipM: number, max = 45): LL[] {
+  const cum = [0]; for (let i = 1; i < line.length; i++) cum.push(cum[i - 1] + distM(line[i - 1], line[i]));
+  const total = cum[cum.length - 1], span = total - 2 * skipM; if (span <= 0) return [];
+  const n = Math.min(max, Math.max(1, Math.floor(span / 120))), out: LL[] = []; let j = 0;
+  for (let k = 0; k < n; k++) { const d = skipM + (span * (k + 0.5)) / n; while (j < line.length - 2 && cum[j + 1] < d) j++; const t = cum[j + 1] > cum[j] ? (d - cum[j]) / (cum[j + 1] - cum[j]) : 0; out.push([line[j][0] + (line[j + 1][0] - line[j][0]) * t, line[j][1] + (line[j + 1][1] - line[j][1]) * t]); }
+  return out;
+}
+
+/**
+ * Boucle « aller puis retour différent » : l'aller (départ → 2 premiers points) est tracé normalement, puis le retour est cherché
+ * en interdisant les tronçons déjà empruntés à l'aller (sauf près du départ et du point de jonction, où il faut bien se raccorder).
+ * Renvoie null si aucun retour distinct n'existe.
+ */
+export async function loopWithDistinctReturn(wps: LL[], profile: Profile, deps: GenDeps, signal?: AbortSignal): Promise<LL[] | null> {
+  if (wps.length < 4) return null;
+  const cut = Math.ceil((wps.length - 1) / 2);
+  const out = await deps.via(wps.slice(0, cut + 1), profile, signal); if (!out) return null;
+  const avoid = samplesAlong(out, Math.min(400, lineKm(out) * 1000 * 0.12));
+  if (!avoid.length) return null;
+  const back = await deps.via(wps.slice(cut), profile, signal, avoid); if (!back) return null;
+  return [...out, ...back.slice(1)];
+}
+
 /** Ajuste le rayon jusqu'à ce que la longueur soit dans `tol` de la cible. Renvoie le meilleur essai. */
-export async function fitLoop(start: LL, theta: number, targetKm: number, profile: Profile, deps: GenDeps, opts: { tol?: number; maxIter?: number; signal?: AbortSignal } = {}): Promise<{ line: LL[]; km: number } | null> {
+export async function fitLoop(start: LL, theta: number, targetKm: number, profile: Profile, deps: GenDeps, opts: { tol?: number; maxIter?: number; signal?: AbortSignal } = {}): Promise<{ line: LL[]; km: number; removedM: number } | null> {
   const tol = opts.tol ?? 0.1, maxIter = opts.maxIter ?? 4;
   let radius = (targetKm * 1000) / (2 * Math.PI * DETOUR);
-  let best: { line: LL[]; km: number } | null = null;
+  let best: { line: LL[]; km: number; removedM: number } | null = null;
   for (let it = 0; it < maxIter; it++) {
-    const line = await deps.via(loopWaypoints(start, radius, theta), profile, opts.signal);
-    if (!line) { radius *= 0.7; continue; } // pas de chemin : on resserre la boucle
+    const raw = await deps.via(loopWaypoints(start, radius, theta), profile, opts.signal);
+    if (!raw) { radius *= 0.7; continue; } // pas de chemin : on resserre la boucle
+    // nettoyage AVANT la mesure : la distance visée est celle du tracé débarrassé de ses antennes
+    let { line, removedM } = removeSpurs(raw);
+    // trop de chemin commun entre l'aller et le retour : on cherche un retour par d'autres chemins, et on garde le tracé le moins répétitif
+    if (overlapRatio(line) > 0.15) {
+      try {
+        const alt0 = await loopWithDistinctReturn(loopWaypoints(start, radius, theta), profile, deps, opts.signal);
+        if (alt0) { const alt = removeSpurs(alt0); if (distM(alt.line[0], alt.line[alt.line.length - 1]) <= 60 && overlapRatio(alt.line) < overlapRatio(line) - 0.05 && lineKm(alt.line) < lineKm(line) * 1.6) { line = alt.line; removedM = alt.removedM; } }
+      } catch (e) { if ((e as Error).name === "AbortError") throw e; /* variante facultative */ }
+    }
+    if (distM(line[0], line[line.length - 1]) > 60) { radius *= 0.85; continue; } // boucle non refermée sur le départ : tracé écarté
     const km = lineKm(line);
-    if (!best || Math.abs(km - targetKm) < Math.abs(best.km - targetKm)) best = { line, km };
+    if (!best || Math.abs(km - targetKm) < Math.abs(best.km - targetKm)) best = { line, km, removedM };
     if (Math.abs(km - targetKm) / targetKm <= tol) break;
     radius *= Math.min(1.6, Math.max(0.6, Math.pow(targetKm / km, 0.9))); // ajustement amorti
   }
@@ -123,7 +198,7 @@ export async function generateLoops(input: GenInput, deps: GenDeps, opts: { sign
     }
     if (ringGain.size >= n) thetas = [...ringGain.keys()].sort((a, b) => Math.abs(ringGain.get(a)! - targetGain) - Math.abs(ringGain.get(b)! - targetGain)).slice(0, n);
   }
-  const fitted: { theta: number; line: LL[]; km: number }[] = [];
+  const fitted: { theta: number; line: LL[]; km: number; removedM: number }[] = [];
   let done = 0, svcErr: unknown = null, elevErr: unknown = null;
   const kindOf = (e: unknown) => { const x = e as { kind?: "rate" | "server" | "network"; status?: number }; return { reason: x?.kind ?? "network", status: x?.status }; };
   // tracés : 2 boucles en parallèle (le serveur est public, on reste raisonnable)
@@ -142,12 +217,12 @@ export async function generateLoops(input: GenInput, deps: GenDeps, opts: { sign
   if (!fitted.length && svcErr) throw new GenerationError("routing", kindOf(svcErr));
   // altitudes + score : le D+ est celui du tracé réellement généré (altitudes IGN, même calcul que partout sur le site)
   const scored: Proposal[] = []; let nEval = 0;
-  const evaluate = async (f: { theta: number; line: LL[] }) => {
+  const evaluate = async (f: { theta: number; line: LL[]; removedM: number }) => {
     let coords: Pt[];
     try { coords = await deps.elevate(f.line, opts.signal); } catch (e) { if ((e as Error).name === "AbortError") throw e; elevErr = e; opts.onProgress?.({ phase: "altitudes", done: ++nEval, total: fitted.length }); return; }
     const st = trackStats(coords, 3), ov = Math.round(overlapRatio(f.line) * 100);
     const base = { id: `g-${Math.round(f.theta)}`, bearing: f.theta, line: f.line, coords, distanceM: st.distanceM, gainM: st.gainM, lossM: st.lossM, overlapPct: ov };
-    scored.push({ ...base, gainOk: gainWithinTolerance(st.gainM, targetGain), score: scoreProposal(base, targetKm, targetGain) });
+    scored.push({ ...base, cleanedM: Math.round(f.removedM), maxStepM: Math.round(maxStepM(f.line)), gainOk: gainWithinTolerance(st.gainM, targetGain), score: scoreProposal(base, targetKm, targetGain) });
     opts.onProgress?.({ phase: "altitudes", done: ++nEval, total: fitted.length });
   };
   let consecutive = 0;
@@ -167,7 +242,7 @@ export async function generateLoops(input: GenInput, deps: GenDeps, opts: { sign
     for (const theta of rest) {
       try {
         const r = await fitLoop(start, theta, targetKm, profile, deps, { signal: opts.signal });
-        if (r && Math.abs(r.km - targetKm) / targetKm <= 0.25) { fitted.push({ theta, ...r }); await evaluate({ theta, line: r.line }); }
+        if (r && Math.abs(r.km - targetKm) / targetKm <= 0.25) { fitted.push({ theta, ...r }); await evaluate({ theta, line: r.line, removedM: r.removedM }); }
       } catch (e) { if ((e as Error).name === "AbortError") throw e; }
     }
   }

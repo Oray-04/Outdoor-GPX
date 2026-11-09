@@ -8,8 +8,8 @@ export interface Glyph { d: string; kind: "f" | "s" }
 export const POI_GLYPHS: Record<PoiType, Glyph[]> = {
   // fourchette + couteau
   ravito: [{ kind: "s", d: "M6 3v5.5a2.5 2.5 0 0 0 5 0V3M8.5 3v18" }, { kind: "f", d: "M14.6 3c2.6.9 4.4 4 4.4 7.6 0 1.5-.7 2.6-2.1 2.6h-.5V21h-1.8z" }],
-  // robinet + goutte
-  eau: [{ kind: "s", d: "M3.5 9.5H12a4.5 4.5 0 0 1 4.5 4.5v.5M8 9.5V5M5.2 5h5.6" }, { kind: "f", d: "M16.5 16.2c1.5 2 2.3 3.3 2.3 4.2a2.3 2.3 0 0 1-4.600 0c0-.9.8-2.200 2.300-4.200z" }],
+  // goutte au-dessus de l'eau
+  eau: [{ kind: "f", d: "M12 2.600c3.100 3.900 5.200 6.800 5.200 9.300a5.200 5.200 0 0 1-10.400 0c0-2.500 2.100-5.400 5.200-9.300z" }, { kind: "s", d: "M4.500 20.600c1.900-1.500 3.600-1.500 5 0s3.400 1.500 5 0 3.100-1.500 5 0" }],
   // chronomètre validé
   controle: [{ kind: "s", d: "M12 21.2a7.600 7.600 0 1 0 0-15.200 7.600 7.600 0 0 0 0 15.200zM9.800 2.600h4.400M12 2.600V6" }, { kind: "s", d: "m8.700 13.800 2.300 2.300 4.300-4.700" }],
   // sommets + soleil

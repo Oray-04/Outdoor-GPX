@@ -48,7 +48,7 @@ describe("service d'altitudes : reprises et secours", () => {
 
 describe("génération : erreurs précises et résilience", () => {
   const start: LL = [6.87, 45.92];
-  const line = (a: LL): LL[] => Array.from({ length: 30 }, (_, i) => [a[0] + i * 0.0013, a[1] + Math.sin(i / 5) * 0.001] as LL);
+  const line = (a: LL): LL[] => Array.from({ length: 31 }, (_, i) => [a[0] + Math.sin((i / 30) * 2 * Math.PI) * 0.006, a[1] + (1 - Math.cos((i / 30) * 2 * Math.PI)) * 0.004] as LL); // boucle fermée d'environ 3 km
   const goodVia: GenDeps["via"] = async (p) => line(p[0]);
   const goodEle: GenDeps["elevate"] = async (l) => l.map((p, i) => [p[0], p[1], 1000 + i * 3] as Pt);
   it("routage en panne (429) sur toutes les directions → GenerationError « routing » avec cause", async () => {

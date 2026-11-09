@@ -8,11 +8,11 @@ export interface BannerItem { label: string; value: string }
 /** Bandeau sous la carte en plein écran : valeurs clés (distance, dénivelé…). */
 export function StatBanner({ title, items }: { title?: string; items: BannerItem[] }) {
   return (
-    <div role="status" aria-label="Résumé" className="shrink-0 border-t border-ink-100 bg-white px-4 py-2.5">
-      {title && <p className="mb-1 truncate text-sm font-semibold text-ink-900">{title}</p>}
+    <div role="status" aria-label="Résumé" className="shrink-0 border-t border-brass-400/30 bg-ink-950 px-4 py-2.5 text-white">
+      {title && <p className="mb-1 truncate text-sm font-semibold text-white">{title}</p>}
       <dl className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
         {items.map((i) => (
-          <div key={i.label} className="flex items-baseline gap-1.5"><dt className="text-[11px] font-medium uppercase tracking-wide text-ink-400">{i.label}</dt><dd className="font-display text-base font-bold text-ink-900">{i.value}</dd></div>
+          <div key={i.label} className="flex items-baseline gap-1.5"><dt className="text-[11px] font-medium uppercase tracking-wide text-brass-400">{i.label}</dt><dd className="font-display text-base font-bold text-white">{i.value}</dd></div>
         ))}
       </dl>
     </div>

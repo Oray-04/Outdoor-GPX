@@ -34,14 +34,15 @@ export function Hero() {
   }
 
   return (
-    <section className="relative isolate overflow-hidden bg-ink-900 text-white">
+    <section className="relative isolate overflow-hidden bg-ink-950 text-white">
+      <div className="absolute inset-0 -z-10 bg-[radial-gradient(60rem_30rem_at_15%_-10%,rgb(18_98_75/0.55),transparent_60%),radial-gradient(40rem_24rem_at_100%_110%,rgb(176_141_79/0.16),transparent_60%)]" aria-hidden="true" />
       <TopoPattern className="!opacity-[0.07] scale-150" />
-      <div className="absolute -left-32 top-0 -z-10 size-[28rem] rounded-full bg-pine-600/30 blur-3xl" />
+      
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[1.05fr_1fr] lg:items-center lg:py-20">
         <div>
           <Badge tone="dark" className="rise"><Compass className="size-3.5" />Plateforme outdoor indépendante</Badge>
-          <h1 className="rise rise-2 mt-5 text-4xl font-extrabold leading-[1.05] sm:text-5xl lg:text-6xl">
-            Chaque sortie commence par <span className="text-ember-400">une trace</span>.
+          <h1 className="rise rise-2 mt-6 text-[2.6rem] font-medium leading-[1.02] sm:text-6xl lg:text-[4.4rem]">
+            Chaque sortie commence par <em className="font-normal italic text-brass-400">une trace</em>.
           </h1>
           <p className="rise rise-3 mt-5 max-w-xl text-lg leading-relaxed text-ink-200">
             Créez vos itinéraires, explorez des parcours de trail, de randonnée et de vélo, et préparez vos événements avec des outils de cartographie pensés pour le terrain.
@@ -51,9 +52,9 @@ export function Hero() {
             <label className="relative flex-1">
               <span className="sr-only">Rechercher un lieu</span>
               <Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-ink-400" />
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ville, massif, adresse…" className="h-13 w-full rounded-xl border-0 bg-white pl-12 pr-4 text-base text-ink-900 placeholder:text-ink-400" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ville, massif, adresse…" className="h-13 w-full rounded-full border border-white/15 bg-white/95 pl-12 pr-4 text-base text-ink-900 placeholder:text-ink-400" />
             </label>
-            <button type="submit" disabled={busy} className="inline-flex h-13 items-center justify-center gap-2 rounded-xl bg-ember-500 px-6 font-semibold transition hover:bg-ember-600 active:scale-[0.98] disabled:opacity-60">
+            <button type="submit" disabled={busy} className="inline-flex h-13 items-center justify-center gap-2 rounded-full bg-gradient-to-b from-ember-400 to-ember-600 px-7 font-semibold shadow-[inset_0_1px_0_rgb(255_255_255/0.28)] transition hover:brightness-110 active:scale-[0.98] disabled:opacity-60">
               {busy ? <Loader2 className="size-5 animate-spin" /> : "Rechercher"}
             </button>
           </form>
@@ -70,7 +71,7 @@ export function Hero() {
           </div>
         </div>
 
-        <div className="rise rise-2 relative h-[22rem] overflow-hidden rounded-3xl ring-1 ring-white/15 shadow-lift sm:h-[28rem] lg:h-[32rem]">
+        <div className="rise rise-2 relative h-[22rem] overflow-hidden rounded-[1.75rem] ring-1 ring-brass-400/40 shadow-lift sm:h-[28rem] lg:h-[32rem]">
           <HeroMap ref={map} />
           <div className="pointer-events-none absolute bottom-3 left-3 rounded-lg bg-ink-900/80 px-2.5 py-1.5 text-[11px] font-medium text-ink-100 backdrop-blur">
             Tracés orange : <b className="text-ember-400">données de démonstration</b>

@@ -101,3 +101,48 @@ describe("génération avec D+ cible (terrain simulé)", () => {
     });
   }
 });
+
+describe("nettoyage des tracés générés (removeSpurs)", () => {
+  // boucle carrée d'environ 4 km, sommets tous les ~100 m
+  const side = (a: LL, b: LL, n = 10): LL[] => Array.from({ length: n }, (_, i) => [a[0] + ((b[0] - a[0]) * i) / n, a[1] + ((b[1] - a[1]) * i) / n] as LL);
+  const A: LL = [6, 45], B: LL = [6.0127, 45], C: LL = [6.0127, 45.009], D: LL = [6, 45.009];
+  const square = (): LL[] => [...side(A, B), ...side(B, C), ...side(C, D), ...side(D, A), A];
+  const withSpur = (len: number): LL[] => { // antenne en cul-de-sac greffée au coin B : aller puis retour par les mêmes sommets
+    const sq = square(); const out: LL[] = Array.from({ length: len }, (_, i) => [B[0] + (i + 1) * 0.0006, B[1] - (i + 1) * 0.0003] as LL);
+    return [...sq.slice(0, 11), ...out, ...out.slice(0, -1).reverse(), B, ...sq.slice(11)];
+  };
+  it("retire une antenne aller-retour, garde la boucle, les extrémités et la continuité", async () => {
+    const { removeSpurs, maxStepM } = await import("../src/lib/generator");
+    const dirty = withSpur(4), clean = square();
+    const r = removeSpurs(dirty);
+    expect(r.spurs).toBe(1); expect(r.removedM).toBeGreaterThan(300);
+    expect(r.line[0]).toEqual(A); expect(r.line.at(-1)).toEqual(A);
+    expect(lineKm(r.line)).toBeCloseTo(lineKm(clean), 2);                 // la boucle d'origine est retrouvée, rien de plus n'a été coupé
+    expect(maxStepM(r.line)).toBeLessThan(160);                           // aucun trou créé
+    expect(overlapRatio(r.line)).toBeLessThan(overlapRatio(dirty));
+  });
+  it("ne touche pas à un tracé sans antenne (vrais virages, épingles) ni aux très petits décrochements", async () => {
+    const { removeSpurs } = await import("../src/lib/generator");
+    const sq = square(); expect(removeSpurs(sq).line).toEqual(sq); expect(removeSpurs(sq).spurs).toBe(0);
+    const hairpin: LL[] = [[6, 45], [6.002, 45.0005], [6.004, 45.001], [6.0042, 45.0013], [6.004, 45.0016], [6.002, 45.0021], [6, 45.0026], [5.998, 45.004], [6, 45]]; // épingle : montée et descente NE coïncident PAS
+    expect(removeSpurs(hairpin).line).toEqual(hairpin);
+    const tiny: LL[] = [...sq.slice(0, 11), [B[0] + 0.00008, B[1]], B, ...sq.slice(11)]; // ~6 m : en dessous du seuil
+    expect(removeSpurs(tiny).spurs).toBe(0);
+  });
+  it("un long aller-retour (part importante du parcours) est conservé ; un pur aller-retour aussi", async () => {
+    const { removeSpurs } = await import("../src/lib/generator");
+    const big = withSpur(40); expect(removeSpurs(big).spurs).toBe(0);     // ~2,7 km d'aller-retour sur 6,7 km : choix d'itinéraire, pas un parasite
+    const out: LL[] = Array.from({ length: 20 }, (_, i) => [6 + i * 0.001, 45] as LL); const ar = [...out, ...out.slice(0, -1).reverse()];
+    expect(removeSpurs(ar).line).toEqual(ar);
+  });
+  it("antennes imbriquées et multiples : toutes retirées", async () => {
+    const { removeSpurs } = await import("../src/lib/generator");
+    const sq = square();
+    const spur = (o: LL, dx: number, dy: number, n: number): LL[] => { const out = Array.from({ length: n }, (_, i) => [o[0] + (i + 1) * dx, o[1] + (i + 1) * dy] as LL); return [...out, ...out.slice(0, -1).reverse(), o]; };
+    // antenne au coin B, contenant elle-même une petite antenne, puis une autre antenne au coin C
+    const inner = spur([B[0] + 0.0012, B[1] - 0.0006], 0.0004, 0.0005, 2);
+    const outer: LL[] = [[B[0] + 0.0006, B[1] - 0.0003], [B[0] + 0.0012, B[1] - 0.0006], ...inner, [B[0] + 0.0018, B[1] - 0.0009], [B[0] + 0.0012, B[1] - 0.0006], [B[0] + 0.0006, B[1] - 0.0003], B];
+    const two = [...sq.slice(0, 11), ...outer, ...sq.slice(11, 21), ...spur(C, 0.0005, 0.0004, 3), ...sq.slice(21)];
+    const r = removeSpurs(two); expect(r.spurs).toBeGreaterThanOrEqual(3); expect(r.line).toEqual(sq);
+  });
+});

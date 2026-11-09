@@ -11,7 +11,7 @@ const cols = [
 
 export function Footer() {
   return (
-    <footer className="bg-ink-950 text-ink-300">
+    <footer className="relative bg-ink-950 text-ink-300"><div className="hairline absolute inset-x-0 top-0" aria-hidden="true" />
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6">
         <div className="grid gap-10 md:grid-cols-[1.4fr_repeat(4,1fr)]">
           <div>
@@ -20,7 +20,7 @@ export function Footer() {
           </div>
           {cols.map((c) => (
             <div key={c.title}>
-              <h3 className="mb-3 text-sm font-semibold text-white">{c.title}</h3>
+              <h3 className="eyebrow mb-3 !text-brass-400">{c.title}</h3>
               <ul className="grid gap-2 text-sm">
                 {c.links.map(([l, h]) => <li key={h}><Link href={h} className="transition-colors hover:text-white">{l}</Link></li>)}
               </ul>

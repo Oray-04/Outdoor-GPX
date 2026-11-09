@@ -2,7 +2,7 @@ export const SITE = { name: "Crête", tagline: "Tracer. Explorer. Courir. Partag
 
 export const NAV = [
   { href: "/explorer", label: "Explorer" },
-  { href: "/creer", label: "Créer un parcours" },
+  { href: "/creer", label: "Créer" },
   { href: "/generer", label: "Générer" },
   { href: "/parcours", label: "Parcours" },
   { href: "/itineraires", label: "Itinéraires" },

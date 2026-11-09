@@ -1,52 +1,62 @@
 @import "tailwindcss";
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/sora";
+@import "@fontsource-variable/fraunces/opsz.css";
 @import "maplibre-gl/dist/maplibre-gl.css";
 
-/* ───────── Charte graphique « Crête » ───────── */
+/* ───────── Direction artistique « Crête » : instrument de cartographie ─────────
+   Nuit d'altitude (encre bleu-vert très sombre), papier ivoire, sapin profond, cuivre pour l'action, laiton pour les filets.
+   Titres en serif éditorial (Fraunces), interface en Inter, données chiffrées en Sora. */
 @theme {
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Sora Variable", "Inter Variable", ui-sans-serif, sans-serif;
+  --font-serif: "Fraunces Variable", "Iowan Old Style", Georgia, serif;
 
-  /* Encre : neutres vert-gris profond */
-  --color-ink-950: #08130f;
-  --color-ink-900: #0d1b17;
-  --color-ink-800: #152a23;
-  --color-ink-700: #20372f;
-  --color-ink-600: #36504a;
-  --color-ink-500: #4b6359;
-  --color-ink-400: #74897f;
-  --color-ink-300: #9db0a7;
-  --color-ink-200: #cdd9d3;
-  --color-ink-100: #e4ebe7;
-  --color-ink-50: #f0f4f1;
-  --color-paper: #f7f6f1;
+  /* Encre : nuit d'altitude */
+  --color-ink-950: #050b0b;
+  --color-ink-900: #0a1514;
+  --color-ink-800: #11211f;
+  --color-ink-700: #1b302d;
+  --color-ink-600: #314844;
+  --color-ink-500: #4a605b;
+  --color-ink-400: #74867f;
+  --color-ink-300: #a0aea7;
+  --color-ink-200: #d3d9d2;
+  --color-ink-100: #e7e9e1;
+  --color-ink-50: #f2f2ea;
+  --color-paper: #f7f4ec;
 
-  /* Pin : couleur de marque */
-  --color-pine-700: #145a42;
-  --color-pine-600: #1e7a58;
-  --color-pine-500: #2a9170;
-  --color-pine-400: #4fb08f;
-  --color-pine-100: #ddf1e8;
-  --color-pine-50: #eef8f3;
+  /* Sapin : couleur de marque */
+  --color-pine-700: #0b4a39;
+  --color-pine-600: #12624b;
+  --color-pine-500: #1c7d61;
+  --color-pine-400: #46a587;
+  --color-pine-100: #d9ece3;
+  --color-pine-50: #ecf5f0;
 
-  /* Braise : accent d'action */
-  --color-ember-600: #d44d1a;
-  --color-ember-500: #f0612b;
-  --color-ember-400: #ff8556;
-  --color-ember-100: #fde6db;
+  /* Cuivre : accent d'action */
+  --color-ember-600: #b34a1c;
+  --color-ember-500: #d05f2a;
+  --color-ember-400: #ee8a55;
+  --color-ember-100: #f8e4d6;
+
+  /* Laiton : filets, repères, détails précieux */
+  --color-brass-600: #8f6f33;
+  --color-brass-500: #b08d4f;
+  --color-brass-400: #cdb07a;
+  --color-brass-100: #f1e8d4;
 
   /* Glacier : données / altitude */
-  --color-glacier-600: #247f9f;
-  --color-glacier-500: #3ba6c9;
-  --color-glacier-100: #dff1f8;
+  --color-glacier-600: #1f7594;
+  --color-glacier-500: #3a9dc0;
+  --color-glacier-100: #dcedf4;
 
-  --color-warn: #c98a0b;
-  --color-danger: #c8372d;
+  --color-warn: #b8862b;
+  --color-danger: #c0362c;
 
-  --radius-card: 1.25rem;
-  --shadow-card: 0 1px 2px rgb(13 27 23 / 0.06), 0 8px 24px -12px rgb(13 27 23 / 0.18);
-  --shadow-lift: 0 2px 4px rgb(13 27 23 / 0.08), 0 20px 40px -16px rgb(13 27 23 / 0.28);
+  --radius-card: 1.125rem;
+  --shadow-card: 0 1px 1px rgb(10 21 20 / 0.04), 0 10px 30px -18px rgb(10 21 20 / 0.28);
+  --shadow-lift: 0 2px 4px rgb(10 21 20 / 0.06), 0 26px 50px -22px rgb(10 21 20 / 0.42);
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -56,13 +66,49 @@
 html { scroll-behavior: smooth; }
 body { padding-bottom: var(--bnav); }
 body {
-  background: var(--color-paper);
+  background-color: var(--color-paper);
+  /* courbes de niveau très discrètes : la signature cartographique du site */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='520' height='520' viewBox='0 0 520 520' fill='none' stroke='%230a1514' stroke-opacity='.045' stroke-width='1'%3E%3Cpath d='M-20 130c90-60 150 40 240-10s150-90 320-20'/%3E%3Cpath d='M-20 190c100-50 160 50 250 0s170-80 310-10'/%3E%3Cpath d='M-20 260c80-30 170 60 260 10s190-70 300 10'/%3E%3Cpath d='M-20 340c110-40 150 30 250-10s160-50 310 20'/%3E%3Cpath d='M-20 420c90-50 180 40 270-10s150-40 290 30'/%3E%3Cellipse cx='380' cy='70' rx='70' ry='34'/%3E%3Cellipse cx='380' cy='70' rx='42' ry='18'/%3E%3Cellipse cx='120' cy='480' rx='80' ry='30'/%3E%3C/svg%3E");
+  background-attachment: fixed;
   color: var(--color-ink-900);
   font-family: var(--font-sans);
+  font-feature-settings: "cv11", "ss01";
   -webkit-font-smoothing: antialiased;
 }
-h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: -0.02em; }
-:focus-visible { outline: 2px solid var(--color-ember-500); outline-offset: 2px; border-radius: 6px; }
+h1, h2 { font-family: var(--font-serif); font-optical-sizing: auto; letter-spacing: -0.022em; font-weight: 600; }
+h3, h4 { font-family: var(--font-display); letter-spacing: -0.015em; }
+/* les titres des panneaux d'outils restent en caractères d'interface */
+h1.font-display, h2.font-display, h2.text-xs, h2.text-sm, h2.text-base, h2.text-lg, h1.text-lg, h1.text-xl { font-family: var(--font-display); font-weight: 700; }
+::selection { background: var(--color-brass-400); color: var(--color-ink-950); }
+:focus-visible { outline: 2px solid var(--color-brass-500); outline-offset: 2px; border-radius: 6px; }
+.font-display { font-variant-numeric: tabular-nums; }
+
+/* Filet laiton sous les titres de section, étiquettes « instrument » */
+.eyebrow { font-family: var(--font-display); font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; color: var(--color-brass-600); }
+.hairline { height: 1px; background: linear-gradient(90deg, transparent, var(--color-brass-400), transparent); }
+
+/* Panneaux : profondeur douce et filet fin, sans toucher à leur structure */
+.rounded-2xl.bg-white.ring-1, .rounded-xl.bg-white.ring-1 { box-shadow: var(--shadow-card); }
+a.rounded-2xl.bg-white.ring-1, .rounded-2xl.bg-white.ring-1:has(> a:only-child) { transition: transform .35s var(--ease-out-soft), box-shadow .35s var(--ease-out-soft); }
+a.rounded-2xl.bg-white.ring-1:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
+
+/* Champs : fond ivoire clair, focus laiton */
+input:not([type=range]):not([type=checkbox]):not([type=radio]), select, textarea { transition: border-color .2s, box-shadow .2s; }
+input:not([type=range]):not([type=checkbox]):not([type=radio]):focus, select:focus, textarea:focus { outline: none; border-color: var(--color-brass-500); box-shadow: 0 0 0 3px rgb(176 141 79 / 0.22); }
+input[type=range] { accent-color: var(--color-pine-600); }
+
+/* Verre des outils posés sur la carte */
+.glass { background: rgb(255 255 255 / 0.86); backdrop-filter: blur(14px) saturate(1.4); -webkit-backdrop-filter: blur(14px) saturate(1.4); border: 1px solid rgb(255 255 255 / 0.7); box-shadow: 0 1px 0 rgb(255 255 255 / 0.6) inset, var(--shadow-card); }
+.glass-dark { background: rgb(10 21 20 / 0.82); backdrop-filter: blur(16px) saturate(1.3); -webkit-backdrop-filter: blur(16px) saturate(1.3); }
+
+/* Fenêtres d'information et contrôles de la carte */
+.maplibregl-popup-content { border-radius: 14px !important; padding: 12px 30px 12px 14px !important; box-shadow: var(--shadow-lift) !important; font-family: var(--font-sans); }
+.maplibregl-popup-close-button { width: 26px; height: 26px; font-size: 18px; border-radius: 8px; color: var(--color-ink-500); right: 3px !important; top: 3px !important; }
+.maplibregl-ctrl-group { border-radius: 12px !important; overflow: hidden; box-shadow: var(--shadow-card) !important; }
+
+/* Apparition douce du contenu à chaque page */
+@keyframes page-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+main > * { animation: page-in .5s var(--ease-out-soft) both; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }

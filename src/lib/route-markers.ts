@@ -23,7 +23,7 @@ export type RouteMarkerKind = "start" | "finish" | "loop";
 export const ROUTE_MARKER_LABEL: Record<RouteMarkerKind, string> = { start: "Départ", finish: "Arrivée", loop: "Départ et arrivée (boucle)" };
 
 /** SVG du marqueur. Le pied du mât est au centre-bas de l'image. */
-export function routeMarkerSvg(kind: RouteMarkerKind, h = 40): string {
+export function routeMarkerSvg(kind: RouteMarkerKind, h = 50): string {
   const id = `ck${++uidN}`;
   if (kind === "loop") {
     // deux mâts en V partant du même pied : vert à gauche, damier à droite
@@ -34,11 +34,11 @@ export function routeMarkerSvg(kind: RouteMarkerKind, h = 40): string {
   }
   const w = Math.round((h * 30) / 40);
   // mât au centre (x = 15) pour que l'ancre « bottom » tombe exactement sur le point
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 30 40" aria-hidden="true" style="${SHADOW}">${kind === "start" ? greenFlag(16, 4, 13.5, 11) : checker(id, 16, 4, 13.500, 11)}${pole(15, 3, 37)}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 30 40" aria-hidden="true" style="${SHADOW}">${kind === "start" ? greenFlag(16, 3.5, 13.5, 12.5) : checker(id, 16, 3.5, 13.5, 12.5)}${pole(15, 3, 37)}</svg>`;
 }
 
 /** Élément de marqueur (bouton accessible). Aucune transition sur la racine : MapLibre la positionne par `transform`. */
-export function routeMarkerEl(kind: RouteMarkerKind, title?: string, h = 40): HTMLButtonElement {
+export function routeMarkerEl(kind: RouteMarkerKind, title?: string, h = 50): HTMLButtonElement {
   const el = document.createElement("button"); el.type = "button"; el.className = "group block cursor-pointer bg-transparent p-0 leading-none";
   const inner = document.createElement("span"); inner.className = "block origin-bottom transition-transform duration-150 group-hover:scale-110";
   inner.innerHTML = routeMarkerSvg(kind, h); el.append(inner);
