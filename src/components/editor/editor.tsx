@@ -19,7 +19,7 @@ import { setEnginePref, useEnginePref } from "@/lib/map-prefs";
 import { routesRepo, useLayers, useTerrains } from "@/lib/repo";
 import { POI_TYPES, normalizePois, uid, type LL, type Poi, type PoiType, type Pt, type SavedRoute, type Visibility } from "@/lib/types";
 import { SPORTS, DIFFICULTY_LABEL, difficultyOf, estimateMinutes, type Sport } from "@/lib/sports";
-import { haversine, trackStats, fmtKm, fmtM, fmtDuration, bboxOf, cumulative, type SimplifyLevel } from "@/lib/geo";
+import { haversine, trackStats, fmtKm, fmtM, fmtDuration, bboxOf, cumulative } from "@/lib/geo";
 import { buildProfile, distanceAlong } from "@/lib/profile";
 import { FORMATS, parseAny, serialize, download, safeName, GpsFileError, MAX_BYTES, type GpsFormat } from "@/lib/formats";
 import { editorHref, withBase } from "@/lib/url";
@@ -165,6 +165,7 @@ export function Editor({ routeId }: { routeId?: string }) {
 
   // Clic sur la carte : ajoute un waypoint / un POI, ou insère un point sur le tracé
   const stRef = useRef(st); stRef.current = st;
+  const sectModeRef = useRef(false);
   const routeProfile = profileForSport(meta.sport);
   const routerRef = useRef(makeRouter({ engine, profile: routeProfile }));
   routerRef.current = makeRouter({ engine, profile: routeProfile, onSource: setLastSource });
@@ -172,6 +173,14 @@ export function Editor({ routeId }: { routeId?: string }) {
   clickRef.current = (lng, lat, px) => {
     const m = map.current; if (!m || busy) return;
     if (Date.now() - suppressClick.current < 400) return; // clic fantôme à la fin d'un tirage
+    if (sectMode) {
+      if (coords.length < 2) return;
+      const pr = E.projectOnTrack(coords, cum, lng, lat);
+      const tolM = (40075016 * Math.cos((lat * Math.PI) / 180)) / (256 * 2 ** m.getZoom()) * 24; // ~24 px autour du tracé
+      if (pr.offM > Math.max(30, tolM)) { setMsg({ kind: "warn", text: "Cliquez sur le tracé (ou tout près) pour placer le point." }); return; }
+      setSect((x) => (x.a == null || x.b != null ? { a: pr.atM, b: null } : Math.abs(pr.atM - x.a) < 5 ? x : { a: x.a, b: pr.atM })); setMsg(null);
+      return;
+    }
     if (poiMode) {
       const poi: Poi = { id: uid(), type: poiMode, name: POI_TYPES[poiMode].label, lng, lat };
       commit({ ...st, pois: [...st.pois, poi] }); return;
@@ -204,7 +213,8 @@ export function Editor({ routeId }: { routeId?: string }) {
   }, [ready, map]);
 
   // ── Point intermédiaire tiré depuis le tracé (clic maintenu + glisser) ──
-  const modesRef = useRef({ cutMode, poiMode, busy, auto }); modesRef.current = { cutMode, poiMode, busy, auto };
+  const modesRef = useRef({ cutMode, poiMode, busy, auto, sectMode: false }); modesRef.current = { cutMode, poiMode, busy, auto, sectMode: sectModeRef.current };
+  const commitRef = useRef(commit); commitRef.current = commit;
   const dragRef = useRef<{ seg: number; sx: number; sy: number; moved: boolean; ghost: Marker | null; timer: ReturnType<typeof setTimeout> | null; token: number; pos: [number, number] } | null>(null);
   const suppressClick = useRef(0);
   const setPreview = useCallback((lines: LL[][]) => {
@@ -224,7 +234,7 @@ export function Editor({ routeId }: { routeId?: string }) {
     const m = map.current, lib = ml.current; if (!m || !lib || !ready) return;
     const start = (e: { lngLat: { lng: number; lat: number }; point: { x: number; y: number }; originalEvent: MouseEvent | TouchEvent; preventDefault: () => void }) => {
       const md = modesRef.current; const oe = e.originalEvent;
-      if (md.cutMode || md.poiMode || md.busy || dragRef.current || stRef.current.segs.length === 0) return;
+      if (md.cutMode || md.poiMode || sectModeRef.current || md.busy || dragRef.current || stRef.current.segs.length === 0) return;
       if ((oe.target as HTMLElement | null)?.closest?.(".maplibregl-marker")) return; // un marqueur existant gère son propre glissement
       if ("button" in oe && oe.button !== 0) return;
       if ("touches" in oe && oe.touches.length !== 1) return;
@@ -252,10 +262,18 @@ export function Editor({ routeId }: { routeId?: string }) {
       run(() => E.insertWaypointRouted(st0, d.seg, d.pos[0], d.pos[1], modesRef.current.auto, routerRef.current));
     };
     const esc = (ev: KeyboardEvent) => { if (ev.key === "Escape" && dragRef.current) { const d = dragRef.current; dragRef.current = null; if (d.timer) clearTimeout(d.timer); d.ghost?.remove(); setPreview([]); suppressClick.current = Date.now(); } };
+    const ctxTrack = (e: { lngLat: { lng: number; lat: number }; originalEvent: MouseEvent; preventDefault: () => void }) => {
+      e.preventDefault(); const st0 = stRef.current; if (modesRef.current.busy || !st0.segs.length) return;
+      let b = { s: -1, v: -1, d: Infinity }; st0.segs.forEach((g, s2) => g.forEach((p, v) => { const dd = (p[0] - e.lngLat.lng) ** 2 + (p[1] - e.lngLat.lat) ** 2; if (dd < b.d) b = { s: s2, v, d: dd }; }));
+      const next = E.insertOnSegment(st0, b.s, b.v); const wi = next !== st0 ? b.s + 1 : b.v <= 0 ? b.s : b.s + 1;
+      if (next !== st0) commitRef.current(next);
+      setTimeout(() => openCtxRef.current(e.originalEvent.clientX, e.originalEvent.clientY, wi), 0);
+    };
+    m.on("contextmenu", "track-line", ctxTrack);
     m.on("mousedown", "track-line", start); m.on("touchstart", "track-line", start);
     m.on("mousemove", move); m.on("touchmove", move); m.on("mouseup", end); m.on("touchend", end);
     window.addEventListener("mouseup", end); window.addEventListener("keydown", esc);
-    return () => { m.off("mousedown", "track-line", start); m.off("touchstart", "track-line", start); m.off("mousemove", move); m.off("touchmove", move); m.off("mouseup", end); m.off("touchend", end); window.removeEventListener("mouseup", end); window.removeEventListener("keydown", esc); };
+    return () => { m.off("contextmenu", "track-line", ctxTrack); m.off("mousedown", "track-line", start); m.off("touchstart", "track-line", start); m.off("mousemove", move); m.off("touchmove", move); m.off("mouseup", end); m.off("touchend", end); window.removeEventListener("mouseup", end); window.removeEventListener("keydown", esc); };
   }, [ready, map, ml, run, schedulePreview, setPreview]);
 
   // Marqueurs de waypoints (déplaçables)
@@ -276,6 +294,10 @@ export function Editor({ routeId }: { routeId?: string }) {
       d.title = `Point ${i + 1} — glissez pour déplacer, cliquez pour sélectionner`;
       d.setAttribute("aria-label", d.title);
       d.addEventListener("click", (ev) => { ev.stopPropagation(); setSel(i); setTab("trace"); });
+      d.addEventListener("contextmenu", (ev) => { ev.preventDefault(); ev.stopPropagation(); openCtxRef.current(ev.clientX, ev.clientY, i); });
+      let lp: ReturnType<typeof setTimeout> | null = null; // appui long (écran tactile)
+      d.addEventListener("touchstart", (ev) => { const t = ev.touches[0]; lp = setTimeout(() => { lp = null; openCtxRef.current(t.clientX, t.clientY, i); }, 550); }, { passive: true });
+      for (const evn of ["touchend", "touchmove", "touchcancel"]) d.addEventListener(evn, () => { if (lp) { clearTimeout(lp); lp = null; } }, { passive: true });
       // Départ et arrivée restent fixes dès qu'il y a un tracé ; seuls les points intermédiaires se déplacent
       const fixed = n > 1 && (first || i === n - 1);
       if (fixed) d.title = `${closed ? "Départ et arrivée (boucle)" : first ? "Départ" : "Arrivée"} — fixe (sélectionnez-le puis Suppr pour le retirer)`;
@@ -325,7 +347,7 @@ export function Editor({ routeId }: { routeId?: string }) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); }
       else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") { e.preventDefault(); redo(); }
       else if ((e.key === "Delete" || e.key === "Backspace") && sel != null) { e.preventDefault(); const i = sel; setSel(null); run(() => E.removeWaypoint(st, i, routerRef.current)); }
-      else if (e.key === "Escape") { setSel(null); setPoiMode(null); setCutMode(false); }
+      else if (e.key === "Escape") { setSel(null); setPoiMode(null); setCutMode(false); setSectMode(false); }
     };
     window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h);
   }, [undo, redo, sel, st, run]);
@@ -347,12 +369,16 @@ export function Editor({ routeId }: { routeId?: string }) {
       setMsg({ kind: r.fallbacks ? "warn" : "ok", text: `Alignement : ${r.matched} tronçon(s) aligné(s) sur les chemins${r.fallbacks ? `, ${r.fallbacks} conservé(s) tel(s) quel(s) (aucun chemin proche)` : ""}.` });
     } catch { setMsg({ kind: "err", text: "Alignement impossible pour le moment (service indisponible)." }); } finally { setAligning(null); }
   };
-  const [simpLevel, setSimpLevel] = useState<SimplifyLevel>("auto");
-  const simplify = () => {
-    const r = E.simplifyState(st, simpLevel);
-    if (!r) { setMsg({ kind: "warn", text: "Rien à simplifier : le tracé ne contient déjà que les points nécessaires." }); return; }
-    commit(r.state); setSel(null);
-    setMsg({ kind: "ok", text: `Baguette magique : ${r.report.before} → ${r.report.after} points (tolérance ${r.report.tolM} m, ${r.report.turns} virage(s) conservé(s), écart maximal mesuré ${r.report.maxDevM.toFixed(1)} m). Annulable avec Ctrl+Z.` });
+  // Baguette magique : jauge 0–90 % de points à supprimer, aperçu en direct sur la carte, validation explicite
+  const [simpPct, setSimpPct] = useState(0);
+  const simpPreview = useMemo(() => (simpPct > 0 ? E.simplifyStateByRatio(st, simpPct, coords) : null), [simpPct, st, coords]);
+  useEffect(() => { if (!dragRef.current) setPreview(simpPreview && simpPreview.result.after < simpPreview.result.before ? [simpPreview.line] : []); }, [simpPreview]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setSimpPct(0); }, [hi]); // toute modification du tracé remet la jauge à zéro
+  const applySimplify = (pct = simpPct) => {
+    const r = E.simplifyStateByRatio(st, pct, coords);
+    if (!r || r.result.after >= r.result.before) { setMsg({ kind: "warn", text: "Rien à simplifier avec ce réglage." }); return; }
+    commit(r.state); setSel(null); setSimpPct(0);
+    setMsg({ kind: "ok", text: `Baguette magique : ${r.result.before} → ${r.result.after} points (${r.result.removedPct} % supprimés, écart maximal mesuré ${r.result.maxDevM.toFixed(1)} m). Annulable avec Ctrl+Z.` });
   };
   // Clôture : retour au départ calculé par le moteur d'itinéraire (jamais une simple ligne droite, même en mode Libre)
   const canClose = !busy && !closed && st.waypoints.length >= 2 && st.segs.length >= 1;
@@ -367,6 +393,55 @@ export function Editor({ routeId }: { routeId?: string }) {
       setMsg({ kind: "ok", text: `Parcours clôturé : retour au départ de ${fmtKm(m)} ajouté par les chemins. Distance et dénivelés sont recalculés. Pour modifier ce retour, glissez-le depuis le tracé.` });
     } catch { setMsg({ kind: "err", text: "Clôture impossible pour le moment (service de calcul indisponible). Réessayez." }); } finally { setBusy(false); }
   };
+  // ── Menu contextuel d'un point (clic droit / appui long) : nouveau départ, suppression ──
+  const [ctx, setCtx] = useState<{ x: number; y: number; wi: number } | null>(null);
+  const [confirmStart, setConfirmStart] = useState<{ wi: number; km: number } | null>(null);
+  const openCtx = useCallback((clientX: number, clientY: number, wi: number) => {
+    const host = el.current?.getBoundingClientRect(); if (!host) return;
+    setCtx({ x: Math.min(clientX - host.left, host.width - 230), y: Math.min(clientY - host.top, host.height - 110), wi });
+  }, [el]);
+  const openCtxRef = useRef(openCtx); openCtxRef.current = openCtx;
+  const newStart = (wi: number, confirmed = false) => {
+    const r = E.startFrom(st, wi); setCtx(null);
+    if (!r) { setMsg({ kind: "warn", text: "Choisissez un point intermédiaire : le départ et l'arrivée ne peuvent pas devenir le nouveau départ." }); return; }
+    if (!r.loop && !confirmed) { let m = 0; for (let k = 1; k < r.removed.length; k++) m += haversine(r.removed[k - 1], r.removed[k]); setConfirmStart({ wi, km: m }); return; }
+    commit(r.state); setSel(null); setConfirmStart(null);
+    setMsg({ kind: "ok", text: r.loop ? "Nouveau départ défini : la boucle est conservée entière, seul son point de départ a changé. Annulable avec Ctrl+Z." : "Nouveau départ défini : le début du tracé a été retiré, la suite et l'arrivée sont inchangées. Annulable avec Ctrl+Z." });
+  };
+  useEffect(() => { if (!ctx) return; const close = () => setCtx(null); window.addEventListener("click", close); window.addEventListener("keydown", close); return () => { window.removeEventListener("click", close); window.removeEventListener("keydown", close); }; }, [ctx]);
+
+  // ── Extraction d'une section entre deux points A et B posés sur le tracé (l'original n'est pas modifié) ──
+  const [sectMode, setSectMode] = useState(false);
+  const [sect, setSect] = useState<{ a: number | null; b: number | null }>({ a: null, b: null });
+  const [sectName, setSectName] = useState("");
+  sectModeRef.current = sectMode;
+  const sectCoords = useMemo(() => (sect.a != null && sect.b != null && coords.length > 1 ? E.sliceTrack(coords, cum, sect.a, sect.b) : []), [sect, coords, cum]);
+  const sectStats = useMemo(() => (sectCoords.length > 1 ? trackStats(sectCoords, 3) : null), [sectCoords]);
+  const sectProfile = useMemo(() => buildProfile(sectCoords), [sectCoords]);
+  const sectMarks = useRef<Marker[]>([]);
+  useEffect(() => { setSect({ a: null, b: null }); }, [hi]); // le tracé a changé : les points de coupe ne sont plus valables
+  useEffect(() => {
+    const m = map.current, lib = ml.current; if (!m || !lib || !ready) return;
+    if (!m.getSource("sect")) { m.addSource("sect", { type: "geojson", data: { type: "FeatureCollection", features: [] } }); m.addLayer({ id: "sect-line", type: "line", source: "sect", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#12624b", "line-width": 8, "line-opacity": 0.85 } }); }
+    (m.getSource("sect") as GeoJSONSource).setData({ type: "FeatureCollection", features: sectCoords.length > 1 ? [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: sectCoords.map((c) => [c[0], c[1]]) } }] : [] });
+    sectMarks.current.forEach((x) => x.remove()); sectMarks.current = [];
+    const total = cum[cum.length - 1] ?? 0;
+    for (const [label, d] of [["A", sect.a], ["B", sect.b]] as const) {
+      if (d == null || coords.length < 2 || d > total + 1) continue;
+      const p = E.sliceTrack(coords, cum, Math.max(0, d - 0.5), Math.min(total, d + 0.5))[0] ?? coords[0];
+      const e = document.createElement("div"); e.className = "grid size-7 place-items-center rounded-full border-2 border-white bg-pine-700 text-xs font-bold text-white shadow-lg"; e.textContent = label; e.title = `Point ${label} de la section`;
+      sectMarks.current.push(new lib.Marker({ element: e }).setLngLat([p[0], p[1]]).addTo(m));
+    }
+  }, [sect, sectCoords, coords, cum, ready, map, ml]);
+  const sectDefaultName = `${meta.name || "Parcours"} — section`;
+  const sectGpx = () => { if (sectCoords.length < 2) return; const n = sectName.trim() || sectDefaultName; download(`${safeName(n)}.gpx`, serialize("gpx", { name: n, description: `Section extraite de « ${meta.name || "Parcours"} »`, coords: sectCoords, pois: [] }), FORMATS.gpx.mime); };
+  const sectSave = () => {
+    if (sectCoords.length < 2) return; const n = sectName.trim() || sectDefaultName; const stt = E.fromTrack(sectCoords, []); const now = Date.now();
+    const res = routesRepo.upsert({ id: uid(), name: n, description: `Section extraite de « ${meta.name || "Parcours"} ».`, sport: meta.sport, segs: stt.segs, waypoints: stt.waypoints, coords: sectCoords, pois: [], terrain: meta.terrain, visibility: "prive", region: meta.region, country: meta.country, layer: meta.layer, source: "creation", createdAt: now, updatedAt: now });
+    setMsg(res.ok ? { kind: "ok", text: `Section « ${n} » enregistrée dans la bibliothèque. Le parcours d'origine n'est pas modifié.` } : { kind: "err", text: res.error ?? "Enregistrement impossible." });
+  };
+  const sectNext = () => { setSect((x) => ({ a: x.b, b: null })); setSectName(""); };
+
   const duplicate = async () => { setBusy(true); try { const nid = await saveSibling(st, `${meta.name || "Parcours"} (copie)`); window.location.assign(withBase(editorHref(nid))); } catch { setMsg({ kind: "err", text: "Duplication impossible (altitudes indisponibles)." }); } finally { setBusy(false); } };
   const split = async () => {
     if (sel == null) return; const parts = E.splitAt(st, sel);
@@ -431,10 +506,22 @@ export function Editor({ routeId }: { routeId?: string }) {
           <div className="pointer-events-none absolute bottom-8 left-3 flex flex-col gap-1.5">
             {busy && <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/95 px-2.5 py-1 text-xs shadow"><Loader2 className="size-3.5 animate-spin" />Calcul du tracé…</span>}
             {cutMode && <span className="rounded-lg bg-ember-500 px-2.5 py-1 text-xs font-semibold text-white shadow">Découpe : cliquez sur le tracé aux endroits de coupe (Échap pour quitter)</span>}
+            {sectMode && <span className="rounded-lg bg-pine-700 px-2.5 py-1 text-xs font-semibold text-white shadow">Section : cliquez sur le tracé pour placer {sect.a == null || sect.b != null ? "le point A" : "le point B"} (Échap pour quitter)</span>}
             {poiMode && <span className="rounded-lg bg-ember-500 px-2.5 py-1 text-xs font-semibold text-white shadow">Cliquez sur la carte pour placer : {POI_TYPES[poiMode].label} (Échap pour annuler)</span>}
             {msg && <span role="status" className={clsx("pointer-events-auto max-w-sm rounded-lg px-2.5 py-1.5 text-xs shadow", msg.kind === "err" ? "bg-danger text-white" : msg.kind === "warn" ? "bg-warn text-white" : "bg-pine-600 text-white")}>{msg.text}</span>}
             {!st.waypoints.length && loaded && <span className="rounded-lg bg-white/95 px-2.5 py-1.5 text-xs shadow">Cliquez sur la carte pour poser le départ, puis les points suivants.</span>}
           </div>
+          {ctx && (
+            <div role="menu" aria-label={`Actions du point ${ctx.wi + 1}`} className="glass absolute z-30 w-56 rounded-xl p-1 text-sm" style={{ left: Math.max(8, ctx.x), top: Math.max(8, ctx.y) }} onClick={(e) => e.stopPropagation()}>
+              <button role="menuitem" type="button" className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left font-medium hover:bg-ink-900/[0.06] disabled:opacity-40" disabled={ctx.wi <= 0 || ctx.wi >= st.waypoints.length - 1} onClick={() => newStart(ctx.wi)}><Flag className="size-4 text-pine-600" />Définir comme nouveau départ</button>
+              <button role="menuitem" type="button" className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left font-medium hover:bg-ink-900/[0.06]" onClick={() => { const i = ctx.wi; setCtx(null); setSel(null); run(() => E.removeWaypoint(stRef.current, i, routerRef.current)); }}><Trash2 className="size-4 text-danger" />Supprimer ce point</button>
+            </div>)}
+          {confirmStart && (
+            <div role="alertdialog" aria-label="Confirmer le nouveau départ" className="glass absolute left-1/2 top-16 z-30 w-[min(24rem,calc(100%-1.5rem))] -translate-x-1/2 rounded-2xl p-4 text-sm">
+              <p className="font-semibold">Partir du point {confirmStart.wi + 1} ?</p>
+              <p className="mt-1 text-ink-600">Ce parcours n'est pas une boucle : les <b>{fmtKm(confirmStart.km)}</b> situés avant ce point seront retirés du tracé. La suite et l'arrivée ne changent pas, les POI restent en place. Vous pourrez annuler (Ctrl+Z).</p>
+              <div className="mt-3 flex flex-wrap gap-2"><Button size="sm" onClick={() => newStart(confirmStart.wi, true)}>Retirer le début et partir d'ici</Button><Button size="sm" variant="secondary" onClick={() => setConfirmStart(null)}>Garder le tracé</Button></div>
+            </div>)}
         </MapFrame>
         <div className="hidden border-t border-ink-100 bg-white p-3 lg:block">
           <div className="mb-1 flex items-center justify-between text-xs text-ink-500">
@@ -479,9 +566,16 @@ export function Editor({ routeId }: { routeId?: string }) {
             </div>
             <div className="rounded-xl border border-ink-100 p-3">
               <p className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-400">Baguette magique · simplifier le tracé</p>
-              <label className="grid gap-1 text-sm font-medium">Niveau<select className={field} value={simpLevel} onChange={(e) => setSimpLevel(e.target.value as SimplifyLevel)}><option value="auto">Automatique (selon la complexité)</option><option value="light">Léger (fidélité maximale)</option><option value="balanced">Équilibré</option><option value="strong">Fort (moins de points)</option></select></label>
-              <p className="mt-1.5 text-xs text-ink-500">Retire les points redondants ou trop proches ; les virages et demi-tours sont conservés. {st.segs.length > 0 && <>Tracé actuel : <b>{E.trackLL(st).length}</b> points.</>} Les points restants restent déplaçables.</p>
-              <Button size="sm" variant="secondary" className="mt-2" disabled={busy || !!aligning || st.segs.length === 0} onClick={simplify}><Wand2 className="size-4" />Simplifier</Button>
+              {(() => { const total = track.length, r = simpPreview?.result; const kept = r ? r.after : total, removed = total - kept; return (<>
+                <label className="grid gap-1 text-sm font-medium"><span className="flex justify-between">Points à supprimer<b className="font-display">{simpPct} %</b></span>
+                  <input type="range" min={0} max={90} step={5} value={simpPct} disabled={busy || total < 3} onChange={(e) => setSimpPct(+e.target.value)} list="simp-ticks" aria-label="Pourcentage de points à supprimer" aria-valuetext={`${simpPct} % : ${kept} points conservés sur ${total}`} className="h-8 w-full" />
+                  <datalist id="simp-ticks">{[0, 10, 20, 30, 40, 50, 60, 70, 80, 90].map((v) => <option key={v} value={v} />)}</datalist>
+                  <span className="flex justify-between text-[10px] font-normal text-ink-400" aria-hidden="true">{[0, 10, 20, 30, 40, 50, 60, 70, 80, 90].map((v) => <span key={v}>{v}</span>)}</span></label>
+                <dl className="mt-2 grid grid-cols-3 gap-2 text-center text-xs">{[["Points d'origine", total], ["Conservés", kept], ["Supprimés", removed]].map(([l, v]) => <div key={l as string} className="rounded-lg bg-ink-50 p-2"><dt className="text-ink-500">{l}</dt><dd className="font-display text-base font-bold">{v}</dd></div>)}</dl>
+                {r && simpPct > 0 && <p className="mt-2 text-xs text-ink-500">Écart maximal avec le tracé d'origine : <b>{r.maxDevM.toFixed(1)} m</b>. L'aperçu est en pointillés sur la carte ; départ, arrivée, virages marqués, ruptures de pente et POI sont conservés en priorité.</p>}
+                {r?.exceeded && <div role="alert" className="mt-2 rounded-lg bg-warn/10 p-2.5 text-xs text-ink-700"><p className="flex gap-1.5"><AlertTriangle className="mt-0.5 size-4 shrink-0 text-warn" />À {simpPct} %, le tracé s'écarte de plus de {r.limitM} m de l'original : des virages sont coupés. {r.safePct > 0 ? `Réglage conseillé : ${r.safePct} % au plus.` : "Ce tracé ne peut pas être allégé sans le déformer."}</p>{r.safePct > 0 && <Button size="sm" variant="secondary" className="mt-2" onClick={() => setSimpPct(Math.floor(r.safePct / 5) * 5 || r.safePct)}>Régler sur {Math.floor(r.safePct / 5) * 5 || r.safePct} %</Button>}</div>}
+                <div className="mt-2 flex flex-wrap gap-2"><Button size="sm" variant="brand" disabled={busy || !!aligning || !r || removed <= 0} onClick={() => applySimplify()}><Wand2 className="size-4" />Appliquer ({kept} points)</Button>{simpPct > 0 && <Button size="sm" variant="ghost" onClick={() => setSimpPct(0)}>Annuler l'aperçu</Button>}</div>
+              </>); })()}
             </div>
             <div className="rounded-xl border border-ink-100 p-3">
               <p className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-400">{sel != null ? `Point ${sel + 1} sélectionné` : "Points de passage"}</p>
@@ -492,6 +586,22 @@ export function Editor({ routeId }: { routeId?: string }) {
                   <Button size="sm" variant="secondary" disabled={busy || sel === 0 || sel === st.waypoints.length - 1} onClick={split}><Scissors className="size-4" />Diviser ici</Button>
                 </div>
               ) : <><Button size="sm" variant={closed ? "secondary" : "brand"} className="mb-2" disabled={!canClose} onClick={closeRoute}><Repeat className="size-4" />{closed ? "Parcours en boucle" : "Clôturer le parcours"}</Button><p className="text-sm text-ink-500">{st.waypoints.length} point(s). Cliquez sur un marqueur pour le sélectionner, glissez-le pour le déplacer, cliquez sur le tracé pour insérer un point.</p></>}
+            </div>
+            <div className="rounded-xl border border-ink-100 p-3">
+              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-400">Extraire une section (étape)</p>
+              <p className="text-xs text-ink-500">Placez un point A puis un point B directement sur le tracé : la portion comprise entre les deux devient une trace à part, exportable. Géométrie et altitudes d'origine conservées ; le parcours n'est pas modifié.</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <Button size="sm" variant={sectMode ? "brand" : "secondary"} aria-pressed={sectMode} disabled={coords.length < 2} onClick={() => { setSectMode((v) => !v); setCutMode(false); setPoiMode(null); }}><Scissors className="size-4" />{sectMode ? "Sélection active" : "Choisir A et B"}</Button>
+                {(sect.a != null || sect.b != null) && <Button size="sm" variant="ghost" onClick={() => { setSect({ a: null, b: null }); setSectName(""); }}>Recommencer</Button>}
+              </div>
+              {sect.a != null && sect.b == null && <p className="mt-2 text-xs text-ink-600">Point A au km {(sect.a / 1000).toFixed(2).replace(".", ",")}. Cliquez maintenant le point B sur le tracé.</p>}
+              {sectStats && sect.a != null && sect.b != null && (<div className="mt-3 grid gap-2">
+                <p className="text-xs text-ink-600">Du km <b>{(Math.min(sect.a, sect.b) / 1000).toFixed(2).replace(".", ",")}</b> au km <b>{(Math.max(sect.a, sect.b) / 1000).toFixed(2).replace(".", ",")}</b> · {sectCoords.length} points</p>
+                <dl className="grid grid-cols-3 gap-2 text-center text-xs">{[["Distance", fmtKm(sectStats.distanceM)], ["D+", fmtM(sectStats.gainM)], ["D−", fmtM(sectStats.lossM)]].map(([l, v]) => <div key={l} className="rounded-lg bg-ink-50 p-2"><dt className="text-ink-500">{l}</dt><dd className="font-display text-base font-bold">{v}</dd></div>)}</dl>
+                <ElevationChart points={sectProfile} height={120} />
+                <label className="grid gap-1 text-sm font-medium">Nom de la section<input className={field} value={sectName} onChange={(e) => setSectName(e.target.value)} placeholder={sectDefaultName} maxLength={120} /></label>
+                <div className="flex flex-wrap gap-2"><Button size="sm" onClick={sectGpx}><Download className="size-4" />Exporter en GPX</Button><Button size="sm" variant="secondary" onClick={sectSave}><Check className="size-4" />Enregistrer dans la bibliothèque</Button><Button size="sm" variant="ghost" onClick={sectNext} title="Le point B devient le point A de l'étape suivante">Étape suivante (A = B)</Button></div>
+              </div>)}
             </div>
             <div className="rounded-xl border border-ink-100 p-3">
               <p className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-400">Découper en plusieurs parcours</p>

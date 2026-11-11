@@ -207,3 +207,54 @@ export function simplifyTrack(pts: readonly (readonly number[])[], level: Simpli
   indices = out;
   return { indices, tolM: tol, turns: turns.length, maxDevM: maxDeviation(pts, indices) };
 }
+
+/**
+ * Importance de chaque point (m) : écart qu'entraînerait sa suppression, selon la hiérarchie de Douglas-Peucker.
+ * Les virages serrés, changements de direction et — si l'altitude est connue — ruptures de pente ont une importance élevée.
+ * Les extrémités valent Infinity. La valeur d'un point ne dépasse jamais celle de son parent : garder les K plus importants donne un tracé cohérent.
+ */
+export function pointImportance(pts: readonly (readonly number[])[], zFactor = 3): number[] {
+  const n = pts.length, imp = new Array<number>(n).fill(0);
+  if (!n) return imp; imp[0] = imp[n - 1] = Infinity; if (n < 3) return imp;
+  const kx = 111320 * Math.cos((pts[0][1] * Math.PI) / 180), ky = 110574;
+  const hasZ = pts.every((p) => Number.isFinite(p[2]));
+  const X = pts.map((p) => p[0] * kx), Y = pts.map((p) => p[1] * ky), Z = pts.map((p) => (hasZ ? p[2] * zFactor : 0));
+  const stack: [number, number, number][] = [[0, n - 1, Infinity]];
+  while (stack.length) {
+    const [a, b, cap] = stack.pop()!; if (b - a < 2) continue;
+    const dx = X[b] - X[a], dy = Y[b] - Y[a], dz = Z[b] - Z[a], l2 = dx * dx + dy * dy + dz * dz; let m = -1, md = -1;
+    for (let i = a + 1; i < b; i++) {
+      const px = X[i] - X[a], py = Y[i] - Y[a], pz = Z[i] - Z[a]; const t = l2 ? Math.max(0, Math.min(1, (px * dx + py * dy + pz * dz) / l2)) : 0;
+      const d = Math.hypot(px - t * dx, py - t * dy, pz - t * dz); if (d > md) { md = d; m = i; }
+    }
+    const v = Math.min(md, cap); imp[m] = v; stack.push([a, m, v], [m, b, v]);
+  }
+  return imp;
+}
+
+export interface RatioResult {
+  indices: number[]; before: number; after: number;
+  /** Pourcentage réellement supprimé et écart horizontal maximal mesuré (m). */
+  removedPct: number; maxDevM: number;
+  /** Plus grand pourcentage qui garde l'écart sous `limitM` ; `exceeded` si la demande le dépasse. */
+  safePct: number; exceeded: boolean; limitM: number;
+}
+/**
+ * Simplification par pourcentage de points à supprimer (0 à 90 %). Les points sont retirés du moins important au plus important ;
+ * départ, arrivée et points `keep` (ex. points de passage placés à la main) sont toujours conservés.
+ * Si l'écart au tracé d'origine dépasse `limitM`, le résultat le signale et indique le pourcentage maximal « sûr ».
+ */
+export function simplifyByRatio(pts: readonly (readonly number[])[], removePct: number, o: { keep?: number[]; limitM?: number } = {}): RatioResult {
+  const n = pts.length, limitM = o.limitM ?? 15, pct = Math.max(0, Math.min(90, removePct));
+  const all = pts.map((_, i) => i);
+  if (n <= 2 || pct === 0) return { indices: all, before: n, after: n, removedPct: 0, maxDevM: 0, safePct: 0, exceeded: false, limitM };
+  const imp = pointImportance(pts); for (const k of o.keep ?? []) if (k >= 0 && k < n) imp[k] = Infinity;
+  const order = all.filter((i) => imp[i] !== Infinity).sort((a, b) => imp[a] - imp[b]); // du moins au plus important
+  const forced = n - order.length;
+  const pick = (p: number) => { const remove = Math.min(order.length, Math.round((n * p) / 100)); const drop = new Uint8Array(n); for (let k = 0; k < remove; k++) drop[order[k]] = 1; return all.filter((i) => !drop[i]); };
+  const indices = pick(pct), maxDevM = maxDeviation(pts, indices);
+  // pourcentage sûr : on peut retirer tous les points dont l'importance (écart 3D) est sous la limite ; vérifié sur l'écart horizontal mesuré
+  let safe = Math.floor((order.filter((i) => imp[i] <= limitM).length / n) * 100);
+  safe = Math.min(90, Math.max(0, safe)); while (safe > 0 && maxDeviation(pts, pick(safe)) > limitM) safe -= 1;
+  return { indices, before: n, after: indices.length, removedPct: Math.round(((n - indices.length) / n) * 100), maxDevM, safePct: safe, exceeded: maxDevM > limitM && pct > safe, limitM: forced >= n ? 0 : limitM };
+}

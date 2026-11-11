@@ -209,3 +209,84 @@ describe("clôture du parcours (closeLoop)", () => {
     const t = E.trackLL(m.state); expect(t.at(-1)).toEqual(t[0]);
   });
 });
+
+describe("baguette magique à jauge (0–90 % de points supprimés)", () => {
+  // 1 000 points : longues lignes droites bruitées (± 1 m) reliées par 9 virages à angle droit, altitude en rampe + un col marqué
+  const track = (): [number, number, number][] => {
+    const pts: [number, number, number][] = []; let seed = 5; const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5) * 2.2e-5;
+    let x = 6, y = 45;
+    for (let leg = 0; leg < 10; leg++) for (let i = 0; i < 100; i++) { if (leg % 2 === 0) x += 5e-5; else y += 3.5e-5; const k = leg * 100 + i; pts.push([x + r(), y + r(), 1000 + (k < 500 ? k * 0.8 : (1000 - k) * 0.8)]); }
+    return pts;
+  };
+  it("le pourcentage demandé est respecté : 1 000 points à 50 % → 500 conservés ; 25 %, 75 %, 90 %", async () => {
+    const { simplifyByRatio } = await import("../src/lib/geo"); const p = track(); expect(p).toHaveLength(1000);
+    for (const [pct, kept] of [[25, 750], [50, 500], [75, 250], [90, 100]] as const) { const r = simplifyByRatio(p, pct); expect(r.after).toBe(kept); expect(r.removedPct).toBe(pct); expect(r.indices[0]).toBe(0); expect(r.indices.at(-1)).toBe(999); }
+    const zero = simplifyByRatio(p, 0); expect(zero.after).toBe(1000); expect(zero.maxDevM).toBe(0);
+    expect(simplifyByRatio(p, 150).after).toBe(100); // borné à 90 %
+  });
+  it("les points importants partent en dernier : les 9 virages et le col survivent à 90 %", async () => {
+    const { simplifyByRatio, pointImportance } = await import("../src/lib/geo"); const p = track();
+    const r = simplifyByRatio(p, 90); const kept = new Set(r.indices);
+    for (let leg = 1; leg < 10; leg++) expect([...kept].some((i) => Math.abs(i - (leg * 100 - 1)) <= 3), `virage ${leg}`).toBe(true);
+    expect([...kept].some((i) => Math.abs(i - 500) <= 5), "col (rupture de pente)").toBe(true);
+    expect(r.maxDevM).toBeLessThan(6); expect(r.exceeded).toBe(false);
+    const imp = pointImportance(p); expect(imp[0]).toBe(Infinity); expect(imp[99]).toBeGreaterThan(imp[50] * 5);
+  });
+  it("demande excessive sur un tracé sinueux : avertissement et pourcentage conseillé plus bas", async () => {
+    const { simplifyByRatio, maxDeviation } = await import("../src/lib/geo");
+    const wig: [number, number, number][] = Array.from({ length: 300 }, (_, i) => [6 + i * 2e-4, 45 + Math.sin(i / 2.2) * 6e-4, 1000]); // lacets de ~65 m d'amplitude
+    const r = simplifyByRatio(wig, 90); expect(r.exceeded).toBe(true); expect(r.maxDevM).toBeGreaterThan(15); expect(r.safePct).toBeLessThan(90);
+    const safe = simplifyByRatio(wig, r.safePct); expect(maxDeviation(wig, safe.indices)).toBeLessThanOrEqual(15); expect(safe.exceeded).toBe(false);
+  });
+  it("points à conserver imposés ; état d'éditeur : même tracé allégé, POI intacts, annulable (état d'origine non modifié)", async () => {
+    const { simplifyByRatio } = await import("../src/lib/geo"); const p = track();
+    expect(simplifyByRatio(p, 90, { keep: [37, 512] }).indices).toEqual(expect.arrayContaining([37, 512]));
+    const s0 = { ...E.fromTrack(p, []), pois: [{ id: "p", type: "eau" as const, name: "Fontaine", lng: 6.01, lat: 45.001 }] };
+    const n0 = E.trackLL(s0).length; const r = E.simplifyStateByRatio(s0, 50, p)!;
+    expect(E.trackLL(r.state).length).toBe(r.result.after); expect(Math.abs(r.result.after - n0 / 2)).toBeLessThanOrEqual(1);
+    expect(r.state.pois).toEqual(s0.pois); expect(E.trackLL(s0).length).toBe(n0);
+    expect(E.trackLL(r.state)[0]).toEqual(E.trackLL(s0)[0]); expect(E.trackLL(r.state).at(-1)).toEqual(E.trackLL(s0).at(-1));
+  });
+});
+
+describe("section entre deux points (sliceTrack) et nouveau départ (startFrom)", () => {
+  const coords: [number, number, number][] = Array.from({ length: 201 }, (_, i) => [6 + i * 0.001, 45 + Math.sin(i / 9) * 0.003, 1000 + i * 2 + Math.sin(i / 4) * 15]);
+  it("coupe exacte entre deux points GPX : extrémités interpolées (position et altitude), géométrie d'origine entre les deux", async () => {
+    const { cumulative, trackStats } = await import("../src/lib/geo"); const cum = cumulative(coords), total = cum.at(-1)!;
+    const a = cum[40] + (cum[41] - cum[40]) * 0.3, b = cum[120] + (cum[121] - cum[120]) * 0.75;
+    const s = E.sliceTrack(coords, cum, a, b);
+    expect(s.slice(1, -1)).toEqual(coords.slice(41, 121));                          // tous les points d'origine, dans l'ordre, inchangés
+    expect(s[0][0]).toBeCloseTo(coords[40][0] + (coords[41][0] - coords[40][0]) * 0.3, 7); expect(s[0][2]).toBeCloseTo(coords[40][2] + (coords[41][2] - coords[40][2]) * 0.3, 1);
+    expect(s.at(-1)![2]).toBeCloseTo(coords[120][2] + (coords[121][2] - coords[120][2]) * 0.75, 1);
+    expect(trackStats(s, 0).distanceM).toBeCloseTo(b - a, 0);                        // longueur = écart entre les deux coupes : aucune ligne droite ajoutée
+    expect(E.sliceTrack(coords, cum, b, a)).toEqual(s);                              // A et B posés dans l'autre ordre : même section, même sens
+    expect(E.sliceTrack(coords, cum, 0, total)).toHaveLength(coords.length); expect(E.sliceTrack(coords, cum, a, a)).toEqual([]);
+  });
+  it("étapes d'itinérance : A→B, B→C, C→D recollées redonnent exactement la distance et le D+ du parcours", async () => {
+    const { cumulative, trackStats } = await import("../src/lib/geo"); const cum = cumulative(coords), total = cum.at(-1)!;
+    const cuts = [0, total * 0.23, total * 0.5, total * 0.81, total];
+    const parts = cuts.slice(0, -1).map((c, i) => E.sliceTrack(coords, cum, c, cuts[i + 1]));
+    for (let i = 1; i < parts.length; i++) { expect(parts[i][0][0]).toBeCloseTo(parts[i - 1].at(-1)![0], 9); expect(parts[i][0][2]).toBeCloseTo(parts[i - 1].at(-1)![2], 1); }
+    expect(parts.reduce((x, p) => x + trackStats(p, 0).distanceM, 0)).toBeCloseTo(total, 0);
+    expect(parts.reduce((x, p) => x + trackStats(p, 0).gainM, 0)).toBeCloseTo(trackStats(coords, 0).gainM, 0);
+  });
+  it("projection d'un clic sur le tracé, entre deux sommets", async () => {
+    const { cumulative } = await import("../src/lib/geo"); const line: [number, number, number][] = [[6, 45, 0], [6.01, 45, 0], [6.02, 45, 0]]; const cum = cumulative(line);
+    const p = E.projectOnTrack(line, cum, 6.0125, 45.0002); expect(p.atM).toBeCloseTo(cum[1] + (cum[2] - cum[1]) * 0.25, -1); expect(p.offM).toBeGreaterThan(15); expect(p.offM).toBeLessThan(30);
+  });
+  const router: E.Router = async () => null;
+  const five = async (close: boolean) => { let s = E.emptyState(); for (const [x, y] of [[6, 45], [6.01, 45.005], [6.02, 45], [6.03, 45.005], [6.04, 45]]) s = (await E.addWaypoint(s, x, y, false, router)).state; if (close) s = (await E.closeLoop(s, false, async (a, b) => [a, b])).state; return { ...s, pois: [{ id: "p", type: "eau" as const, name: "Fontaine", lng: 6.005, lat: 45.002 }] }; };
+  it("parcours ouvert A→B→C→D→E, départ en C : C→D→E conservé à l'identique, début rendu à l'appelant, POI en place", async () => {
+    const s = await five(false); const r = E.startFrom(s, 2)!;
+    expect(r.loop).toBe(false); expect(r.state.waypoints).toEqual(s.waypoints.slice(2)); expect(r.state.segs).toEqual(s.segs.slice(2));
+    expect(r.removed[0]).toEqual([6, 45]); expect(r.removed.at(-1)).toEqual([6.02, 45]); expect(r.state.pois).toEqual(s.pois);
+    expect(E.trackLL(s)).toHaveLength(5);                                            // l'état d'origine n'est pas modifié (annulation possible)
+    expect(E.startFrom(s, 0)).toBeNull(); expect(E.startFrom(s, 4)).toBeNull();
+  });
+  it("boucle : même tracé, même longueur, seul le départ tourne ; toujours fermée", async () => {
+    const s = await five(true); const r = E.startFrom(s, 2)!; expect(r.loop).toBe(true); expect(r.removed).toEqual([]);
+    expect(E.isClosed(r.state)).toBe(true); expect(r.state.waypoints[0]).toMatchObject({ lng: 6.02, lat: 45 }); expect(r.state.waypoints.at(-1)).toMatchObject({ lng: 6.02, lat: 45 });
+    const len = (st: E.EState) => { const t = E.trackLL(st); let d = 0; for (let i = 1; i < t.length; i++) d += Math.hypot(t[i][0] - t[i - 1][0], t[i][1] - t[i - 1][1]); return d; };
+    expect(len(r.state)).toBeCloseTo(len(s), 9); expect(r.state.pois).toEqual(s.pois);
+  });
+});

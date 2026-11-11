@@ -1,5 +1,5 @@
 import type { LL, Poi, Pt, Waypoint } from "./types";
-import { simplifyIndices, simplifyTrack, type SimplifyLevel } from "./geo";
+import { simplifyByRatio, simplifyIndices, simplifyTrack, type RatioResult, type SimplifyLevel } from "./geo";
 
 export interface EState { waypoints: Waypoint[]; segs: LL[][]; pois: Poi[] }
 export type Router = (a: LL, b: LL) => Promise<LL[] | null>;
@@ -235,4 +235,59 @@ export function simplifyState(s: EState, level: SimplifyLevel = "auto"): { state
   const waypoints: Waypoint[] = pts.map((p) => ({ lng: p[0], lat: p[1], auto: false }));
   const segs: LL[][] = []; for (let k = 0; k < pts.length - 1; k++) segs.push([pts[k], pts[k + 1]]);
   return { state: { waypoints, segs, pois: s.pois }, report: { before: full.length, after: pts.length, tolM: r.tolM, turns: r.turns, maxDevM: r.maxDevM } };
+}
+
+/**
+ * Baguette magique à jauge : supprime environ `removePct` % des points de la trace (0–90). `ele` = altitudes de la trace si connues
+ * (les ruptures de pente comptent alors comme points importants). Aucun effet de bord : renvoie l'aperçu, à valider ensuite.
+ */
+export function simplifyStateByRatio(s: EState, removePct: number, ele?: readonly (readonly number[])[]): { state: EState; result: RatioResult; line: LL[] } | null {
+  const full = trackLL(s); if (full.length < 3) return null;
+  const src = ele && ele.length === full.length ? ele : full;
+  const result = simplifyByRatio(src, removePct);
+  const pts = result.indices.map((i) => full[i]);
+  const waypoints: Waypoint[] = pts.map((p) => ({ lng: p[0], lat: p[1], auto: false }));
+  const segs: LL[][] = []; for (let k = 0; k < pts.length - 1; k++) segs.push([pts[k], pts[k + 1]]);
+  return { state: { waypoints, segs, pois: s.pois }, result, line: pts };
+}
+
+/** Distance le long de la trace (m) du point de la trace le plus proche de (lng, lat) : projection sur le segment, pas seulement sur un sommet. */
+export function projectOnTrack(coords: readonly (readonly number[])[], cum: number[], lng: number, lat: number): { atM: number; offM: number } {
+  const kx = 111320 * Math.cos((lat * Math.PI) / 180), ky = 110574; let best = Infinity, at = 0;
+  for (let i = 1; i < coords.length; i++) {
+    const ax = (coords[i - 1][0] - lng) * kx, ay = (coords[i - 1][1] - lat) * ky, bx = (coords[i][0] - lng) * kx, by = (coords[i][1] - lat) * ky, dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+    const t = l2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / l2)) : 0, d = Math.hypot(ax + t * dx, ay + t * dy);
+    if (d < best) { best = d; at = cum[i - 1] + (cum[i] - cum[i - 1]) * t; }
+  }
+  return { atM: at, offM: best };
+}
+
+/**
+ * Section de la trace entre deux distances : géométrie d'origine conservée point par point, ordre conservé, extrémités
+ * interpolées sur le segment (coordonnées ET altitude) quand la coupe tombe entre deux points. Jamais de ligne droite de raccord.
+ */
+export function sliceTrack(coords: Pt[], cum: number[], fromM: number, toM: number): Pt[] {
+  if (coords.length < 2) return [];
+  const total = cum[cum.length - 1], a = Math.max(0, Math.min(fromM, toM)), b = Math.min(total, Math.max(fromM, toM));
+  if (b - a <= 0) return [];
+  const at = (d: number): Pt => {
+    let lo = 0, hi = cum.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (cum[m] <= d) lo = m; else hi = m; }
+    const t = cum[hi] > cum[lo] ? (d - cum[lo]) / (cum[hi] - cum[lo]) : 0, p = coords[lo], q = coords[hi];
+    return [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t, Math.round((p[2] + (q[2] - p[2]) * t) * 10) / 10];
+  };
+  const out: Pt[] = [at(a)];
+  for (let i = 0; i < coords.length; i++) if (cum[i] > a + 1e-6 && cum[i] < b - 1e-6) out.push(coords[i]);
+  out.push(at(b));
+  return out;
+}
+
+/**
+ * Nouveau départ au waypoint `k`.
+ * Boucle : la boucle est conservée entière, seul le point de départ/arrivée tourne. Parcours ouvert : le tracé avant `k` est retiré
+ * (`removed` le rend à l'appelant, qui doit l'annoncer et le faire confirmer) ; la suite et l'arrivée ne changent pas. Les POI restent où ils sont.
+ */
+export function startFrom(s: EState, k: number): { state: EState; loop: boolean; removed: LL[] } | null {
+  if (k <= 0 || k >= s.waypoints.length - 1) return null;
+  if (isClosed(s)) return { state: setStart(s, k), loop: true, removed: [] };
+  return { state: { waypoints: s.waypoints.slice(k), segs: s.segs.slice(k), pois: s.pois }, loop: false, removed: trackLL({ waypoints: s.waypoints.slice(0, k + 1), segs: s.segs.slice(0, k), pois: [] }) };
 }
