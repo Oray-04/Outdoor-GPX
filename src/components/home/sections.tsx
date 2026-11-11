@@ -1,11 +1,8 @@
-import { MapPin, Route as RouteIcon, FileUp, LineChart, Users, Check } from "lucide-react";
-import { DEMO_ROUTES, DESTINATIONS } from "@/lib/demo-data";
-import { DEMO_EVENT_MODELS } from "@/lib/events";
-import { DEMO_VMS } from "@/lib/route-model";
+import { Route as RouteIcon, FileUp, LineChart, Users } from "lucide-react";
+import { DESTINATIONS } from "@/lib/destinations";
 import { SPORTS, type Sport } from "@/lib/sports";
-import { RouteCard, TopoPattern } from "@/components/ui/route-card";
-import { Badge, DemoBadge } from "@/components/ui/badge";
-import { ButtonLink } from "@/components/ui/button";
+import { TopoPattern } from "@/components/ui/route-card";
+import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 
 const SPORT_LIST: Sport[] = ["trail", "course", "rando", "marche", "vtt", "velo", "gravel"];
@@ -20,10 +17,6 @@ export function SportChips() {
       </div>
     </div>
   );
-}
-
-export function Popular() {
-  return <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">{DEMO_VMS.slice(0, 4).map((r) => <RouteCard key={r.id} route={r} />)}</div>;
 }
 
 const features = [
@@ -48,29 +41,6 @@ export function Features() {
   );
 }
 
-export function Events() {
-  return (
-    <div className="grid gap-4 md:grid-cols-2">
-      {DEMO_EVENT_MODELS.map((e) => {
-        const d = new Date(e.date);
-        return (
-          <article key={e.id} className="flex gap-4 rounded-[var(--radius-card)] bg-white p-5 shadow-card ring-1 ring-ink-100">
-            <div className="grid size-16 shrink-0 place-items-center rounded-xl bg-ink-900 text-center text-white">
-              <div><div className="font-display text-2xl font-bold leading-none">{d.getUTCDate()}</div><div className="mt-0.5 text-[11px] uppercase tracking-wider text-ink-300">{d.toLocaleDateString("fr-FR", { month: "short", timeZone: "UTC" })}</div></div>
-            </div>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">{[...new Set(e.races.map((r) => r.sport))].slice(0, 2).map((sp) => <Badge key={sp} tone="pine">{SPORTS[sp].label}</Badge>)}<DemoBadge /></div>
-              <h3 className="mt-1.5 font-semibold leading-snug">{e.name}</h3>
-              <p className="mt-0.5 flex items-center gap-1 text-sm text-ink-500"><MapPin className="size-3.5" />{e.region}</p>
-              <p className="mt-2 flex flex-wrap gap-x-3 text-sm text-ink-700">{e.races.map((f) => <span key={f.id}>{f.label} · {f.distanceKm} km · {f.gainM} m D+</span>)}</p>
-            </div>
-          </article>
-        );
-      })}
-    </div>
-  );
-}
-
 export function Destinations() {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -85,47 +55,6 @@ export function Destinations() {
           </div>
         </Link>
       ))}
-    </div>
-  );
-}
-
-export function Stats() {
-  const km = DEMO_ROUTES.reduce((a, r) => a + r.stats.distanceM, 0) / 1000;
-  const dp = DEMO_ROUTES.reduce((a, r) => a + r.stats.gainM, 0);
-  const items = [
-    ["Parcours de démo", DEMO_ROUTES.length.toString()],
-    ["Kilomètres tracés", Math.round(km).toLocaleString("fr-FR")],
-    ["Dénivelé positif cumulé", `${Math.round(dp).toLocaleString("fr-FR")} m`],
-    ["Événements de démo", DEMO_EVENT_MODELS.length.toString()],
-  ];
-  return (
-    <div>
-      <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-[var(--radius-card)] bg-white/10 lg:grid-cols-4">
-        {items.map(([l, v]) => (
-          <div key={l} className="bg-ink-800 p-6"><dd className="font-display text-3xl font-bold text-white sm:text-4xl">{v}</dd><dt className="mt-1 text-sm text-ink-300">{l}</dt></div>
-        ))}
-      </dl>
-      <p className="mt-3 text-xs text-ink-400">Calculé à partir des données de démonstration. Les statistiques de la communauté réelle viendront avec les comptes (étape 2).</p>
-    </div>
-  );
-}
-
-const tiers = [
-  { name: "Gratuit", desc: "Pour découvrir et tracer.", items: ["Consultation des parcours", "Recherche", "Création basique", "Profil personnel"] },
-  { name: "Premium", desc: "Pour les pratiquants assidus.", items: ["Création avancée", "Import/export GPS", "Outils cartographiques", "Statistiques avancées"], hot: true },
-  { name: "Professionnel", desc: "Pour les organisateurs.", items: ["Gestion d'événements", "Outils logistiques", "Bénévoles", "Comptes collaborateurs"] },
-];
-export function PricingTeaser() {
-  return (
-    <div className="grid gap-4 md:grid-cols-3">
-      {tiers.map((t) => (
-        <div key={t.name} className={`rounded-[var(--radius-card)] p-6 ${t.hot ? "bg-ink-900 text-white shadow-lift" : "bg-white ring-1 ring-ink-100"}`}>
-          <h3 className="text-xl font-bold">{t.name}</h3>
-          <p className={`mt-1 text-sm ${t.hot ? "text-ink-300" : "text-ink-500"}`}>{t.desc}</p>
-          <ul className="mt-5 grid gap-2 text-sm">{t.items.map((i) => <li key={i} className="flex gap-2"><Check className={`mt-0.5 size-4 shrink-0 ${t.hot ? "text-pine-400" : "text-pine-600"}`} />{i}</li>)}</ul>
-        </div>
-      ))}
-      <div className="md:col-span-3"><ButtonLink href="/tarifs" variant="secondary">Voir le détail des offres</ButtonLink></div>
     </div>
   );
 }

@@ -12,11 +12,10 @@ import { Sheet, isMobileViewport, type SheetState } from "@/components/layout/sh
 import { POI_KINDS, fetchPois, type PoiKind, type PoiFeature } from "@/lib/poi";
 import { SPORTS, DIFFICULTY_LABEL, type Sport } from "@/lib/sports";
 import { fmtKm, fmtM, fmtDuration } from "@/lib/geo";
-import { DemoBadge } from "@/components/ui/badge";
 import { ElevationSpark } from "@/components/ui/elevation-spark";
 import { geocode } from "@/lib/geocode";
 import { MapFrame, StatBanner } from "@/components/map/map-frame";
-import { DEMO_LAYER, deleteLayer, saveLayers, useLayers } from "@/lib/repo";
+import { deleteLayer, saveLayers, useLayers } from "@/lib/repo";
 import { uid } from "@/lib/types";
 import { cloudEnabled } from "@/lib/cloud";
 import { communityInBbox } from "@/lib/community";
@@ -59,7 +58,7 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
   const allRoutes = useAllRoutes();
   const routeLayers = useLayers();
   const COMMUNITY = { id: "community", name: "Communauté (parcours publics)", color: "#c98a0b", builtin: true };
-  const layerList = useMemo(() => [...routeLayers, DEMO_LAYER, ...(cloudEnabled ? [COMMUNITY] : [])], [routeLayers]); // eslint-disable-line react-hooks/exhaustive-deps
+  const layerList = useMemo(() => [...routeLayers, ...(cloudEnabled ? [COMMUNITY] : [])], [routeLayers]); // eslint-disable-line react-hooks/exhaustive-deps
   const [communityCount, setCommunityCount] = useState<number | null>(null);
   const colorOfLayer = useMemo(() => new Map(layerList.map((l) => [l.id, l.color])), [layerList]);
   const [layerOff, setLayerOff] = useState<Set<string>>(new Set());
@@ -229,7 +228,7 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
     <div role="status" aria-label="Résumé" className="shrink-0 border-t border-ink-100 bg-white px-4 py-2.5">
       <ul className="grid gap-1">{compared.map((r, i) => (
         <li key={r.id} className="flex flex-wrap items-baseline gap-x-5 gap-y-0.5 text-sm">
-          <span className="inline-flex items-center gap-1.5 font-semibold"><span className="inline-block size-2.5 rounded-full" style={{ background: COMPARE_COLORS[i] }} />{r.name.replace(" (démo)", "")}</span>
+          <span className="inline-flex items-center gap-1.5 font-semibold"><span className="inline-block size-2.5 rounded-full" style={{ background: COMPARE_COLORS[i] }} />{r.name}</span>
           <span><b className="font-display">{fmtKm(r.stats.distanceM)}</b> <span className="text-ink-400">distance</span></span>
           <span><b className="font-display">{fmtM(r.stats.gainM)}</b> <span className="text-ink-400">D+</span></span>
           <span><b className="font-display">{fmtM(r.stats.lossM)}</b> <span className="text-ink-400">D−</span></span>
@@ -317,7 +316,6 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
                 })}
                 {!visibleRoutes.length && <li className="rounded-xl border border-dashed border-ink-200 p-4 text-sm text-ink-500">Aucun parcours ne correspond à ces filtres.</li>}
               </ul>
-              <p className="flex items-center gap-1.5 text-xs text-ink-400"><DemoBadge />Les parcours « (démo) » sont des données de démonstration ; vos parcours enregistrés apparaissent aussi ici.</p>
             </div>
           )}
         </div>
@@ -325,7 +323,7 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
 
       <MapFrame className="absolute inset-x-0 top-0 bottom-[8rem] lg:static lg:flex-1" banner={banner}>
         <div className="absolute inset-0"><div ref={el} className="size-full" role="region" aria-label="Carte interactive" /></div>
-        <LayerControl map={mapRef} ready={ready} />
+        <LayerControl map={mapRef} ready={ready} scope="explorer" />
         {compared.length > 0 && (
           <div className="absolute inset-x-2 bottom-8 z-10 max-h-[55%] overflow-auto rounded-xl bg-white/95 p-3 shadow-lift backdrop-blur lg:inset-x-auto lg:left-3 lg:w-[34rem]">
             <div className="mb-2 flex items-center justify-between"><h2 className="font-display text-sm font-bold">{compared.length > 1 ? "Comparaison" : "Parcours sélectionné"}</h2>
@@ -334,7 +332,7 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
               <thead><tr className="text-left text-ink-400"><th className="pb-1 font-medium">Parcours</th><th className="font-medium">Dist.</th><th className="font-medium">D+</th><th className="font-medium">D−</th><th className="font-medium">Alt. min/max</th><th className="font-medium">Durée</th><th className="font-medium">Diff.</th></tr></thead>
               <tbody>{compared.map((r, i) => (
                 <tr key={r.id} className="border-t border-ink-100 align-middle">
-                  <td className="py-1.5 pr-2"><span className="mr-1.5 inline-block size-2.5 rounded-full" style={{ background: COMPARE_COLORS[i] }} /><b>{r.name.replace(" (démo)", "")}</b>
+                  <td className="py-1.5 pr-2"><span className="mr-1.5 inline-block size-2.5 rounded-full" style={{ background: COMPARE_COLORS[i] }} /><b>{r.name}</b>
                     <ElevationSpark values={sparkOf(r.coords)} stroke={COMPARE_COLORS[i]} className="mt-1 h-6 w-24" /></td>
                   <td>{fmtKm(r.stats.distanceM)}</td><td>{fmtM(r.stats.gainM)}</td><td>{fmtM(r.stats.lossM)}</td><td>{fmtM(r.stats.minEle)} / {fmtM(r.stats.maxEle)}</td><td>{fmtDuration(r.durationMin)}</td><td>{DIFFICULTY_LABEL[r.difficulty]}</td>
                 </tr>))}</tbody></table></div>

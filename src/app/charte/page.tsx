@@ -1,9 +1,8 @@
 import { Search, Download, Heart } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { Badge, DemoBadge } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { Logo } from "@/components/ui/logo";
 import { RouteCard } from "@/components/ui/route-card";
-import { DEMO_VMS } from "@/lib/route-model";
 
 export const metadata = { title: "Charte graphique" };
 
@@ -43,9 +42,8 @@ export default function Page() {
         <div className="mt-4 flex flex-wrap items-center gap-3"><Button size="sm"><Search className="size-4" />Petit</Button><Button size="md"><Download className="size-4" />Moyen</Button><Button size="lg"><Heart className="size-5" />Grand</Button><ButtonLink href="/">Lien-bouton</ButtonLink></div>
       </Block>
 
-      <Block title="Badges"><div className="flex flex-wrap gap-2"><Badge>Neutre</Badge><Badge tone="pine">Pin</Badge><Badge tone="ember">Braise</Badge><Badge tone="glacier">Glacier</Badge><DemoBadge /></div></Block>
+      <Block title="Badges"><div className="flex flex-wrap gap-2"><Badge>Neutre</Badge><Badge tone="pine">Pin</Badge><Badge tone="ember">Braise</Badge><Badge tone="glacier">Glacier</Badge></div></Block>
 
-      <Block title="Carte de parcours"><div className="max-w-xs"><RouteCard route={DEMO_VMS[0]} /></div></Block>
     </div>
   );
 }

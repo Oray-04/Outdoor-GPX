@@ -73,9 +73,6 @@ export function Hero() {
 
         <div className="rise rise-2 relative h-[22rem] overflow-hidden rounded-[1.75rem] ring-1 ring-brass-400/40 shadow-lift sm:h-[28rem] lg:h-[32rem]">
           <HeroMap ref={map} />
-          <div className="pointer-events-none absolute bottom-3 left-3 rounded-lg bg-ink-900/80 px-2.5 py-1.5 text-[11px] font-medium text-ink-100 backdrop-blur">
-            Tracés orange : <b className="text-ember-400">données de démonstration</b>
-          </div>
         </div>
       </div>
     </section>

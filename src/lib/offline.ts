@@ -99,7 +99,7 @@ export async function storageUsage(): Promise<{ usedMB: number; quotaMB: number 
   try { const e = await navigator.storage?.estimate?.(); return e?.usage != null ? { usedMB: e.usage / 1048576, quotaMB: (e.quota ?? 0) / 1048576 } : null; } catch { return null; }
 }
 
-export const PAGES_TO_PREPARE = ["/", "/explorer/", "/creer/", "/generer/", "/parcours/", "/parcours/voir/", "/suivi/", "/fichiers/", "/compte/", "/hors-ligne/", "/evenements/", "/evenements/voir/", "/organisateurs/", "/communaute/", "/collections/voir/"].map((p) => BASE + p);
+export const PAGES_TO_PREPARE = ["/", "/explorer/", "/creer/", "/generer/", "/parcours/", "/parcours/voir/", "/suivi/", "/fichiers/", "/compte/", "/hors-ligne/", "/evenements/", "/evenements/voir/", "/organisateurs/", "/collections/", "/collections/voir/"].map((p) => BASE + p);
 
 export function registerServiceWorker() {
   if (typeof navigator === "undefined" || !("serviceWorker" in navigator) || process.env.NODE_ENV !== "production") return;

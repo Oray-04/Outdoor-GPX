@@ -1,3 +1,3 @@
-import { EventsList } from "@/components/events/events-list";
-export const metadata = { title: "Calendrier des événements" };
-export default function Page() { return <EventsList />; }
+import { EventsRoute } from "@/components/route-params";
+export const metadata = { title: "Événements" };
+export default function Page() { return <EventsRoute />; }

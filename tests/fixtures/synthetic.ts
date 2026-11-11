@@ -1,11 +1,9 @@
 /**
- * DONNÉES DE DÉMONSTRATION — SYNTHÉTIQUES.
- * Les tracés ci-dessous sont générés algorithmiquement autour de régions réelles ;
- * ils ne correspondent à AUCUN sentier, parcours officiel ou événement existant.
- * Ils seront remplacés par la base de données à l'étape 2.
+ * JEUX D'ESSAI DES TESTS — tracés synthétiques générés algorithmiquement. Ils ne sont plus livrés avec le site
+ * (aucune donnée de démonstration n'y est affichée) : ils ne servent qu'à tester les filtres et les calculs.
  */
-import { trackStats, type LngLatEle, type TrackStats } from "./geo";
-import { estimateMinutes, difficultyOf, type Sport, type Difficulty } from "./sports";
+import { trackStats, type LngLatEle, type TrackStats } from "../../src/lib/geo";
+import { estimateMinutes, difficultyOf, type Sport, type Difficulty } from "../../src/lib/sports";
 
 export interface DemoRoute {
   id: string;
@@ -109,10 +107,12 @@ export const DEMO_EVENTS: DemoEvent[] = [
   { id: "ev-4", name: "Cyclo de démonstration des Volcans", date: "2027-09-12", place: "Lieu de démonstration", region: "Auvergne-Rhône-Alpes", formats: [{ label: "Gravel", routeId: "demo-sancy-gravel" }, { label: "Route", routeId: "demo-alpes-velo" }] },
 ];
 
-export interface Destination { id: string; name: string; country: string; blurb: string; center: [number, number]; hue: number }
-export const DESTINATIONS: Destination[] = [
-  { id: "chamonix", name: "Vallée de Chamonix", country: "France", blurb: "Hautes parois et grands sentiers d'altitude.", center: [6.87, 45.92], hue: 205 },
-  { id: "vercors", name: "Vercors", country: "France", blurb: "Plateaux calcaires, gorges et forêts profondes.", center: [5.55, 45.07], hue: 150 },
-  { id: "pyrenees", name: "Pyrénées centrales", country: "France", blurb: "Cirques glaciaires et lacs d'altitude.", center: [-0.01, 42.73], hue: 215 },
-  { id: "dolomites", name: "Dolomites", country: "Italie", blurb: "Pâturages ouverts sous les tours de roche.", center: [11.85, 46.55], hue: 120 },
-];
+
+import type { RouteVM } from "../../src/lib/route-model";
+import type { EventModel } from "../../src/lib/events";
+export const DEMO_VMS: RouteVM[] = DEMO_ROUTES.map((d) => ({ id: d.id, name: d.name, description: "Tracé synthétique de test.", sport: d.sport, region: d.region, country: d.country, coords: d.coords, pois: [], waypoints: [], terrain: [], loop: d.loop, visibility: "public", origin: "community", layer: "mine", stats: d.stats, durationMin: d.durationMin, difficulty: d.difficulty }));
+export const DEMO_EVENT_MODELS: EventModel[] = DEMO_EVENTS.map((e) => ({
+  id: e.id, name: e.name, organizer: "Organisateur de test", date: e.date, place: e.place, region: e.region, description: "", rules: "", practical: "", registrationUrl: "",
+  races: e.formats.map((f, i) => { const r = DEMO_VMS.find((v) => v.id === f.routeId)!; return { id: `${e.id}-r${i}`, label: f.label, sport: r.sport, distanceKm: +(r.stats.distanceM / 1000).toFixed(1), gainM: Math.round(r.stats.gainM), startTime: "08:00", maxHours: Math.ceil(r.durationMin / 60) + 2, routeId: f.routeId }; }),
+  posts: [], volunteers: [], team: [], origin: "community" as const, createdAt: 0, visibility: "public" as const,
+}));

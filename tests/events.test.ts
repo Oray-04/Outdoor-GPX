@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { DEMO_VMS } from "../src/lib/route-model";
-import { passageTable, positionOnTrack, effortProfile, clockAt, filterEvents, DEFAULT_EVENT_FILTERS, DEMO_EVENT_MODELS, type Race, type Post } from "../src/lib/events";
+import { DEMO_VMS, DEMO_EVENT_MODELS } from "./fixtures/synthetic";
+import { passageTable, positionOnTrack, effortProfile, clockAt, filterEvents, DEFAULT_EVENT_FILTERS, type Race, type Post } from "../src/lib/events";
 import type { Pt } from "../src/lib/types";
 
 // 10 km quasi rectilignes avec 500 m de D+ concentrés dans la 2e moitié

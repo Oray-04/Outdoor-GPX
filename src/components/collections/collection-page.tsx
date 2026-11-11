@@ -62,7 +62,7 @@ export function CollectionPage({ id }: { id: string }) {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-      <Link href={data.mine ? "/communaute#collections" : "/parcours"} className="inline-flex items-center gap-1.5 text-sm text-ink-500 hover:text-ink-900"><ArrowLeft className="size-4" />{data.mine ? "Mes collections" : "Parcours"}</Link>
+      <Link href={data.mine ? "/collections#collections" : "/parcours"} className="inline-flex items-center gap-1.5 text-sm text-ink-500 hover:text-ink-900"><ArrowLeft className="size-4" />{data.mine ? "Mes collections" : "Parcours"}</Link>
       <header className="mt-3 flex flex-wrap items-start justify-between gap-4">
         <div><div className="flex flex-wrap items-center gap-2"><Badge tone="pine"><FolderOpen className="size-3" />Collection</Badge>{data.mine && <Badge>{data.vis === "public" ? <><Globe className="size-3" />Publique</> : <><Lock className="size-3" />Privée</>}</Badge>}</div>
           <h1 className="mt-2 text-3xl font-extrabold sm:text-4xl">{data.title}</h1>

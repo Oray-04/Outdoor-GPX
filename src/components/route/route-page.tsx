@@ -8,9 +8,9 @@ import { WeatherPanel } from "./weather-panel";
 import { fromTrack } from "@/lib/editor-core";
 import { ElevationChart, type ChartMarker } from "./elevation-chart";
 import { Button } from "@/components/ui/button";
-import { Badge, DemoBadge } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { useAllRoutes, useVerified } from "@/lib/route-vm";
-import { routesRepo, reviewsRepo, reportsRepo, useFavorites, toggleFavorite, useLayers, DEMO_LAYER } from "@/lib/repo";
+import { routesRepo, reviewsRepo, reportsRepo, useFavorites, toggleFavorite, useLayers } from "@/lib/repo";
 import { usePhotos, addPhoto, removePhoto } from "@/lib/photos";
 import { buildProfile, distanceAlong } from "@/lib/profile";
 import { cumulative, fmtKm, fmtM, fmtDuration } from "@/lib/geo";
@@ -38,7 +38,7 @@ export function RoutePage({ id }: { id: string }) {
   const route = local ?? cloudRoute ?? undefined;
   const loadingCloud = cloudEnabled && !local && !!id && cloudRoute === undefined;
   const favs = useFavorites();
-  const layerName = [...useLayers(), DEMO_LAYER].find((l) => l.id === route?.layer)?.name;
+  const layerName = useLayers().find((l) => l.id === route?.layer)?.name;
   const verified = useVerified();
   const photos = usePhotos(id);
   const reviews = reviewsRepo.useAll().filter((r) => r.routeId === id);
@@ -102,7 +102,7 @@ export function RoutePage({ id }: { id: string }) {
       <Link href="/parcours" className="inline-flex items-center gap-1.5 text-sm text-ink-500 hover:text-ink-900"><ArrowLeft className="size-4" />Bibliothèque</Link>
       <header className="mt-3 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="flex flex-wrap gap-1.5"><Badge tone="pine">{SPORTS[route.sport].label}</Badge>{route.origin === "demo" && <DemoBadge />}{verified.includes(route.id) && <Badge tone="glacier"><BadgeCheck className="size-3" />Officiel vérifié</Badge>}{mine && <Badge>{route.visibility === "prive" ? "Privé" : "Public (local)"}</Badge>}{route.loop && <Badge>Boucle</Badge>}{layerName && route.layer !== "mine" && <Badge tone="glacier">{layerName}</Badge>}</div>
+          <div className="flex flex-wrap gap-1.5"><Badge tone="pine">{SPORTS[route.sport].label}</Badge>{verified.includes(route.id) && <Badge tone="glacier"><BadgeCheck className="size-3" />Officiel vérifié</Badge>}{mine && <Badge>{route.visibility === "prive" ? "Privé" : "Public (local)"}</Badge>}{route.loop && <Badge>Boucle</Badge>}{layerName && route.layer !== "mine" && <Badge tone="glacier">{layerName}</Badge>}</div>
           <h1 className="mt-2 text-3xl font-extrabold sm:text-4xl">{route.name}</h1>
           <p className="mt-1 flex items-center gap-1.5 text-ink-600"><MapPin className="size-4" />{[route.region, route.country].filter(Boolean).join(", ") || "Lieu non renseigné"}{reviews.length > 0 && <span className="ml-3 inline-flex items-center gap-1"><Star className="size-4 fill-ember-400 text-ember-400" />{avg.toFixed(1).replace(".", ",")} ({reviews.length})</span>}</p>
         </div>
@@ -139,7 +139,7 @@ export function RoutePage({ id }: { id: string }) {
           <section className="rounded-2xl bg-white p-5 ring-1 ring-ink-100"><div className="flex items-center justify-between"><h2 className="text-lg font-bold">Photographies</h2>
             {mine && <><input ref={fileIn} type="file" accept="image/*" hidden onChange={(e) => { upPhoto(e.target.files?.[0]); e.target.value = ""; }} /><Button size="sm" variant="secondary" onClick={() => fileIn.current?.click()}><Camera className="size-4" />Ajouter</Button></>}</div>
             {photos.length ? <ul className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">{photos.map((p, i) => <li key={i} className="group relative overflow-hidden rounded-lg">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={p} alt={`Photo ${i + 1} de ${route.name}`} className="aspect-[4/3] w-full object-cover" />{mine && <button aria-label="Supprimer la photo" onClick={() => removePhoto(route.id, i)} className="absolute right-1 top-1 grid size-7 place-items-center rounded bg-black/60 text-white opacity-0 focus:opacity-100 group-hover:opacity-100"><Trash2 className="size-4" /></button>}</li>)}</ul>
-              : <p className="mt-2 text-sm text-ink-500">{mine ? "Ajoutez vos photos (stockées sur cet appareil)." : "Pas de photographie pour les parcours de démonstration."}</p>}</section>
+              : <p className="mt-2 text-sm text-ink-500">{mine ? "Ajoutez vos photos (stockées sur cet appareil)." : "Pas de photographie pour ce parcours."}</p>}</section>
           <section className="rounded-2xl bg-white p-5 ring-1 ring-ink-100"><h2 className="text-lg font-bold">Avis et notes</h2>
             <div className="mt-3 flex items-center gap-1" role="radiogroup" aria-label="Note">{[1, 2, 3, 4, 5].map((n) => <button key={n} role="radio" aria-checked={rating === n} aria-label={`${n} étoile${n > 1 ? "s" : ""}`} onClick={() => setRating(n)}><Star className={clsx("size-7", n <= rating ? "fill-ember-400 text-ember-400" : "text-ink-300")} /></button>)}</div>
             <textarea value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Votre commentaire (optionnel)" rows={3} maxLength={1000} className="mt-3 w-full rounded-lg border border-ink-200 p-3 text-sm" />

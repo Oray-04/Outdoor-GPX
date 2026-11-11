@@ -2,29 +2,35 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Compass, PenLine, Sparkles, Route as RouteIcon, Menu, X, CalendarDays, Users, FileUp, Footprints, WifiOff, User, Briefcase, CircleDollarSign, Palette, Mountain } from "lucide-react";
+import { Compass, PenLine, Sparkles, Route as RouteIcon, Menu, X, CalendarDays, FileUp, Footprints, WifiOff, User, Briefcase, Mountain, Store, Apple, FolderHeart } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "@/lib/auth";
 
 const MAIN = [
   { href: "/explorer", label: "Explorer", icon: Compass },
   { href: "/creer", label: "Créer", icon: PenLine },
-  { href: "/generer", label: "Générer", icon: Sparkles },
-  { href: "/parcours", label: "Parcours", icon: RouteIcon },
+  { href: "/parcours", label: "Bibliothèque", icon: RouteIcon },
+  { href: "/evenements", label: "Événements", icon: CalendarDays },
 ] as const;
 
-const MORE = [
-  { href: "/itineraires", label: "Itinéraires de référence", icon: Mountain },
-  { href: "/evenements", label: "Événements", icon: CalendarDays },
-  { href: "/organisateurs", label: "Organisateurs", icon: Briefcase },
-  { href: "/communaute", label: "Communauté", icon: Users },
-  { href: "/fichiers", label: "Fichiers GPS", icon: FileUp },
-  { href: "/suivi", label: "Suivi GPS", icon: Footprints },
-  { href: "/hors-ligne", label: "Hors ligne", icon: WifiOff },
-  { href: "/compte", label: "Mon espace", icon: User },
-  { href: "/tarifs", label: "Tarifs", icon: CircleDollarSign },
-  { href: "/charte", label: "Charte", icon: Palette },
-] as const;
+/** Menu « Plus », rangé par univers. */
+const MORE_GROUPS: { title: string; items: { href: string; label: string; icon: typeof User }[] }[] = [
+  { title: "Parcours", items: [
+    { href: "/generer", label: "Générer", icon: Sparkles },
+    { href: "/itineraires", label: "Itinéraires", icon: Mountain },
+    { href: "/itinerance", label: "Itinérance", icon: Store },
+    { href: "/fichiers", label: "Fichiers GPS", icon: FileUp },
+    { href: "/suivi", label: "Suivi GPS", icon: Footprints },
+    { href: "/hors-ligne", label: "Hors ligne", icon: WifiOff },
+  ] },
+  { title: "Événements", items: [{ href: "/organisateurs", label: "Organisateur", icon: Briefcase }] },
+  { title: "Et aussi", items: [
+    { href: "/nutrition", label: "Nutrition", icon: Apple },
+    { href: "/collections", label: "Collections", icon: FolderHeart },
+    { href: "/compte", label: "Mon espace", icon: User },
+  ] },
+];
+const MORE = MORE_GROUPS.flatMap((g) => g.items);
 
 /** Barre de navigation basse (téléphone et tablette) : les 4 outils principaux + un menu « Plus ». */
 export function MobileNav() {
@@ -43,11 +49,16 @@ export function MobileNav() {
           <button type="button" aria-label="Fermer le menu" className="absolute inset-0 bg-ink-950/55 backdrop-blur-[2px]" onClick={() => setOpen(false)} />
           <div className="absolute inset-x-0 bottom-0 rounded-t-3xl bg-paper p-4 pb-[calc(4.5rem+env(safe-area-inset-bottom))] shadow-lift">
             <div className="mb-3 flex items-center justify-between"><p className="font-display text-lg font-bold">Menu</p><button type="button" aria-label="Fermer" onClick={() => setOpen(false)} className="grid size-10 place-items-center rounded-full hover:bg-ink-100"><X className="size-5" /></button></div>
-            <ul className="grid grid-cols-3 gap-2">
-              {MORE.map(({ href, label, icon: I }) => (
-                <li key={href}><Link href={href === "/compte" && auth.enabled && !auth.user ? "/connexion" : href} className={clsx("flex min-h-[4.5rem] flex-col items-center justify-center gap-1 rounded-xl p-2 text-center text-xs font-medium", active(href) ? "bg-pine-50 text-pine-700" : "bg-ink-50 text-ink-700")}><I className="size-5" />{label}</Link></li>
-              ))}
-            </ul>
+            <div className="grid max-h-[60vh] gap-4 overflow-y-auto">
+              {MORE_GROUPS.map((g) => (
+                <section key={g.title}><h2 className="eyebrow mb-2">{g.title}</h2>
+                  <ul className="grid grid-cols-3 gap-2">
+                    {g.items.map(({ href, label, icon: I }) => (
+                      <li key={href}><Link href={href === "/compte" && auth.enabled && !auth.user ? "/connexion" : href} className={clsx("flex min-h-[4.5rem] flex-col items-center justify-center gap-1 rounded-xl p-2 text-center text-xs font-medium", active(href) ? "bg-pine-600 text-white" : "bg-white text-ink-700 ring-1 ring-ink-100")}><I className="size-5" />{label}</Link></li>
+                    ))}
+                  </ul>
+                </section>))}
+            </div>
           </div>
         </div>
       )}

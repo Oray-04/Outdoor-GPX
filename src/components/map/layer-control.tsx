@@ -10,8 +10,8 @@ import { setBasemapPref, setOverlayPref, setThunderforestKey, thunderforestFromE
  * Sélecteur de fonds de carte et de surcouches : un seul bouton compact qui ouvre une petite fenêtre.
  * Le choix est mémorisé et partagé par toutes les cartes du site.
  */
-export function LayerControl({ map, ready, className }: { map: { current: MLMap | null }; ready: boolean; className?: string }) {
-  const base = useBasemapPref();
+export function LayerControl({ map, ready, className, scope }: { map: { current: MLMap | null }; ready: boolean; className?: string; scope?: string }) {
+  const base = useBasemapPref(scope);
   const overlays = useOverlayPref();
   const tfKey = useThunderforestKey();
   const [open, setOpen] = useState(false);
@@ -50,7 +50,7 @@ export function LayerControl({ map, ready, className }: { map: { current: MLMap 
                 const locked = !!b.keyed && needsKey;
                 return (
                   <label key={b.id} title={b.note} className={clsx("flex cursor-pointer items-center gap-2 rounded-lg px-1.5 py-1.5 hover:bg-ink-50", base === b.id && !locked && "bg-pine-50 font-semibold", locked && "text-ink-400")}>
-                    <input type="radio" name="basemap" className="accent-[var(--color-pine-600)]" checked={base === b.id} onChange={() => { setBasemapPref(b.id); if (!locked) setOpen(false); }} />
+                    <input type="radio" name="basemap" className="accent-[var(--color-pine-600)]" checked={base === b.id} onChange={() => { setBasemapPref(b.id, scope); if (!locked) setOpen(false); }} />
                     <span className="flex-1">{b.label}</span>{locked && <Lock className="size-3.5" aria-label="Clé requise" />}
                   </label>
                 );

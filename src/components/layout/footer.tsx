@@ -3,10 +3,10 @@ import { Logo } from "@/components/ui/logo";
 import { SITE } from "@/lib/site";
 
 const cols = [
-  { title: "Produit", links: [["Explorer", "/explorer"], ["Créer un parcours", "/creer"], ["Générer des parcours", "/generer"], ["Bibliothèque", "/parcours"], ["Itinéraires de référence", "/itineraires"], ["Mes fichiers GPS", "/fichiers"], ["Suivi GPS", "/suivi"], ["Hors ligne", "/hors-ligne"], ["Tarifs", "/tarifs"]] },
-  { title: "Compétitions", links: [["Calendrier", "/evenements"], ["Espace organisateurs", "/organisateurs"]] },
-  { title: "Communauté", links: [["Communauté", "/communaute"], ["Mon espace", "/compte"]] },
-  { title: "Projet", links: [["Charte graphique", "/charte"], ["Feuille de route", "/feuille-de-route"], ["Données & licences", "/licences"], ["Administration", "/admin"]] },
+  { title: "Parcours", links: [["Explorer", "/explorer"], ["Créer un parcours", "/creer"], ["Générer une boucle", "/generer"], ["Itinéraires", "/itineraires"], ["Itinérance", "/itinerance"], ["Bibliothèque", "/parcours"], ["Fichiers GPS", "/fichiers"], ["Suivi GPS", "/suivi"], ["Hors ligne", "/hors-ligne"]] },
+  { title: "Événements", links: [["Tous les événements", "/evenements"], ["Espace organisateur", "/organisateurs"]] },
+  { title: "Nutrition", links: [["Bientôt disponible", "/nutrition"]] },
+  { title: "Plateforme", links: [["Mon espace", "/compte"], ["Collections", "/collections"], ["Données & licences", "/licences"], ["Feuille de route", "/feuille-de-route"], ["Administration", "/admin"]] },
 ] as const;
 
 export function Footer() {
@@ -28,7 +28,7 @@ export function Footer() {
           ))}
         </div>
         <div className="mt-12 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-6 text-xs">
-          <p>© {new Date().getFullYear()} {SITE.name}. Projet en construction : les parcours et événements affichés sont des données de démonstration.</p>
+          <p>© {new Date().getFullYear()} {SITE.name}. Plateforme indépendante. Vos parcours restent sur votre appareil tant que vous ne les publiez pas.</p>
           <p>Cartes © contributeurs OpenStreetMap</p>
         </div>
       </div>

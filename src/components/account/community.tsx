@@ -44,9 +44,8 @@ export function Community() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
-      <h1 className="text-3xl font-extrabold sm:text-4xl">Communauté</h1>
+      <h1 className="text-3xl font-extrabold sm:text-4xl">Collections et profil sportif</h1>
       <p className="mt-2 max-w-2xl text-ink-600">Votre profil sportif, vos collections, vos défis et vos records personnels.</p>
-      <div className="mt-4 flex items-start gap-3 rounded-xl border border-warn/40 bg-warn/10 p-4 text-sm text-ink-700"><Users className="mt-0.5 size-5 shrink-0 text-warn" /><p><b>Fonctions multi-membres pas encore disponibles :</b> abonnements entre membres, publication visible par les autres, classements entre membres et commentaires partagés exigent des comptes et un serveur (étape 2, reportée). Ce qui suit fonctionne pour vous, sur cet appareil.</p></div>
       <div className="mt-6 grid gap-6">
         <Card title="Profil sportif" icon={<Users className="size-5 text-pine-600" />}><ProfileForm /></Card>
         <Card title="Défis" icon={<Target className="size-5 text-pine-600" />}><div className="grid gap-4">{challenges.map((c) => <Progress key={c.l} label={c.l} value={c.v} goal={c.g} unit={c.u} />)}</div></Card>

@@ -3,7 +3,7 @@ import { Mountain, TrendingUp, Clock, Repeat, Lock, BadgeCheck } from "lucide-re
 import { fmtKm, fmtM, fmtDuration } from "@/lib/geo";
 import { SPORTS, DIFFICULTY_LABEL } from "@/lib/sports";
 import { hueOf, sparkOf, type RouteVM } from "@/lib/route-model";
-import { Badge, DemoBadge } from "./badge";
+import { Badge } from "./badge";
 import { ElevationSpark } from "./elevation-spark";
 import { routeHref } from "@/lib/url";
 
@@ -17,7 +17,7 @@ export function RouteCard({ route, note, verified }: { route: RouteVM; note?: st
         <div className="relative h-36 overflow-hidden" style={{ background: `linear-gradient(135deg, hsl(${hue} 45% 22%), hsl(${hue} 55% 38%))` }}>
           <TopoPattern />
           <div className="absolute inset-x-0 bottom-0 text-white/90"><ElevationSpark values={sparkOf(route.coords)} stroke="#fff" className="h-16 w-full" /></div>
-          <div className="absolute left-3 top-3 flex gap-1.5"><Badge tone="dark">{SPORTS[route.sport].label}</Badge>{route.origin === "demo" && <DemoBadge />}{verified && <Badge tone="dark"><BadgeCheck className="size-3" />Vérifié</Badge>}</div>
+          <div className="absolute left-3 top-3 flex gap-1.5"><Badge tone="dark">{SPORTS[route.sport].label}</Badge>{verified && <Badge tone="dark"><BadgeCheck className="size-3" />Vérifié</Badge>}</div>
           <div className="absolute right-3 top-3 flex gap-1">
             {route.visibility === "prive" && route.origin === "mine" && <span className="grid size-7 place-items-center rounded-full bg-white/15 text-white" title="Privé"><Lock className="size-3.5" /></span>}
             {route.loop && <span className="grid size-7 place-items-center rounded-full bg-white/15 text-white" title="Parcours en boucle"><Repeat className="size-3.5" /></span>}

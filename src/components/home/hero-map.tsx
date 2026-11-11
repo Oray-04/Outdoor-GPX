@@ -2,12 +2,11 @@
 import { useEffect, useImperativeHandle, useRef, forwardRef } from "react";
 import type { Map as MLMap } from "maplibre-gl";
 import { BASEMAPS } from "@/lib/basemaps";
-import { DEMO_ROUTES } from "@/lib/demo-data";
 import { BASE } from "@/lib/url";
 
 export interface HeroMapHandle { flyTo: (lng: number, lat: number, zoom?: number) => void; setUserPos: (lng: number, lat: number) => void }
 
-/** Carte d'accueil : fond OpenStreetMap (raster) + tracés de démonstration. */
+/** Carte d'accueil : fond OpenStreetMap (raster) (aucun tracé affiché). */
 export const HeroMap = forwardRef<HeroMapHandle>(function HeroMap(_, ref) {
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<MLMap | null>(null);
@@ -42,25 +41,10 @@ export const HeroMap = forwardRef<HeroMapHandle>(function HeroMap(_, ref) {
         cooperativeGestures: true,
       });
       m.addControl(new ml.NavigationControl({ showCompass: false }), "top-right");
-      m.on("style.load", () => {
-        m.addSource("demo", {
-          type: "geojson",
-          data: { type: "FeatureCollection", features: DEMO_ROUTES.map((r) => ({ type: "Feature", properties: { id: r.id, name: r.name }, geometry: { type: "LineString", coordinates: r.coords.map((c) => [c[0], c[1]]) } })) },
-        });
-        m.addLayer({ id: "demo-casing", type: "line", source: "demo", paint: { "line-color": "#fff", "line-width": 6, "line-opacity": 0.9 }, layout: { "line-cap": "round", "line-join": "round" } });
-        m.addLayer({ id: "demo-line", type: "line", source: "demo", paint: { "line-color": "#f0612b", "line-width": 3.5 }, layout: { "line-cap": "round", "line-join": "round" } });
-        m.on("click", "demo-line", (e) => {
-          const f = e.features?.[0];
-          if (!f) return;
-          new ml.Popup({ closeButton: false }).setLngLat(e.lngLat).setHTML(`<strong>${f.properties.name}</strong><br/><small>Tracé de démonstration</small>`).addTo(m);
-        });
-        m.on("mouseenter", "demo-line", () => (m.getCanvas().style.cursor = "pointer"));
-        m.on("mouseleave", "demo-line", () => (m.getCanvas().style.cursor = ""));
-      });
       map.current = m;
     })();
     return () => { cancelled = true; map.current?.remove(); map.current = null; };
   }, []);
 
-  return <div ref={el} className="size-full" role="region" aria-label="Carte des parcours de démonstration" />;
+  return <div ref={el} className="size-full" role="region" aria-label="Carte de France" />;
 });

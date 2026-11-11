@@ -46,7 +46,6 @@ export function CollectionsCard() {
       <ul className="mt-4 grid gap-3">{cols.map((c) => {
         const inside = c.routeIds.map((id) => routes.find((r) => r.id === id)).filter((r): r is NonNullable<typeof r> => !!r);
         const blockers = c.visibility === "public" ? inside.filter((r) => r.origin !== "mine" || r.visibility !== "public") : [];
-        const demo = blockers.filter((r) => r.origin === "demo");
         const priv = blockers.filter((r) => r.origin === "mine");
         return (
           <li key={c.id} className="rounded-xl bg-ink-50 p-3">
@@ -64,7 +63,6 @@ export function CollectionsCard() {
               <ul className="mt-2 grid max-h-52 gap-1 overflow-y-auto">{routes.map((r) => <li key={r.id}><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={c.routeIds.includes(r.id)} onChange={() => toggle(c, r.id)} className="accent-[var(--color-pine-600)]" />{r.name}{favs.includes(r.id) && " ♥"}{r.origin === "mine" && r.visibility === "public" && <Badge tone="pine" className="ml-1">public</Badge>}</label></li>)}</ul></details>
             {inside.length > 0 && <ul className="mt-2 flex flex-wrap gap-1.5">{inside.map((r) => <li key={r.id}><Link href={routeHref(r.id)} className="rounded-full bg-white px-2.5 py-1 text-xs font-medium ring-1 ring-ink-200 hover:ring-pine-400">{r.name}</Link></li>)}</ul>}
             {priv.length > 0 && <div role="alert" className="mt-2 rounded-lg bg-warn/10 p-2 text-sm"><p>Collection publique, mais {priv.length} parcours {priv.length > 1 ? "sont" : "est"} encore privé{priv.length > 1 ? "s" : ""} (non visible{priv.length > 1 ? "s" : ""} du public).</p><Button size="sm" variant="brand" className="mt-1.5" onClick={() => makePublic(c)}>Rendre ces parcours publics</Button></div>}
-            {demo.length > 0 && <p className="mt-2 text-xs text-ink-500">{demo.length} parcours de démonstration ne peuvent pas être publiés.</p>}
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <Link href={collectionHref(c.id)} className="inline-flex h-10 items-center rounded-xl border border-ink-200 bg-white px-3.5 text-sm font-semibold hover:bg-ink-50 lg:h-9">Ouvrir la page</Link>
               <Button size="sm" variant="secondary" onClick={() => zip(c)}><Download className="size-4" />Tout télécharger (ZIP)</Button>

@@ -1,6 +1,7 @@
 "use client";
 import { Suspense, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
+import { EventsList } from "@/components/events/events-list";
 import { Explorer } from "./explorer/explorer";
 import { Editor } from "./editor/editor";
 import { Tracker } from "./tracking/tracker";
@@ -31,6 +32,8 @@ function TrackerInner() { const id = validId(useSearchParams().get("route")); re
 export const TrackerRoute = () => <Wrap><TrackerInner /></Wrap>;
 
 function LibraryInner() { return <Library initialSport={useSearchParams().get("sport") ?? undefined} />; }
+function EventsInner() { return <EventsList initialSport={useSearchParams().get("sport") ?? undefined} />; }
+export const EventsRoute = () => <Wrap><EventsInner /></Wrap>;
 export const LibraryRoute = () => <Wrap><LibraryInner /></Wrap>;
 
 function RouteInner() { return <RoutePage id={validId(useSearchParams().get("id")) ?? ""} />; }

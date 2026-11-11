@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { searchCommunes, communeSuggestions, matchRegions, isPostal, norm, CommuneServiceError, type Region } from "../src/lib/communes";
-import { routeNear, filterRoutes, DEFAULT_FILTERS, DEMO_VMS } from "../src/lib/route-model";
+import { routeNear, filterRoutes, DEFAULT_FILTERS } from "../src/lib/route-model";
+import { DEMO_VMS } from "./fixtures/synthetic";
 import { POI_TYPES, normalizePois } from "../src/lib/types";
 import { POI_GLYPHS, poiIconSvg, poiPinSvg } from "../src/lib/poi-icons";
 import { filled } from "../src/components/ui/field";

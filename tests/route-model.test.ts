@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { DEMO_VMS, DEFAULT_FILTERS, filterRoutes, isClosedTrack } from "../src/lib/route-model";
+import { DEFAULT_FILTERS, filterRoutes, isClosedTrack } from "../src/lib/route-model";
+import { DEMO_VMS } from "./fixtures/synthetic";
 import { difficultyOf, estimateMinutes } from "../src/lib/sports";
 
 describe("catalogue", () => {

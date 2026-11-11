@@ -73,13 +73,8 @@ export const useProfile = () => useStore<Profile>("profile", DEFAULT_PROFILE);
 export const saveProfile = (p: Profile) => writeSingle("profile", p);
 
 import type { EventModel } from "./events";
-import { DEMO_EVENT_MODELS } from "./events";
-import { useMemo } from "react";
 export const eventsRepo = listKey<EventModel>("events");
-export function useAllEvents(): EventModel[] {
-  const mine = eventsRepo.useAll();
-  return useMemo(() => [...mine, ...DEMO_EVENT_MODELS], [mine]);
-}
+export function useAllEvents(): EventModel[] { return eventsRepo.useAll(); }
 
 import { TERRAINS } from "./types";
 /** Catégories administrables : types de terrain proposés dans l'éditeur et les filtres. */
@@ -95,7 +90,6 @@ export const DEFAULT_LAYERS: RouteLayer[] = [
   { id: "mine", name: "Mes parcours", color: "#1e7a58", builtin: true },
   { id: "orga", name: "Parcours d'organisations", color: "#3ba6c9", builtin: true },
 ];
-export const DEMO_LAYER: RouteLayer = { id: "demo", name: "Démonstration", color: "#f0612b", builtin: true };
 /** Ancien calque supprimé : ses parcours sont rattachés à « Mes parcours ». */
 export const normalizeLayer = (id: string | undefined) => (!id || id === "fkt" ? "mine" : id);
 export const useLayers = (): RouteLayer[] => { const s = useStore<RouteLayer[] | null>("layers", null); return (s ?? DEFAULT_LAYERS).filter((l) => l.id !== "fkt"); };

@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, MapPin, CalendarDays, ExternalLink, Settings, Download, FolderOpen, Route as RouteIcon, TriangleAlert } from "lucide-react";
-import { Badge, DemoBadge } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RouteMap } from "@/components/map/route-map";
 import { useAllEvents, collectionsRepo } from "@/lib/repo";
@@ -28,7 +28,7 @@ export function EventPage({ id }: { id: string }) {
   }, [id, local]);
   const ev = local ?? cloudEv ?? undefined;
 
-  // Tracés : parcours enregistrés ou de démonstration, sinon parcours publiés par l'organisateur (base de données)
+  // Tracés : parcours enregistrés, sinon parcours publiés par l'organisateur (base de données)
   const all = useAllRoutes();
   const [fetched, setFetched] = useState<Record<string, RouteVM | null>>({});
   useEffect(() => {
@@ -49,7 +49,7 @@ export function EventPage({ id }: { id: string }) {
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
       <Link href="/evenements" className="inline-flex items-center gap-1.5 text-sm text-ink-500 hover:text-ink-900"><ArrowLeft className="size-4" />Calendrier</Link>
       <header className="mt-3 flex flex-wrap items-start justify-between gap-4">
-        <div>{ev.origin === "demo" && <DemoBadge />}{ev.origin === "community" && <Badge tone="glacier">Publié par un organisateur</Badge>}
+        <div>{ev.origin === "community" && <Badge tone="glacier">Publié par un organisateur</Badge>}
           <h1 className="mt-1 text-3xl font-extrabold sm:text-4xl">{ev.name}</h1>
           <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-ink-600"><span className="inline-flex items-center gap-1.5"><CalendarDays className="size-4" />{new Date(ev.date + "T12:00:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</span><span className="inline-flex items-center gap-1.5"><MapPin className="size-4" />{[ev.place, ev.region].filter(Boolean).join(", ")}</span></p>
           <p className="mt-1 text-sm text-ink-500">Organisé par {ev.ownerId ? <Link className="font-semibold text-pine-700 underline" href={ownerHref(ev.ownerId)}>{ev.organizer}</Link> : ev.organizer}</p></div>

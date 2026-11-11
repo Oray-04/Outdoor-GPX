@@ -8,7 +8,7 @@ export function LogoMark({ className = "size-9" }: { className?: string }) {
       {/* courbes de niveau + ligne de crête */}
       <path d="M5 27.5c5-2 8 1 13 0s8-2.5 13-.5" fill="none" stroke="#fff" strokeOpacity=".28" strokeWidth="1" strokeLinecap="round" />
       <path d="M5 23.5 13 11l5 7.5 4-5L31 23.5" fill="none" stroke="#fff" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="13" cy="11" r="2.3" fill="var(--color-brass-400)" stroke="var(--color-ink-900)" strokeWidth=".8" />
+      <circle cx="13" cy="11" r="2.3" fill="#f0612b" stroke="var(--color-ink-900)" strokeWidth=".8" />
     </svg>
   );
 }
