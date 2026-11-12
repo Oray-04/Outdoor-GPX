@@ -36,12 +36,11 @@ describe("générateur de boucles", () => {
     expect(r).toBeNull(); expect(calls).toBeLessThanOrEqual(4);
   });
   it("classement : la distance et le D+ proches des cibles passent devant, l'aller-retour est pénalisé", () => {
-    const good = scoreProposal({ distanceM: 10000, gainM: 500, overlapPct: 0 }, 10, 500);
+    const good = scoreProposal({ distanceM: 10000, gainM: 500, overlapPct: 0 }, 10, false);
     expect(good).toBe(0);
-    expect(scoreProposal({ distanceM: 13000, gainM: 500, overlapPct: 0 }, 10, 500)).toBeGreaterThan(good);
-    expect(scoreProposal({ distanceM: 10000, gainM: 100, overlapPct: 0 }, 10, 500)).toBeGreaterThan(good);
-    expect(scoreProposal({ distanceM: 10000, gainM: 500, overlapPct: 60 }, 10, 500)).toBeGreaterThan(good);
-    expect(scoreProposal({ distanceM: 10000, gainM: 5, overlapPct: 0 }, 10, null)).toBe(0); // D+ indifférent
+    expect(scoreProposal({ distanceM: 13000, gainM: 500, overlapPct: 0 }, 10, false)).toBeGreaterThan(good);
+    expect(scoreProposal({ distanceM: 10000, gainM: 500, overlapPct: 60 }, 10, false)).toBeGreaterThan(good);
+    expect(scoreProposal({ distanceM: 10000, gainM: 5, overlapPct: 0 }, 10, false)).toBe(0); // sans l'option, le dénivelé ne compte pas
   });
   it("propositions variées : directions séparées d'au moins 50°", () => {
     const c = [0, 20, 45, 90, 135, 180, 225, 270].map((b, i) => ({ bearing: b, score: i * 0.1 }));
@@ -51,55 +50,67 @@ describe("générateur de boucles", () => {
   });
   it("génération complète : N propositions, classées, avec progression", async () => {
     const seen: string[] = [];
-    const res = await generateLoops({ start, targetKm: 12, targetGain: 600, profile: "trail", count: 4 }, { via: fakeVia(1.6), elevate: elevate(300), surface: async () => ({ offRoadPct: 80, pathPct: 40 }) }, { onProgress: (p) => seen.push(p.phase) });
+    const res = await generateLoops({ start, targetKm: 12, profile: "trail", count: 4 }, { via: fakeVia(1.6), elevate: elevate(300), surface: async () => ({ offRoadPct: 80, pathPct: 40 }) }, { onProgress: (p) => seen.push(p.phase) });
     expect(res).toHaveLength(4);
     for (let i = 1; i < res.length; i++) expect(res[i].score).toBeGreaterThanOrEqual(res[i - 1].score);
     res.forEach((p) => { expect(Math.abs(p.distanceM / 1000 - 12) / 12).toBeLessThan(0.25); expect(p.coords.length).toBe(p.line.length); expect(p.offRoadPct).toBe(80); });
-    expect(new Set(seen)).toEqual(new Set(["relief", "tracé", "altitudes", "analyse"]));
+    expect(new Set(seen)).toEqual(new Set(["tracé", "altitudes", "analyse"]));
   });
   it("annulation propagée au routeur", async () => {
     const ctrl = new AbortController(); let got: AbortSignal | undefined;
-    await generateLoops({ start, targetKm: 5, targetGain: null, profile: "foot", count: 1, directions: 2 }, { via: async (_p, _pr, s) => { got = s; return fakeVia(1.5)(_p, _pr); }, elevate: elevate(0) }, { signal: ctrl.signal });
+    await generateLoops({ start, targetKm: 5, profile: "foot", count: 1, directions: 2 }, { via: async (_p, _pr, s) => { got = s; return fakeVia(1.5)(_p, _pr); }, elevate: elevate(0) }, { signal: ctrl.signal });
     expect(got).toBe(ctrl.signal);
   });
   it("longueur calculée cohérente", () => { expect(lineKm([[6, 45], [6, 45.009]])).toBeCloseTo(1, 1); });
 });
 
-describe("génération avec D+ cible (terrain simulé)", () => {
-  // MNT synthétique : altitude = f(position). Le routeur factice relie les points en ligne brisée.
-  const dem = (amp: number, wavelengthM: number, tilt = 0): GenDeps["elevate"] => async (l) => l.map((p) => {
+describe("option « Maximiser le dénivelé » (terrain simulé)", () => {
+  // MNT synthétique : une montagne à l'EST du départ, plaine partout ailleurs. Le routeur factice suit les points de passage.
+  const mountain: GenDeps["elevate"] = async (l) => l.map((p) => {
     const x = (p[0] - start[0]) * 78000, y = (p[1] - start[1]) * 111000;
-    return [p[0], p[1], 1000 + amp * (Math.sin(x / wavelengthM) + Math.cos(y / wavelengthM)) + tilt * x / 1000] as Pt;
+    return [p[0], p[1], 1000 + 900 * Math.exp(-((x - 2500) ** 2 + y ** 2) / (2 * 1500 ** 2))] as Pt;
   });
-  const deps = (el: GenDeps["elevate"]): GenDeps => ({ via: async (pts, pr) => { const l = await fakeVia(1.5)(pts, pr); return l && densify(l, 40); }, elevate: el }); // routeur factice dense, comme un vrai tracé
-  it("marge ±20 % : bornes correctes", async () => {
-    const { gainWithinTolerance } = await import("../src/lib/generator");
-    expect(gainWithinTolerance(800, 1000)).toBe(true); expect(gainWithinTolerance(1200, 1000)).toBe(true);
-    expect(gainWithinTolerance(799, 1000)).toBe(false); expect(gainWithinTolerance(1201, 1000)).toBe(false);
-    expect(gainWithinTolerance(500, null)).toBeNull();
+  const via: GenDeps["via"] = async (pts, pr) => { const l = await fakeVia(1.5)(pts, pr); return l && densify(l, 40); };
+  it("sans l'option : boucles classées par distance ; avec : les boucles les plus montantes d'abord, D+ nettement supérieur", async () => {
+    const plain = await generateLoops({ start, targetKm: 12, profile: "trail", count: 4 }, { via, elevate: mountain });
+    const maxi = await generateLoops({ start, targetKm: 12, maximizeGain: true, profile: "trail", count: 4 }, { via, elevate: mountain });
+    expect(maxi.length).toBeGreaterThan(0);
+    const bestOfAll = Math.max(...plain.map((p) => p.gainM), ...maxi.map((p) => p.gainM));
+    expect(maxi[0].gainM).toBeGreaterThan(bestOfAll * 0.9);                         // la 1re proposition est (à peu près) la plus montante trouvée
+    expect(maxi[0].gainM).toBeGreaterThan(plain.reduce((a, p) => a + p.gainM, 0) / plain.length); // et monte plus que la moyenne sans l'option
+    for (let i = 1; i < maxi.length; i++) expect(maxi[i].score).toBeGreaterThanOrEqual(maxi[i - 1].score);
+    expect(Math.abs(((maxi[0].bearing + 180) % 360) - 180 - 90)).toBeLessThanOrEqual(60); // elle part vers l'est, où est la montagne
   });
-  it("le D+ affiché est exactement celui du tracé généré", async () => {
+  it("le D+ affiché est exactement celui du tracé généré ; la distance reste entre −15 % et +10 %", async () => {
     const { trackStats } = await import("../src/lib/geo");
-    const res = await generateLoops({ start, targetKm: 12, targetGain: 400, profile: "trail", count: 3 }, deps(dem(150, 1500)));
-    expect(res.length).toBeGreaterThan(0);
-    for (const p of res) { const st = trackStats(p.coords, 3); expect(p.gainM).toBe(st.gainM); expect(p.lossM).toBe(st.lossM); expect(p.distanceM).toBeCloseTo(st.distanceM, 3); }
+    const res = await generateLoops({ start, targetKm: 15, maximizeGain: true, profile: "trail", count: 4 }, { via, elevate: mountain });
+    for (const p of res) {
+      const st = trackStats(p.coords, 3); expect(p.gainM).toBe(st.gainM); expect(p.lossM).toBe(st.lossM); expect(p.distanceM).toBeCloseTo(st.distanceM, 3);
+      expect(p.distanceM / 1000).toBeLessThanOrEqual(15 * 1.1 + 1e-6); expect(p.distanceM / 1000).toBeGreaterThanOrEqual(15 * 0.85 - 1e-6);
+      for (let i = 1; i < p.line.length; i++) expect(haversine(p.line[i - 1], p.line[i])).toBeLessThan(60);      // tracé continu
+      expect(haversine(p.line[0], p.line.at(-1)!)).toBeLessThan(30);                                              // boucle fermée
+    }
   });
-  it("terrain plat : D+ faible, 1000 m demandés → aucune boucle dans la marge, signalé honnêtement", async () => {
-    const res = await generateLoops({ start, targetKm: 15, targetGain: 1000, profile: "trail", count: 3 }, deps(dem(3, 2000)));
-    expect(res.every((p) => p.gainM < 300)).toBe(true); expect(res.some((p) => p.gainOk)).toBe(false);
+  it("terrain plat : l'option ne fabrique pas de dénivelé", async () => {
+    const flat: GenDeps["elevate"] = async (l) => l.map((p) => [p[0], p[1], 200] as Pt);
+    const res = await generateLoops({ start, targetKm: 10, maximizeGain: true, profile: "trail", count: 3 }, { via, elevate: flat });
+    expect(res.length).toBeGreaterThan(0); expect(res.every((p) => p.gainM === 0)).toBe(true);
   });
-  for (const [name, amp, wl, target] of [["vallonné", 60, 900, 400], ["montagneux", 400, 1800, 1000]] as const) {
-    it(`terrain ${name} : trouve des boucles continues dans la marge ±20 % de ${target} m`, async () => {
-      const res = await generateLoops({ start, targetKm: 15, targetGain: target, profile: "trail", count: 4 }, deps(dem(amp, wl)));
-      expect(res.length).toBeGreaterThan(0);
-      expect(res.some((p) => p.gainOk), `D+ obtenus : ${res.map((p) => Math.round(p.gainM)).join(", ")}`).toBe(true);
-      expect(res[0].gainOk).toBe(true); // les boucles dans la marge sont classées en premier
-      for (const p of res) { // continuité : pas de saut > 60 m, boucle fermée sur le départ
-        for (let i = 1; i < p.line.length; i++) expect(haversine(p.line[i - 1], p.line[i])).toBeLessThan(60);
-        expect(haversine(p.line[0], p.line.at(-1)!)).toBeLessThan(30);
-      }
-    });
-  }
+  it("un aller-retour sur la même pente est déclassé face à une vraie boucle de D+ comparable", async () => {
+    const { usefulGain } = await import("../src/lib/generator");
+    const loop = { distanceM: 12000, gainM: 800, overlapPct: 5 }, outBack = { distanceM: 12000, gainM: 900, overlapPct: 90 };
+    expect(usefulGain(loop)).toBeGreaterThan(usefulGain(outBack)); expect(scoreProposal(loop, 12, true)).toBeLessThan(scoreProposal(outBack, 12, true));
+    expect(scoreProposal({ distanceM: 12000, gainM: 1200, overlapPct: 5 }, 12, true)).toBeLessThan(scoreProposal(loop, 12, true)); // à boucle égale, plus de D+ gagne
+  });
+  it("bornes de distance et mesure fine des propositions retenues", async () => {
+    const { distanceAllowed } = await import("../src/lib/generator");
+    expect(distanceAllowed(22, 20, true)).toBe(true); expect(distanceAllowed(22.1, 20, true)).toBe(false); expect(distanceAllowed(17, 20, true)).toBe(true); expect(distanceAllowed(16.9, 20, true)).toBe(false);
+    expect(distanceAllowed(24.9, 20, false)).toBe(true); expect(distanceAllowed(25.1, 20, false)).toBe(false);
+    let fine = 0, fast = 0;
+    const res = await generateLoops({ start, targetKm: 60, maximizeGain: true, profile: "road", count: 3 }, { via, elevate: async (l, s) => { fine++; return mountain(l, s); }, elevateFast: async (l, s) => { fast++; return (await mountain(l, s)).map((p) => [p[0], p[1], p[2] + 7] as Pt); } });
+    expect(fast).toBeGreaterThan(3); expect(fine).toBe(res.length);
+    for (const p of res) expect(p.coords[0][2]).toBeCloseTo((await mountain([p.line[0]]))[0][2], 6); // altitudes finales = mesure fine (pas le décalage +7 m de la mesure rapide)
+  });
 });
 
 describe("nettoyage des tracés générés (removeSpurs)", () => {
@@ -144,39 +155,5 @@ describe("nettoyage des tracés générés (removeSpurs)", () => {
     const outer: LL[] = [[B[0] + 0.0006, B[1] - 0.0003], [B[0] + 0.0012, B[1] - 0.0006], ...inner, [B[0] + 0.0018, B[1] - 0.0009], [B[0] + 0.0012, B[1] - 0.0006], [B[0] + 0.0006, B[1] - 0.0003], B];
     const two = [...sq.slice(0, 11), ...outer, ...sq.slice(11, 21), ...spur(C, 0.0005, 0.0004, 3), ...sq.slice(21)];
     const r = removeSpurs(two); expect(r.spurs).toBeGreaterThanOrEqual(3); expect(r.line).toEqual(sq);
-  });
-});
-
-describe("D+ cible : distance bornée à +10 %, objectif exclusivement le D+", () => {
-  it("bornes de distance : +10 % au plus avec un D+ cible ; ±25 % sans", async () => {
-    const { distanceAllowed, DISTANCE_OVER } = await import("../src/lib/generator");
-    expect(DISTANCE_OVER).toBe(0.1);
-    expect(distanceAllowed(22, 20, true)).toBe(true); expect(distanceAllowed(22.1, 20, true)).toBe(false); expect(distanceAllowed(15, 20, true)).toBe(true); expect(distanceAllowed(14.9, 20, true)).toBe(false);
-    expect(distanceAllowed(24.9, 20, false)).toBe(true); expect(distanceAllowed(25.1, 20, false)).toBe(false);
-  });
-  it("classement : le D+ prime sur la distance ; sans cible de D+, la distance décide", () => {
-    const exactKm = { distanceM: 20000, gainM: 600, overlapPct: 10 }, exactGain = { distanceM: 21800, gainM: 1000, overlapPct: 10 };
-    expect(scoreProposal(exactGain, 20, 1000)).toBeLessThan(scoreProposal(exactKm, 20, 1000));
-    expect(scoreProposal(exactKm, 20, null)).toBeLessThan(scoreProposal(exactGain, 20, null));
-  });
-  // relief qui croît avec l'éloignement du départ : une boucle plus longue monte plus haut
-  const cone: GenDeps["elevate"] = async (l) => l.map((p) => [p[0], p[1], 1000 + Math.hypot((p[0] - start[0]) * 78000, (p[1] - start[1]) * 111000) * 0.12] as Pt);
-  const via: GenDeps["via"] = async (pts, pr) => { const l = await fakeVia(1.5)(pts, pr); return l && densify(l, 40); };
-  it("aucune proposition ne dépasse +10 % ; les boucles trop plates sont rallongées et le signalent ; statistiques = tracé réel", async () => {
-    const { trackStats } = await import("../src/lib/geo");
-    const base = await generateLoops({ start, targetKm: 20, targetGain: null, profile: "trail", count: 4 }, { via, elevate: cone });
-    const natural = Math.max(...base.map((p) => p.gainM)); const target = Math.round(natural * 1.06);
-    const res = await generateLoops({ start, targetKm: 20, targetGain: target, profile: "trail", count: 4 }, { via, elevate: cone });
-    expect(res.length).toBeGreaterThan(0);
-    for (const p of res) { expect(p.distanceM / 1000).toBeLessThanOrEqual(22.0001); const st = trackStats(p.coords, 3); expect(p.gainM).toBe(st.gainM); expect(p.distanceM).toBeCloseTo(st.distanceM, 3); }
-    expect(res.some((p) => p.stretched)).toBe(true);
-    const best = res[0]; expect(Math.abs(best.gainM - target)).toBeLessThan(Math.abs(natural - target) + 1); // le D+ s'est rapproché de la cible
-    expect(best.distanceM / 1000).toBeGreaterThan(20);
-  });
-  it("mesure rapide pour classer, mesure fine pour les propositions retenues", async () => {
-    let fine = 0, fast = 0;
-    const res = await generateLoops({ start, targetKm: 60, targetGain: 800, profile: "road", count: 3 }, { via, elevate: async (l, s) => { fine++; return cone(l, s); }, elevateFast: async (l, s) => { fast++; return (await cone(l, s)).map((p) => [p[0], p[1], p[2] + 7] as Pt); } });
-    expect(fast).toBeGreaterThan(3); expect(fine).toBe(res.length);                                    // la mesure fine ne sert qu'aux boucles retenues
-    for (const p of res) expect(p.coords[0][2]).toBeCloseTo(1000, 0);                                  // altitudes finales = mesure fine (pas le décalage +7 m de la mesure rapide)
   });
 });

@@ -23,11 +23,11 @@ import type { Sport } from "@/lib/sports";
 
 type Practice = "trail" | "rando" | "vtt" | "velo";
 /** Plages de distance et de D+ par pratique (une sortie route est bien plus longue qu'un trail). */
-const PRACTICES: { id: Practice; label: string; sport: Sport; maxKm: number; stepKm: number; maxGain: number; defKm: number; defGain: number }[] = [
-  { id: "trail", label: "Trail", sport: "trail", maxKm: 80, stepKm: 1, maxGain: 3500, defKm: 12, defGain: 500 },
-  { id: "rando", label: "Randonnée", sport: "rando", maxKm: 60, stepKm: 1, maxGain: 3500, defKm: 12, defGain: 500 },
-  { id: "vtt", label: "VTT", sport: "vtt", maxKm: 120, stepKm: 1, maxGain: 3500, defKm: 30, defGain: 800 },
-  { id: "velo", label: "Vélo de route", sport: "velo", maxKm: 200, stepKm: 5, maxGain: 5000, defKm: 60, defGain: 1000 },
+const PRACTICES: { id: Practice; label: string; sport: Sport; maxKm: number; stepKm: number; defKm: number }[] = [
+  { id: "trail", label: "Trail", sport: "trail", maxKm: 80, stepKm: 1, defKm: 12 },
+  { id: "rando", label: "Randonnée", sport: "rando", maxKm: 60, stepKm: 1, defKm: 12 },
+  { id: "vtt", label: "VTT", sport: "vtt", maxKm: 120, stepKm: 1, defKm: 30 },
+  { id: "velo", label: "Vélo de route", sport: "velo", maxKm: 200, stepKm: 5, defKm: 60 },
 ];
 const COLORS = ["#f0612b", "#3ba6c9", "#7a4bd1", "#1e7a58", "#c98a0b", "#d4202a"];
 const PHASE: Record<Progress["phase"], string> = { relief: "Mesure du relief autour du départ", tracé: "Calcul des boucles", altitudes: "Mesure des dénivelés", analyse: "Analyse des chemins" };
@@ -38,8 +38,7 @@ export function GeneratorPage() {
   const [practice, setPractice] = useState<Practice>("trail");
   const prac = PRACTICES.find((x) => x.id === practice)!;
   const [km, setKm] = useState(12);
-  const [gain, setGain] = useState(500);
-  const [anyGain, setAnyGain] = useState(false);
+  const [maxGain, setMaxGain] = useState(false);
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<Progress | null>(null);
@@ -126,13 +125,13 @@ export function GeneratorPage() {
     ctrl.current?.abort(); const c = new AbortController(); ctrl.current = c;
     setBusy(true); setMsg(null); setProps([]); setSel(null); setProgress({ phase: "tracé", done: 0, total: 12 });
     try {
-      const res = await generateLoops({ start, targetKm: km, targetGain: anyGain ? null : gain, profile: profileForSport(PRACTICES.find((x) => x.id === practice)!.sport), count: 4 },
+      const res = await generateLoops({ start, targetKm: km, maximizeGain: maxGain, profile: profileForSport(PRACTICES.find((x) => x.id === practice)!.sport), count: 4 },
         { via: routeVia, elevate: addElevation, surface: surfaceShare, ...(km > 35 ? { elevateFast: (l: LL[], sg?: AbortSignal) => addElevation(l, sg, Math.min(120, Math.round(km * 1.2))) } : {}) }, { signal: c.signal, onProgress: setProgress });
       setProps(res); setSel(res[0]?.id ?? null);
       if (res.length && lastElevationSource === "open-meteo") setMsg({ kind: "warn", text: "Altitudes IGN indisponibles : les dénivelés sont mesurés avec le modèle mondial Open-Meteo (90 m), moins précis ; ils seront recalculés avec l'IGN à l'ouverture dans l'éditeur." });
       if (!res.length) setMsg({ kind: "warn", text: "Aucune boucle trouvée depuis ce départ : essayez un autre point, une distance plus courte, ou une autre pratique." });
       else {
-        if (!anyGain && !res.some((p) => p.gainOk)) setMsg({ kind: "warn", text: `Aucune boucle de ${km} km ne respecte ${gain} m de D+ (±20 %) depuis ce départ : le relief accessible ne le permet pas. Les propositions les plus proches sont affichées avec leur D+ réel.` });
+        if (maxGain) setMsg({ kind: "ok", text: `Boucles classées par dénivelé : jusqu'à ${fmtM(Math.max(...res.map((p) => p.gainM)))} de D+ mesuré pour environ ${km} km depuis ce départ.` });
         const b = bboxOf(res.flatMap((p) => p.line)); map.current?.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 60, maxZoom: 15 });
       }
     } catch (e) { if ((e as Error).name !== "AbortError") setMsg({ kind: "err", text: explain(e) }); }
@@ -141,19 +140,19 @@ export function GeneratorPage() {
 
   const toRoute = (p: Proposal): SavedRoute => {
     const st = fromTrack(p.coords, []); const now = Date.now(); const sport = PRACTICES.find((x) => x.id === practice)!.sport;
-    return { id: uid(), name: `Boucle ${Math.round(p.distanceM / 1000)} km · ${Math.round(p.gainM)} m D+ (générée)`, description: `Générée automatiquement (cible ${km} km${anyGain ? "" : `, ${gain} m D+`}).`, sport, segs: st.segs, waypoints: st.waypoints, coords: p.coords, pois: [], terrain: [], visibility: "prive", region: "", country: "", layer: "mine", source: "creation", createdAt: now, updatedAt: now };
+    return { id: uid(), name: `Boucle ${Math.round(p.distanceM / 1000)} km · ${Math.round(p.gainM)} m D+ (générée)`, description: `Générée automatiquement (cible ${km} km${maxGain ? ", dénivelé maximisé" : ""}).`, sport, segs: st.segs, waypoints: st.waypoints, coords: p.coords, pois: [], terrain: [], visibility: "prive", region: "", country: "", layer: "mine", source: "creation", createdAt: now, updatedAt: now };
   };
   const saveIt = (p: Proposal, open: boolean) => { const r = toRoute(p); const res = routesRepo.upsert(r); if (!res.ok) { setMsg({ kind: "err", text: res.error ?? "Enregistrement impossible." }); return; } if (open) location.assign(withBase(editorHref(r.id))); else setMsg({ kind: "ok", text: "Parcours enregistré dans « Mes parcours »." }); };
 
   const idx = (p: Proposal) => props.findIndex((x) => x.id === p.id);
   const inp = "h-10 w-full rounded-lg border border-ink-200 bg-white px-3 text-sm";
-  const banner = <StatBanner title={selected ? `Proposition ${idx(selected) + 1}` : "Générateur de parcours"} items={selected ? [{ label: "Distance", value: fmtKm(selected.distanceM) }, { label: "D+", value: fmtM(selected.gainM) }, { label: "D−", value: fmtM(selected.lossM) }] : [{ label: "Cible", value: `${km} km` }, { label: "D+ cible", value: anyGain ? "indifférent" : fmtM(gain) }]} />;
+  const banner = <StatBanner title={selected ? `Proposition ${idx(selected) + 1}` : "Générateur de parcours"} items={selected ? [{ label: "Distance", value: fmtKm(selected.distanceM) }, { label: "D+", value: fmtM(selected.gainM) }, { label: "D−", value: fmtM(selected.lossM) }] : [{ label: "Cible", value: `${km} km` }, { label: "Dénivelé", value: maxGain ? "maximisé" : "libre" }]} />;
 
   return (
     <div data-workspace="scroll" className="grid min-h-[calc(100dvh-4rem)] lg:h-[calc(100dvh-4rem)] lg:grid-cols-[25rem_1fr]">
       <aside className="order-2 min-h-0 overflow-y-auto border-ink-100 bg-white p-4 lg:order-1 lg:border-r">
         <h1 className="flex items-center gap-2 text-xl font-extrabold"><Sparkles className="size-5 text-ember-500" />Générer des parcours</h1>
-        <p className="mt-1 text-sm text-ink-500">Indiquez un départ, une distance et un dénivelé : plusieurs boucles vous sont proposées, en privilégiant chemins et sentiers.</p>
+        <p className="mt-1 text-sm text-ink-500">Indiquez un départ et une distance : plusieurs boucles vous sont proposées, avec leur dénivelé réellement mesuré, en privilégiant chemins et sentiers.</p>
 
         <section className="mt-4 grid gap-2" aria-label="Point de départ">
           <h2 className="text-xs font-bold uppercase tracking-wider text-ink-400">1 · Départ</h2>
@@ -167,14 +166,15 @@ export function GeneratorPage() {
 
         <section className="mt-4 grid gap-3" aria-label="Critères">
           <h2 className="text-xs font-bold uppercase tracking-wider text-ink-400">2 · Critères</h2>
-          <div role="group" aria-label="Pratique" className="grid grid-cols-2 gap-1 rounded-xl bg-ink-100 p-1 sm:grid-cols-4">{PRACTICES.map((x) => <button key={x.id} type="button" aria-pressed={practice === x.id} onClick={() => { setPractice(x.id); setKm(x.defKm); setGain(x.defGain); setProps([]); setSel(null); }} className={clsx("rounded-lg px-1 py-2 text-[13px] font-semibold leading-tight", practice === x.id ? "bg-white shadow" : "text-ink-600")}>{x.label}</button>)}</div>
+          <div role="group" aria-label="Pratique" className="grid grid-cols-2 gap-1 rounded-xl bg-ink-100 p-1 sm:grid-cols-4">{PRACTICES.map((x) => <button key={x.id} type="button" aria-pressed={practice === x.id} onClick={() => { setPractice(x.id); setKm(x.defKm); setProps([]); setSel(null); }} className={clsx("rounded-lg px-1 py-2 text-[13px] font-semibold leading-tight", practice === x.id ? "bg-white shadow" : "text-ink-600")}>{x.label}</button>)}</div>
           <p className="-mt-1 text-xs text-ink-500">Le moteur privilégie les <b>{PROFILE_HINT[profileForSport(prac.sport)]}</b>.</p>
           <label className="grid gap-1 text-sm font-medium"><span className="flex justify-between"><span className="flex items-center gap-1.5"><RouteIcon className="size-4" />Distance</span><b className="font-display">{km} km</b></span>
             <input type="range" min={prac.id === "velo" ? 10 : 3} max={prac.maxKm} step={prac.stepKm} value={km} onChange={(e) => setKm(+e.target.value)} className="h-8 w-full accent-[var(--color-pine-600)]" aria-label="Distance cible en kilomètres" /></label>
-          <label className="grid gap-1 text-sm font-medium"><span className="flex justify-between"><span className="flex items-center gap-1.5"><Mountain className="size-4" />Dénivelé positif</span><b className="font-display">{anyGain ? "indifférent" : `${gain} m`}</b></span>
-            <input type="range" min={0} max={prac.maxGain} step={50} value={gain} disabled={anyGain} onChange={(e) => setGain(+e.target.value)} className="h-8 w-full accent-[var(--color-pine-600)] disabled:opacity-40" aria-label="Dénivelé positif cible en mètres" aria-describedby="gain-note" /></label>
-          <p id="gain-note" className="-mt-1 text-xs text-ink-500">Le dénivelé indiqué est une estimation. Une marge d'erreur de ±20 % peut être appliquée afin de trouver un parcours adapté au terrain. Pour mieux atteindre le D+ demandé, la distance peut dépasser la cible de 10 % au plus.</p>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={anyGain} onChange={(e) => setAnyGain(e.target.checked)} className="accent-[var(--color-pine-600)]" />Dénivelé indifférent</label>
+          <label className={clsx("flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors", maxGain ? "border-pine-600 bg-pine-50" : "border-ink-200 hover:border-ink-300")}>
+            <input type="checkbox" checked={maxGain} onChange={(e) => { setMaxGain(e.target.checked); setProps([]); setSel(null); }} className="mt-0.5 size-4 accent-[var(--color-pine-600)]" aria-describedby="maxgain-note" />
+            <span><span className="flex items-center gap-1.5 text-sm font-semibold"><Mountain className="size-4" />Maximiser le dénivelé</span>
+              <span id="maxgain-note" className="mt-0.5 block text-xs text-ink-500">Cherche, pour cette distance, les boucles qui montent le plus : le relief est mesuré dans 24 directions et seules les plus montantes sont tracées. Les allers-retours sur une même pente sont déclassés. La distance peut varier de −15 % à +10 %.</span></span>
+          </label>
           {busy ? <Button variant="secondary" size="lg" onClick={() => ctrl.current?.abort()}><Square className="size-4" />Arrêter</Button> : <Button size="lg" onClick={run}><Sparkles className="size-5" />Générer 4 propositions</Button>}
           {busy && progress && <div role="status" aria-live="polite"><div className="flex justify-between text-xs text-ink-500"><span className="inline-flex items-center gap-1.5"><Loader2 className="size-3.5 animate-spin" />{PHASE[progress.phase]}…</span><span>{progress.done}/{progress.total}</span></div><div className="mt-1 h-1.5 overflow-hidden rounded-full bg-ink-100"><div className="h-full rounded-full bg-pine-500 transition-all" style={{ width: `${(progress.done / Math.max(1, progress.total)) * 100}%` }} /></div></div>}
           {msg && <p role={msg.kind === "err" ? "alert" : "status"} className={clsx("rounded-lg px-3 py-2 text-sm", msg.kind === "err" ? "bg-danger/10 text-danger" : msg.kind === "warn" ? "bg-warn/10 text-ink-700" : "bg-pine-50 text-pine-700")}>{msg.text}</p>}
@@ -184,16 +184,15 @@ export function GeneratorPage() {
           <section className="mt-5 grid gap-2" aria-label="Propositions">
             <h2 className="text-xs font-bold uppercase tracking-wider text-ink-400">3 · Propositions</h2>
             <ul className="grid gap-2">{props.map((p, i) => {
-              const dk = p.distanceM / 1000 - km, dg = p.gainM - gain; const on = p.id === sel;
+              const dk = p.distanceM / 1000 - km; const on = p.id === sel;
               return (
                 <li key={p.id}><button type="button" aria-pressed={on} onClick={() => setSel(p.id)} className={clsx("w-full rounded-xl border p-3 text-left transition", on ? "border-ink-300 bg-ink-50" : "border-ink-100 hover:border-ink-200")} style={on ? { borderLeft: `4px solid ${COLORS[i % COLORS.length]}` } : undefined}>
                   <span className="flex items-center gap-2 font-semibold"><span className="size-3 rounded-full" style={{ background: COLORS[i % COLORS.length] }} />Proposition {i + 1}</span>
                   <span className="mt-1 grid grid-cols-3 gap-2 text-sm"><span><b className="font-display">{fmtKm(p.distanceM)}</b><br /><small className="text-ink-400">{dk >= 0 ? "+" : ""}{dk.toFixed(1).replace(".", ",")} km</small></span>
-                    <span><b className="font-display">{fmtM(p.gainM)}</b> D+<br /><small className="text-ink-400">{anyGain ? "" : `${dg >= 0 ? "+" : ""}${Math.round(dg)} m`}</small></span>
+                    <span><b className="font-display">{fmtM(p.gainM)}</b> D+<br /><small className="text-ink-400">{Math.round(p.gainM / Math.max(0.1, p.distanceM / 1000))} m/km</small></span>
                     {practice === "velo" ? <span><b className="font-display">{p.pavedPct != null ? `${p.pavedPct} %` : "—"}</b><br /><small className="text-ink-400">revêtu</small></span> : <span><b className="font-display">{p.offRoadPct != null ? `${p.offRoadPct} %` : "—"}</b><br /><small className="text-ink-400">chemins</small></span>}</span>
-                  {p.stretched && <span className="mt-1 flex items-center gap-1 text-xs text-ink-500"><Check className="size-3.5" />Distance allongée (dans la limite de +10 %) pour se rapprocher du D+ demandé</span>}
+                  {p.stretched && <span className="mt-1 flex items-center gap-1 text-xs text-ink-500"><Check className="size-3.5" />Distance allongée (dans la limite de +10 %) : cette version monte davantage</span>}
                   {p.coarse && <span className="mt-1 flex items-center gap-1 text-xs text-warn"><TriangleAlert className="size-3.5" />D+ mesuré au pas large : il sera précisé à l'ouverture dans l'éditeur</span>}
-                  {p.gainOk != null && <span className={clsx("mt-1 flex items-center gap-1 text-xs", p.gainOk ? "text-pine-700" : "text-warn")}>{p.gainOk ? <><Check className="size-3.5" />D+ mesuré dans la marge de ±20 % ({Math.round(gain * 0.8)}–{Math.round(gain * 1.2)} m)</> : <><TriangleAlert className="size-3.5" />D+ hors de la marge de ±20 %</>}</span>}
                   {p.cleanedM >= 50 && <span className="mt-1 flex items-center gap-1 text-xs text-ink-500"><Check className="size-3.5" />{fmtKm(p.cleanedM)} d'allers-retours parasites retirés</span>}
                   {p.overlapPct >= 15 && <span className="mt-1 flex items-center gap-1 text-xs text-warn"><TriangleAlert className="size-3.5" />{p.overlapPct} % en aller-retour</span>}
                 </button></li>);

@@ -53,20 +53,20 @@ describe("génération : erreurs précises et résilience", () => {
   const goodEle: GenDeps["elevate"] = async (l) => l.map((p, i) => [p[0], p[1], 1000 + i * 3] as Pt);
   it("routage en panne (429) sur toutes les directions → GenerationError « routing » avec cause", async () => {
     const via: GenDeps["via"] = async () => { throw new RoutingError("rate", 429); };
-    await expect(generateLoops({ start, targetKm: 10, targetGain: 500, profile: "trail" }, { via, elevate: goodEle })).rejects.toMatchObject({ kind: "routing", detail: { reason: "rate", status: 429 } });
+    await expect(generateLoops({ start, targetKm: 10, maximizeGain: true, profile: "trail" }, { via, elevate: goodEle })).rejects.toMatchObject({ kind: "routing", detail: { reason: "rate", status: 429 } });
   });
   it("altitudes en panne → GenerationError « elevation »", async () => {
     const elevate: GenDeps["elevate"] = async () => { throw new ElevationError("server", 503); };
-    const e = await generateLoops({ start, targetKm: 3, targetGain: 500, profile: "trail", directions: 4 }, { via: goodVia, elevate }).catch((x) => x);
+    const e = await generateLoops({ start, targetKm: 3, maximizeGain: true, profile: "trail", directions: 4 }, { via: goodVia, elevate }).catch((x) => x);
     expect(e).toBeInstanceOf(GenerationError); expect(e).toMatchObject({ kind: "elevation", detail: { reason: "server", status: 503 } });
   });
   it("une seule direction en échec n'empêche pas les autres de produire des propositions", async () => {
     let n = 0; const via: GenDeps["via"] = async (p) => { if (++n === 1) throw new RoutingError("network"); return line(p[0]); };
-    const r = await generateLoops({ start, targetKm: 3, targetGain: null, profile: "trail", directions: 6 }, { via, elevate: goodEle });
+    const r = await generateLoops({ start, targetKm: 3, profile: "trail", directions: 6 }, { via, elevate: goodEle });
     expect(r.length).toBeGreaterThan(0);
   });
   it("aucun chemin (null, pas une panne) : aucune erreur, liste vide", async () => {
-    const r = await generateLoops({ start, targetKm: 10, targetGain: 500, profile: "trail", directions: 4 }, { via: async () => null, elevate: goodEle });
+    const r = await generateLoops({ start, targetKm: 10, maximizeGain: true, profile: "trail", directions: 4 }, { via: async () => null, elevate: goodEle });
     expect(r).toEqual([]);
   });
 });

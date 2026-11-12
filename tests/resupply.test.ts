@@ -51,3 +51,32 @@ describe("ravitaillement le long d'un parcours (OpenStreetMap)", () => {
     expect(await findResupply(line, [], 400)).toEqual([]);
   });
 });
+
+import { gaps, sections, placesCsv, familyOf, PRESETS, RESUPPLY_KINDS, RESUPPLY_GLYPHS, resupplyIconSvg, type ResupplyPlace, type ResupplyKind } from "../src/lib/resupply";
+describe("préparation d'itinérance : autonomie, étapes, export", () => {
+  const pl = (id: string, kind: ResupplyKind, atKm: number, offM = 20): ResupplyPlace => ({ id, kind, name: `Lieu "${id}"`, lng: 6, lat: 45, address: "1 rue; du Test", hours: "", phone: "", website: "", drinkable: "", offM, atM: atKm * 1000, detour: offM > DETOUR_FROM_M, detourM: offM * 2, osmUrl: "" } as ResupplyPlace);
+  const list = [pl("w1", "water", 5), pl("s1", "spring", 12), pl("w2", "water", 30), pl("b1", "bakery", 8), pl("r1", "restaurant", 41, 600)];
+  it("familles et préréglages couvrent toutes les catégories", () => {
+    expect(familyOf("water")).toBe("water"); expect(familyOf("spring")).toBe("water"); expect(familyOf("bakery")).toBe("food"); expect(familyOf("restaurant")).toBe("meal");
+    for (const p of PRESETS) { expect(p.kinds.length).toBeGreaterThan(0); for (const k of p.kinds) expect(RESUPPLY_KINDS).toContain(k); }
+    expect(PRESETS.find((p) => p.id === "tout")!.kinds).toEqual(RESUPPLY_KINDS);
+  });
+  it("tronçons sans ravitaillement, du plus long au plus court", () => {
+    const g = gaps(list, 42000, "water"); expect(g[0]).toEqual({ fromM: 12000, toM: 30000, lengthM: 18000 }); expect(g.reduce((s, x) => s + x.lengthM, 0)).toBe(42000);
+    expect(gaps(list, 42000, "water", { strict: true })[0]).toEqual({ fromM: 5000, toM: 30000, lengthM: 25000 }); // les sources ne comptent pas
+    expect(gaps(list, 42000, "meal", { maxOffM: 300 })).toEqual([{ fromM: 0, toM: 42000, lengthM: 42000 }]); // restaurant trop loin
+    expect(gaps([], 42000, "food")).toEqual([{ fromM: 0, toM: 42000, lengthM: 42000 }]);
+  });
+  it("étapes : chaque lieu dans un seul tronçon, compteurs par famille", () => {
+    const s = sections(list, 42000, 20); expect(s.map((x) => [x.fromM, x.toM])).toEqual([[0, 20000], [20000, 40000], [40000, 42000]]);
+    expect(s[0].places.map((p) => p.id)).toEqual(["w1", "b1", "s1"]); expect(s[0].counts).toEqual({ water: 2, food: 1, meal: 0 }); expect(s[2].counts.meal).toBe(1);
+    expect(s.reduce((n, x) => n + x.places.length, 0)).toBe(list.length);
+    expect(sections([pl("x", "water", 42)], 42000, 20)[2].places).toHaveLength(1); // lieu à l'arrivée : dernier tronçon
+    expect(sections([], 0, 20)).toHaveLength(1);
+  });
+  it("CSV : une ligne par lieu, triée par km, guillemets échappés", () => {
+    const rows = placesCsv(list).split("\n"); expect(rows).toHaveLength(list.length + 1); expect(rows[0].startsWith("Km;Catégorie;Nom")).toBe(true);
+    expect(rows[1]).toContain('"Lieu ""w1"""'); expect(rows[1]).toContain('"1 rue; du Test"'); expect(rows[5]).toContain("1200"); expect(rows[1].split('";"').length).toBeGreaterThanOrEqual(1);
+  });
+  it("un pictogramme par catégorie", () => { for (const k of RESUPPLY_KINDS) { expect(RESUPPLY_GLYPHS[k].length).toBeGreaterThan(0); expect(resupplyIconSvg(k, 16)).toMatch(/^<svg[^>]*width="16"/); } });
+});
