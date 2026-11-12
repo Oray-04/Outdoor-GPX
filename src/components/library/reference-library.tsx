@@ -31,6 +31,8 @@ export function ReferenceLibrary() {
   const [hover, setHover] = useState<number | null>(null);
   const mine = routesRepo.useAll();
 
+  // lien direct : /itineraires/?id=gr20
+  useEffect(() => { const id = new URLSearchParams(location.search).get("id"); if (id && /^[\w-]{2,60}$/.test(id)) setSel(id); }, []);
   useEffect(() => { loadIndex().then(setEntries).catch((e) => setError(e instanceof Error ? e.message : "Bibliothèque indisponible.")); }, []);
   const counts = useMemo(() => { const c: Record<string, number> = {}; for (const e of entries ?? []) c[e.category] = (c[e.category] ?? 0) + 1; return c; }, [entries]);
   const list = useMemo(() => {

@@ -121,6 +121,21 @@ Bibliothèque : champ « Commune ou code postal » (suggestions, rayon réglable
 ### Champs obligatoires
 Astérisque rouge + légende « * Champ obligatoire » ; la validation correspond (espaces seuls refusés, message sous le champ, envoi bloqué). Dans l'édition d'un événement (enregistrement automatique), un champ obligatoire vidé n'écrase pas la dernière valeur valide.
 
+### Navigation et périmètre
+Trois univers : **Parcours** (Explorer, Créer, Générer, Itinéraires, Itinérance, Bibliothèque), **Événements** (calendrier, espace organisateur), **Nutrition** (page « Bientôt disponible »). Plus aucune donnée de démonstration ni offre payante : tout est gratuit. Les tracés synthétiques ne subsistent que comme jeux d'essai (`tests/fixtures/`).
+
+### Itinérance — `/itinerance`
+Commerces alimentaires, restauration et points d'eau à moins de 100 m – 5 km d'un parcours (OpenStreetMap via Overpass, 3 serveurs de secours) : catégories, distance au tracé, position kilométrique, détour, adresse et horaires déclarés, ajout comme POI du parcours. Lieux « potentiellement disponibles », jamais garantis.
+
+### Baguette magique à jauge, sections, nouveau départ — `/creer`
+Jauge 0–90 % de points à supprimer (aperçu en pointillés, compte exact, avertissement et réglage conseillé si l'écart dépasse 15 m). Extraction d'une **section A–B** posée librement sur le tracé (coupes interpolées, altitudes conservées, export GPX, enregistrement, étape suivante). **Nouveau départ** par clic droit ou appui long sur un point (boucle : rotation ; parcours ouvert : confirmation de la portion retirée).
+
+### Vue 3D, espaces naturels — fiche d'un parcours
+Bouton « Vue 3D » : relief (Terrain Tiles), photo aérienne IGN, rotation/inclinaison, survol animé du tracé, exagération réglable. Surcouches INPN activables une à une (Natura 2000, parcs, réserves…) avec fiche (nom, type, surface, gestionnaire, lien officiel).
+
+### Partage et intégration
+Visibilité Privé / Public par parcours. Un parcours public donne un **lien de partage** (`/partage/#…`) et un **code iframe** (`/integrer/#…`) : le tracé allégé (≤ 600 points), ses statistiques exactes et ses POI sont encodés dans le fragment de l'adresse — aucun serveur, aucune autre donnée. Le destinataire peut télécharger le GPX ou créer sa copie ; l'original n'est jamais modifiable.
+
 ### Itinéraires de référence — `/itineraires`
 GR/GRP, véloroutes, traversées VTT, cols : tracés OpenStreetMap (ODbL) intégrés avec source, licence, contrôle de validité, statistiques recalculées. Voir `docs/bibliotheque.md` (sources, anti-doublons, ajout d'un itinéraire).
 

@@ -136,18 +136,30 @@ export const queryLine = (line: LL[], minGapM = 1): LL[] => {
   out.push(line[line.length - 1]);
   return out;
 };
+/** Vrai dès que l'API Carto a échoué : on interroge alors directement le WFS (évite d'attendre un échec à chaque fenêtre). Remis à faux à chaque analyse. */
+let parcelsViaWfs = false;
+export const parcelSource = () => (parcelsViaWfs ? "wfs" : "apicarto");
+const parcelsWfs = (w: LL[], signal?: AbortSignal) => getJson<{ features?: { properties: ParcelProps; geometry: Ring }[]; numberMatched?: number }>(
+  wfsUrl("CADASTRALPARCELS.PARCELLAIRE_EXPRESS:parcelle", `INTERSECTS(geom,${wkt(w)})`, { PROPERTYNAME: "geom,idu,numero,section,code_insee,com_abs,nom_com,contenance" }), signal);
+
 /** Nombre de sommets par requête (≈ 2 Ko d'URL) et requêtes simultanées (le serveur est public). */
 export const PARCEL_WINDOW = 60, PARCEL_CONCURRENCY = 3;
 
 export async function fetchParcels(line: LL[], samples: { p: LL; d: number }[], stepM: number, o: { signal?: AbortSignal; onProgress?: (d: number, t: number) => void } = {}): Promise<ParcelHit[]> {
+  parcelsViaWfs = false;
   const ws = windows(queryLine(line), PARCEL_WINDOW); const found = new Map<string, { props: ParcelProps; geometry: Ring }>();
   let next = 0, done = 0;
   const worker = async () => {
     while (next < ws.length) {
       const i = next++;
-      const g = encodeURIComponent(JSON.stringify({ type: "LineString", coordinates: ws[i] }));
-      const j = await getJson<{ features?: { properties: ParcelProps; geometry: Ring }[]; totalFeatures?: number }>(`${CARTO}?geom=${g}&_limit=1000`, o.signal);
-      if ((j.totalFeatures ?? 0) > (j.features?.length ?? 0)) throw new Error("Résultat tronqué par le service (trop de parcelles dans une requête).");
+      type Res = { features?: { properties: ParcelProps; geometry: Ring }[]; totalFeatures?: number; numberMatched?: number };
+      let j: Res;
+      // Source principale : API Carto. Si elle est indisponible, même donnée (Parcellaire Express) par le WFS de la Géoplateforme, pour toutes les fenêtres restantes.
+      if (!parcelsViaWfs) {
+        try { j = await getJson<Res>(`${CARTO}?geom=${encodeURIComponent(JSON.stringify({ type: "LineString", coordinates: ws[i] }))}&_limit=1000`, o.signal); }
+        catch (e) { if ((e as Error).name === "AbortError") throw e; parcelsViaWfs = true; j = await parcelsWfs(ws[i], o.signal); }
+      } else j = await parcelsWfs(ws[i], o.signal);
+      if ((j.totalFeatures ?? j.numberMatched ?? 0) > (j.features?.length ?? 0)) throw new Error("Résultat tronqué par le service (trop de parcelles dans une requête).");
       for (const f of j.features ?? []) { const id = f.properties.idu ?? `${f.properties.code_insee}${f.properties.section}${f.properties.numero}`; if (!found.has(id)) found.set(id, { props: f.properties, geometry: f.geometry }); }
       o.onProgress?.(++done, ws.length);
     }

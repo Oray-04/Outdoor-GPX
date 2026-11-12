@@ -69,3 +69,8 @@ Règle de conflit : la modification la plus récente gagne (horloge de l'apparei
 - `npm test` : logique de synchronisation (conflits, suppressions, deux appareils) et requêtes du client contre une API simulée.
 
 Limite connue : le code n'a pas encore été essayé contre un vrai projet Supabase (création de compte, e-mails de confirmation, requêtes réelles). Les premières connexions sont donc à vérifier ; en cas d'erreur, le message s'affiche dans **Mon espace > Compte et synchronisation**.
+
+
+## Migration du 12/11 (audit)
+
+`20261112000000_profiles_columns.sql` : la colonne `is_admin` des profils n'est plus lisible publiquement (lecture limitée à `id`, `display_name`, `bio`, `created_at`) ; l'application lit le statut de l'utilisateur connecté par `rpc("is_admin")`. Aucune donnée modifiée. Retour arrière : `grant select on public.profiles to anon, authenticated;`. À appliquer après les deux premières. Tests : `bash supabase/tests/rls.sh` (48 vérifications).

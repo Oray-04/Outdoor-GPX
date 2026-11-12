@@ -21,6 +21,9 @@ select chk('nom d''affichage par défaut tiré de l''e-mail', (select display_na
 -- ───── Alice ─────
 set role authenticated; select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-0000-0000-000000000001', false);
 select chk('alice modifie son nom', public.t_rows($$update public.profiles set display_name = 'Alice' where id = auth.uid()$$) = 1);
+select chk('alice ne peut pas lire la colonne is_admin des profils', public.t_try($$select is_admin from public.profiles limit 1$$) = '42501');
+select chk('alice lit les colonnes publiques des profils', public.t_try($$select id, display_name, bio from public.profiles limit 1$$) = 'ok');
+select chk('alice connaît son propre statut (non admin)', public.is_admin() = false);
 select chk('alice ne peut pas se promouvoir admin', public.t_try($$update public.profiles set is_admin = true where id = auth.uid()$$) = '42501');
 select chk('alice ne modifie pas le profil de bob', public.t_rows($$update public.profiles set display_name = 'x' where id = 'bbbbbbbb-0000-0000-0000-000000000002'$$) = 0);
 select chk('alice crée un document', public.t_try($$insert into public.documents (owner_id, kind, id, data) values (auth.uid(), 'routes', 'r1', '{"name":"Boucle"}')$$) = 'ok');

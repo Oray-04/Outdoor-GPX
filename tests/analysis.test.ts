@@ -156,6 +156,15 @@ describe("export cadastral : tracé complet, sans coupure (correctifs)", () => {
     expect([...truth].filter((id) => !got.has(id)), "parcelles manquantes").toEqual([]);
     expect(new Set(hits.map((h) => h.commune)).size).toBe(3);
   });
+  it("API Carto en panne (404) : secours WFS Géoplateforme, mêmes parcelles, un seul essai raté", async () => {
+    const urls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (u: string) => { urls.push(String(u)); if (String(u).includes("apicarto")) return new Response("<html>404</html>", { status: 404 });
+      return new Response(JSON.stringify({ numberMatched: 1, features: [{ properties: { idu: "740560000G0001", numero: "0001", section: "0G", code_insee: "74056", com_abs: "000", nom_com: "Chamonix-Mont-Blanc", contenance: 900 }, geometry: sq(5.99, 44.99, 6.05, 45.01) }] }), { status: 200 }); }));
+    const l = dense(200); const hits = await fetchParcels(l, resample(l, 5), 5);
+    expect(hits).toHaveLength(1); expect(hits[0].ref).toBe("74056 0G 0001"); expect(hits[0].lengthM).toBeGreaterThan(100);
+    expect(urls.filter((u) => u.includes("apicarto")).length).toBeLessThanOrEqual(3);   // au plus un essai par requête simultanée, puis on n'insiste plus
+    const w = urls.find((u) => u.includes("wfs"))!; expect(w).toContain("CADASTRALPARCELS.PARCELLAIRE_EXPRESS%3Aparcelle"); expect(decodeURIComponent(w)).toContain("INTERSECTS(geom,SRID=4326;LINESTRING(");
+  });
   it("résultat tronqué par le service : erreur explicite plutôt qu'un export silencieusement incomplet", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ features: [], totalFeatures: 1500 }), { status: 200 })));
     const l = dense(50); await expect(fetchParcels(l, resample(l, 5), 5)).rejects.toThrow(/tronqu/);

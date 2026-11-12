@@ -41,7 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const c = cloud(); if (!c || !user) { setAdmin(false); return; }
-    c.from("profiles").select("is_admin").eq("id", user.id).maybeSingle().then(({ data }) => setAdmin(Boolean(data?.is_admin)));
+    c.rpc("is_admin").then(({ data }) => setAdmin(data === true)); // statut de l'utilisateur connecté uniquement (la colonne n'est plus lisible publiquement)
   }, [user]);
 
   const wrap = useCallback(async (fn: () => Promise<{ error: { message: string } | null }>) => {
