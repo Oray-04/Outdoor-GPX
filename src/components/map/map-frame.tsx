@@ -27,15 +27,18 @@ export function StatBanner({ title, items }: { title?: string; items: BannerItem
 export function MapFrame({ className, banner, children }: { className?: string; banner?: ReactNode; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const [full, setFull] = useState(false);
+  const [ws, setWs] = useState(false); // plein écran d'un espace de travail entier (carte + panneau d'outils)
   const fullRef = useRef(false); fullRef.current = full;
+  /** Élément mis en plein écran : l'espace de travail englobant (`data-workspace`) s'il existe — la carte ET ses outils restent utilisables —, sinon la carte seule. */
+  const target = () => (ref.current?.closest<HTMLElement>("[data-workspace]") ?? ref.current);
 
   const exit = useCallback(async () => {
     setFull(false);
     if (document.fullscreenElement) { try { await document.exitFullscreen(); } catch { /* déjà sorti */ } }
   }, []);
   const enter = useCallback(async () => {
-    setFull(true);
-    try { await ref.current?.requestFullscreen?.(); } catch { /* repli : plein écran CSS */ }
+    const t = target(); setWs(!!t && t !== ref.current); setFull(true);
+    try { await t?.requestFullscreen?.(); } catch { /* repli : plein écran CSS (iPhone) */ }
   }, []);
 
   useEffect(() => {
@@ -47,22 +50,29 @@ export function MapFrame({ className, banner, children }: { className?: string; 
   }, []);
 
   useEffect(() => {
-    if (!full) return;
+    const t = target(); const w = t && t !== ref.current ? t : null;
+    if (w) { if (full) w.setAttribute("data-fullscreen", "true"); else w.removeAttribute("data-fullscreen"); }
+    // la carte change de taille : MapLibre doit se recaler (sinon bandes grises)
+    // le navigateur peut faire défiler l'espace de travail en entrant en plein écran : on le remet en haut, puis MapLibre se recale
+    const settle = () => { if (w && window.innerWidth >= 1024) w.scrollTop = 0; window.dispatchEvent(new Event("resize")); };
+    const r = setTimeout(settle, 60), r2 = setTimeout(settle, 400);
+    if (!full) return () => { clearTimeout(r); clearTimeout(r2); };
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
+    return () => { clearTimeout(r); clearTimeout(r2); document.body.style.overflow = prev; w?.removeAttribute("data-fullscreen"); };
   }, [full]);
 
+  const solo = full && !ws;
   return (
-    <div ref={ref} className={clsx("flex flex-col", full ? "fixed inset-0 z-[80] bg-white" : className)}>
+    <div ref={ref} className={clsx("flex flex-col", solo ? "fixed inset-0 z-[80] bg-white" : className)}>
       <div className="relative min-h-0 flex-1">
         {children}
         <button type="button" onClick={full ? exit : enter} aria-pressed={full} aria-label={full ? "Quitter le plein écran" : "Carte en plein écran"} title={full ? "Quitter le plein écran (Échap)" : "Plein écran"}
-          className="absolute bottom-9 right-2.5 z-10 grid size-9 place-items-center rounded-lg bg-white text-ink-800 shadow-md ring-1 ring-black/10 hover:bg-ink-50">
-          {full ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+          className={clsx("absolute bottom-9 right-2.5 z-10 flex h-10 items-center gap-1.5 rounded-xl text-sm font-semibold shadow-md ring-1 transition-colors", full ? "bg-ink-900 px-3 text-white ring-white/20 hover:bg-ink-800" : "glass w-10 justify-center text-ink-800 ring-black/10 hover:bg-white")}>
+          {full ? <><Minimize2 className="size-4" /><span>Quitter</span></> : <Maximize2 className="size-4" />}
         </button>
       </div>
-      {full && banner}
+      {solo && banner}
     </div>
   );
 }

@@ -136,6 +136,14 @@ Bouton « Vue 3D » : relief (Terrain Tiles), photo aérienne IGN, rotation/incl
 ### Partage et intégration
 Visibilité Privé / Public par parcours. Un parcours public donne un **lien de partage** (`/partage/#…`) et un **code iframe** (`/integrer/#…`) : le tracé allégé (≤ 600 points), ses statistiques exactes et ses POI sont encodés dans le fragment de l'adresse — aucun serveur, aucune autre donnée. Le destinataire peut télécharger le GPX ou créer sa copie ; l'original n'est jamais modifiable.
 
+### Enregistrement, sport, légende, plein écran (passe du 13/11)
+- **Enregistrer** : l'éditeur n'écrit plus rien tout seul dans la bibliothèque. Bouton « Enregistrer » (ou Ctrl+S), état « Non enregistré » visible, avertissement en quittant (fermeture, rechargement, liens du site). Bloqué pendant le calcul des altitudes.
+- **Type de sport** (onglet Tracé) : Vélo de route, VTT, Trail, Randonnée. Profils de routage mesurés sur des trajets réels (`COSTING` dans `src/lib/routing.ts`) : route = 100 % revêtu ; limite connue : le profil piéton du moteur public n'a pas de pénalité pour les routes.
+- **Générateur** : pratique Vélo de route (jusqu'à 200 km, part de revêtu affichée). Avec un D+ cible, la distance peut dépasser la cible de **10 % au plus** ; une boucle trop plate est rallongée dans cette limite et n'est retenue que si son D+ mesuré se rapproche de la cible. Longues boucles : classement au pas large, propositions retenues re-mesurées au pas fin.
+- **Légende** des surcouches (pentes, cadastre, espaces naturels) sous le bouton des fonds de carte.
+- **Plein écran** : l'espace de travail entier (carte + panneau d'outils) passe en plein écran, sans l'en-tête ni la barre du site.
+- **Supprimé** : suivi GPS et navigation (`/suivi`). Les activités déjà enregistrées restent visibles dans Mon espace.
+
 ### Itinéraires de référence — `/itineraires`
 GR/GRP, véloroutes, traversées VTT, cols : tracés OpenStreetMap (ODbL) intégrés avec source, licence, contrôle de validité, statistiques recalculées. Voir `docs/bibliotheque.md` (sources, anti-doublons, ajout d'un itinéraire).
 

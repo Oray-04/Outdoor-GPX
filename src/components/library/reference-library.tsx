@@ -95,7 +95,7 @@ export function ReferenceLibrary() {
   const banner = <StatBanner title={selected?.name ?? "Itinéraires de référence"} items={selected && stats ? [{ label: "Distance", value: fmtKm(stats.distanceM) }, { label: "D+", value: fmtM(stats.gainM) }, { label: "D−", value: fmtM(stats.lossM) }] : [{ label: "Itinéraires", value: String(list.length) }]} />;
 
   return (
-    <div className="grid min-h-[calc(100dvh-4rem)] lg:h-[calc(100dvh-4rem)] lg:grid-cols-[26rem_1fr]">
+    <div data-workspace="scroll" className="grid min-h-[calc(100dvh-4rem)] lg:h-[calc(100dvh-4rem)] lg:grid-cols-[26rem_1fr]">
       <aside className="order-2 min-h-0 overflow-y-auto border-ink-100 bg-white p-4 lg:order-1 lg:border-r">
         <h1 className="text-xl font-extrabold">Itinéraires de référence</h1>
         <p className="mt-1 text-sm text-ink-500">GR, grandes traversées et véloroutes : tracés ouverts (OpenStreetMap, ODbL) avec distance, D+/D− et profil calculés. Sélectionnez un itinéraire pour le voir sur la carte, le télécharger ou l'utiliser dans l'éditeur.</p>

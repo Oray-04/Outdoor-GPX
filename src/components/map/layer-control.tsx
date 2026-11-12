@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { Map as MLMap } from "maplibre-gl";
-import { Layers, Lock, X } from "lucide-react";
+import { Layers, ListTree, Lock, X } from "lucide-react";
 import clsx from "clsx";
-import { BASEMAPS, ENV_OVERLAYS, GROUP_LABEL, OVERLAYS, applyLayers, dropKeyedLayers, envZonesAt, type BasemapGroup, type EnvZone } from "@/lib/basemaps";
+import { BASEMAPS, ENV_OVERLAYS, GROUP_LABEL, OVERLAYS, applyLayers, dropKeyedLayers, envZonesAt, legendFor, type BasemapGroup, type EnvZone } from "@/lib/basemaps";
 import { setBasemapPref, setOverlayPref, setThunderforestKey, thunderforestFromEnv, useBasemapPref, useOverlayPref, useThunderforestKey } from "@/lib/map-prefs";
 
 /**
@@ -18,6 +18,7 @@ export function LayerControl({ map, ready, className, scope }: { map: { current:
   const [draft, setDraft] = useState("");
   const box = useRef<HTMLDivElement>(null);
   const lastKey = useRef(tfKey);
+  const [legendOpen, setLegendOpen] = useState(() => typeof window === "undefined" || window.innerWidth >= 768);
   const [zones, setZones] = useState<EnvZone[] | null>(null); const [zBusy, setZBusy] = useState(false); const [zErr, setZErr] = useState<string | null>(null);
   const envActive = ENV_OVERLAYS.filter((o) => overlays.includes(o.id)).map((o) => o.id);
   const identify = async () => {
@@ -42,7 +43,26 @@ export function LayerControl({ map, ready, className, scope }: { map: { current:
   const groups = (["ign", "world", "outdoor"] as BasemapGroup[]).map((g) => ({ g, items: BASEMAPS.filter((b) => b.group === g) }));
   const needsKey = !tfKey;
 
-  return (
+  const legend = legendFor(overlays);
+  return (<>
+    {legend.length > 0 && (
+      <div className="absolute right-2.5 top-[7.4rem] z-[9] flex flex-col items-end">
+        <button type="button" onClick={() => setLegendOpen((v) => !v)} aria-expanded={legendOpen} aria-controls="map-legend" className="flex h-[29px] items-center gap-1 rounded bg-white px-2 text-[11px] font-semibold text-ink-800 shadow ring-1 ring-black/10 hover:bg-ink-50"><ListTree className="size-3.5" />Légende</button>
+        {legendOpen && (
+          <div id="map-legend" role="region" aria-label="Légende des surcouches" className="mt-1 max-h-[min(20rem,calc(100dvh-18rem))] w-[min(16rem,calc(100vw-1.5rem))] overflow-y-auto rounded-xl bg-white/95 p-2.5 text-xs shadow-lift ring-1 ring-black/10 backdrop-blur">
+            {legend.map((l) => (
+              <section key={l.overlayId} className="mb-2 last:mb-0">
+                <h3 className="mb-1 text-[11px] font-bold uppercase tracking-wide text-ink-500">{l.title}</h3>
+                <ul className="grid gap-1">{l.items.map((it) => (
+                  <li key={it.label} className="flex items-center gap-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    {it.img ? <img src={it.img} alt="" className="size-5 shrink-0 rounded-sm object-contain ring-1 ring-black/10" loading="lazy" /> : it.line ? <span className="h-0 w-5 shrink-0 border-t-2" style={{ borderColor: it.color }} aria-hidden="true" /> : <span className="size-4 shrink-0 rounded-sm ring-1 ring-black/15" style={{ background: it.color }} aria-hidden="true" />}
+                    <span className="leading-tight text-ink-800">{it.label}</span>
+                  </li>))}</ul>
+                {l.note && <p className="mt-1 leading-snug text-ink-500">{l.note}</p>}
+              </section>))}
+          </div>)}
+      </div>)}
     <div ref={box} className={clsx("absolute right-2.5 top-[5rem] z-10", className)}>
       <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-label="Fonds de carte et surcouches" title="Fonds de carte"
         className="grid size-[29px] place-items-center rounded bg-white text-ink-800 shadow ring-1 ring-black/10 hover:bg-ink-50"><Layers className="size-[17px]" /></button>
@@ -104,5 +124,5 @@ export function LayerControl({ map, ready, className, scope }: { map: { current:
         </div>
       )}
     </div>
-  );
+  </>);
 }

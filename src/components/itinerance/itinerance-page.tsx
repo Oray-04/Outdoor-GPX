@@ -90,7 +90,7 @@ export function ItinerancePage() {
   const banner = <StatBanner title={route?.name ?? "Itinérance"} items={stats ? [{ label: "Distance", value: fmtKm(stats.distanceM) }, { label: "Lieux", value: String(visible.length) }] : []} />;
 
   return (
-    <div className="grid min-h-[calc(100dvh-4rem)] lg:h-[calc(100dvh-4rem)] lg:grid-cols-[27rem_1fr]">
+    <div data-workspace="scroll" className="grid min-h-[calc(100dvh-4rem)] lg:h-[calc(100dvh-4rem)] lg:grid-cols-[27rem_1fr]">
       <aside className="order-2 min-h-0 overflow-y-auto border-ink-100 bg-white p-4 lg:order-1 lg:border-r">
         <h1 className="flex items-center gap-2 text-xl font-extrabold"><Store className="size-5 text-ember-500" />Itinérance</h1>
         <p className="mt-1 text-sm text-ink-500">Trouvez où remplir vos gourdes et acheter à manger le long d'un parcours : boulangeries, épiceries, supermarchés, restauration, fontaines.</p>

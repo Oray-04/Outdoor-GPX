@@ -150,7 +150,7 @@ export function GeneratorPage() {
   const banner = <StatBanner title={selected ? `Proposition ${idx(selected) + 1}` : "Générateur de parcours"} items={selected ? [{ label: "Distance", value: fmtKm(selected.distanceM) }, { label: "D+", value: fmtM(selected.gainM) }, { label: "D−", value: fmtM(selected.lossM) }] : [{ label: "Cible", value: `${km} km` }, { label: "D+ cible", value: anyGain ? "indifférent" : fmtM(gain) }]} />;
 
   return (
-    <div className="grid min-h-[calc(100dvh-4rem)] lg:h-[calc(100dvh-4rem)] lg:grid-cols-[25rem_1fr]">
+    <div data-workspace="scroll" className="grid min-h-[calc(100dvh-4rem)] lg:h-[calc(100dvh-4rem)] lg:grid-cols-[25rem_1fr]">
       <aside className="order-2 min-h-0 overflow-y-auto border-ink-100 bg-white p-4 lg:order-1 lg:border-r">
         <h1 className="flex items-center gap-2 text-xl font-extrabold"><Sparkles className="size-5 text-ember-500" />Générer des parcours</h1>
         <p className="mt-1 text-sm text-ink-500">Indiquez un départ, une distance et un dénivelé : plusieurs boucles vous sont proposées, en privilégiant chemins et sentiers.</p>

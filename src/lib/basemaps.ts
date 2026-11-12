@@ -51,6 +51,18 @@ export const OVERLAYS: Overlay[] = [
 ];
 export const ENV_OVERLAYS = OVERLAYS.filter((o) => o.env);
 
+/** Légende d'une surcouche : pastilles de couleur expliquées, ou vignette fournie par le serveur (couleur exacte du rendu). */
+export interface LegendEntry { overlayId: string; title: string; items: { color?: string; line?: boolean; img?: string; label: string }[]; note?: string }
+/** Couleurs de la carte des pentes : légende officielle de l'IGN (GEOGRAPHICALGRIDSYSTEMS.SLOPES.MOUNTAIN). */
+const SLOPES = [["#f5e400", "30° à 35°"], ["#f58220", "35° à 40°"], ["#e6005a", "40° à 45°"], ["#c98ac0", "plus de 45°"]];
+export function legendFor(overlayIds: string[]): LegendEntry[] {
+  return OVERLAYS.filter((o) => overlayIds.includes(o.id)).map((o) => {
+    if (o.id === "ign-slopes") return { overlayId: o.id, title: o.label, items: SLOPES.map(([color, label]) => ({ color, label: `Pente de ${label}` })), note: "Sans couleur : pente inférieure à 30°. Au-delà de 30°, terrain raide (risque d'avalanche en hiver)." };
+    if (o.id === "ign-cadastre") return { overlayId: o.id, title: o.label, items: [{ color: "#f5a01e", line: true, label: "Limite de parcelle (numéro au centre)" }], note: "Visible à partir du zoom 12." };
+    return { overlayId: o.id, title: o.label, items: [{ img: `https://data.geopf.fr/wms-v/ows?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetLegendGraphic&FORMAT=image/png&LAYER=${o.env!.layer}&STYLE=`, label: o.env!.kind }], note: o.note };
+  });
+}
+
 export interface EnvZone { overlayId: string; kind: string; regulated: boolean; name: string; zone: string; areaHa: number | null; created: string; manager: string; url: string }
 /** Zones protégées en un point, pour les couches données (GetFeatureInfo). Une seule requête par couche active. */
 export async function envZonesAt(lng: number, lat: number, overlayIds: string[], signal?: AbortSignal): Promise<EnvZone[]> {

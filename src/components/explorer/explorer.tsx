@@ -239,7 +239,7 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
 
   const chip = "rounded-full border px-3 py-1.5 text-sm font-medium transition";
   return (
-    <div className="relative h-[calc(100dvh-4rem-var(--bnav))] overflow-hidden lg:flex lg:min-h-[34rem]">
+    <div data-workspace className="relative h-[calc(100dvh-4rem-var(--bnav))] overflow-hidden lg:flex lg:min-h-[34rem]">
       <Sheet state={sheet} onState={setSheet} label="Parcours, calques et points d'intérêt" header={<>
         <form onSubmit={search} role="search" className="flex gap-2 border-b border-ink-100 p-3">
           <label className="relative flex-1"><span className="sr-only">Rechercher un lieu</span>

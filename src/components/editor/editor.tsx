@@ -83,8 +83,9 @@ export function Editor({ routeId }: { routeId?: string }) {
 
   // ── Chargement d'un parcours existant ───────────────────────
   const didLoad = useRef(false);
+  const createdHere = useRef<string | null>(null);
   useEffect(() => {
-    if (!routeId || didLoad.current) return;
+    if (!routeId || didLoad.current || createdHere.current === routeId) return; // parcours créé ici puis enregistré : déjà en mémoire, ne pas le recharger
     didLoad.current = true;
     const r = routesRepo.get(routeId);
     if (!r) { setMsg({ kind: "err", text: "Parcours introuvable sur cet appareil." }); setLoaded(true); return; }
@@ -137,24 +138,26 @@ export function Editor({ routeId }: { routeId?: string }) {
     if (st.waypoints.length < 2 || coords.length < 2) { setMsg({ kind: "warn", text: "Tracez au moins deux points avant d'enregistrer." }); return false; }
     setSaved("saving");
     const rId = rid.current ?? uid();
-    let { region, country } = meta;
-    if (!region && !country) {
-      try {
-        const c = coords[0];
-        const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=5&accept-language=fr&lat=${c[1]}&lon=${c[0]}`);
-        if (r.ok) { const j = (await r.json()) as { address?: { state?: string; country?: string } }; region = j.address?.state ?? ""; country = j.address?.country ?? ""; }
-      } catch { /* optionnel */ }
-    }
-    const nextMeta = { ...meta, region, country };
+    const { region, country } = meta;
+    const nextMeta = meta;
     const route: SavedRoute = { id: rId, name: meta.name.trim() || "Parcours sans titre", description: meta.description, sport: meta.sport, segs: st.segs, waypoints: st.waypoints, coords, pois: st.pois, terrain: meta.terrain, visibility: meta.visibility, region, country, layer: meta.layer, sourceUrl: /^https?:\/\//.test(meta.sourceUrl) ? meta.sourceUrl : undefined, source: sourceKind.current, fileName: fileName.current, createdAt: createdAt.current, updatedAt: Date.now() };
     const res = routesRepo.upsert(route);
     if (!res.ok) { setSaved("error"); setMsg({ kind: "err", text: res.error ?? "Enregistrement impossible." }); return false; }
-    if (!rid.current) { setId(rId); rid.current = rId; window.history.replaceState(null, "", withBase(editorHref(rId))); }
+    if (!rid.current) { createdHere.current = rId; setId(rId); rid.current = rId; window.history.replaceState(null, "", withBase(editorHref(rId))); }
     savedSt.current = st; savedMeta.current = JSON.stringify(nextMeta); setMeta(nextMeta); setSaved("saved");
     setMsg({ kind: "ok", text: "Parcours enregistré dans votre bibliothèque." });
+    // Région et pays : complétés ensuite, sans retarder l'enregistrement (service facultatif, 6 s au plus)
+    if (!region && !country) {
+      const c = coords[0], ac = new AbortController(), tm = setTimeout(() => ac.abort(), 6000);
+      fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=5&accept-language=fr&lat=${c[1]}&lon=${c[0]}`, { signal: ac.signal }).then((r) => (r.ok ? r.json() : null)).then((j: { address?: { state?: string; country?: string } } | null) => {
+        const rg = j?.address?.state ?? "", ct = j?.address?.country ?? ""; if (!rg && !ct) return;
+        const cur = routesRepo.get(rId); if (cur && !cur.region && !cur.country) routesRepo.upsert({ ...cur, region: rg, country: ct });
+        setMeta((m) => { if (m.region || m.country) return m; const n = { ...m, region: rg, country: ct }; if (JSON.stringify(m) === savedMeta.current) savedMeta.current = JSON.stringify(n); return n; });
+      }).catch(() => { /* facultatif */ }).finally(() => clearTimeout(tm));
+    }
     return true;
   }, [st, meta, coords]);
-  saveRef.current = () => { if (dirtyRef.current) save(); };
+  saveRef.current = () => { if (canSave) save(); else if (dirtyRef.current && elev === "loading") setMsg({ kind: "warn", text: "Altitudes en cours de calcul : réessayez dans un instant." }); };
   // Quitter sans enregistrer : avertissement du navigateur (fermeture, rechargement) et confirmation sur les liens du site
   useEffect(() => {
     const before = (e: BeforeUnloadEvent) => { if (dirtyRef.current) { e.preventDefault(); e.returnValue = ""; } };
@@ -510,7 +513,7 @@ export function Editor({ routeId }: { routeId?: string }) {
   const field = "w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm";
 
   return (
-    <div className="relative h-[calc(100dvh-4rem-var(--bnav))] overflow-hidden lg:grid lg:min-h-[40rem] lg:grid-cols-[1fr_22rem]">
+    <div data-workspace className="relative h-[calc(100dvh-4rem-var(--bnav))] overflow-hidden lg:grid lg:min-h-[40rem] lg:grid-cols-[1fr_22rem]">
       <div className="absolute inset-x-0 top-0 bottom-[8rem] flex flex-col lg:static lg:min-h-0">
         <MapFrame className="min-h-[18rem] flex-1" banner={<StatBanner title={meta.name || "Parcours en cours"} items={[{ label: "Distance", value: stats ? fmtKm(stats.distanceM) : "—" }, { label: "D+", value: stats ? fmtM(stats.gainM) : "—" }, { label: "D−", value: stats ? fmtM(stats.lossM) : "—" }, { label: "Alt. min", value: stats ? fmtM(stats.minEle) : "—" }, { label: "Alt. max", value: stats ? fmtM(stats.maxEle) : "—" }, { label: "Durée est.", value: stats ? fmtDuration(durationMin) : "—" }]} />}>
           <div className="absolute inset-0"><div ref={el} className="size-full" role="application" aria-label="Carte de l'éditeur : cliquez pour ajouter des points" /></div>
