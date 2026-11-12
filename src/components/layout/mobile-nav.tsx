@@ -45,7 +45,7 @@ export function MobileNav() {
   return (
     <>
       {open && (
-        <div className="fixed inset-0 z-[60] lg:hidden" role="dialog" aria-modal="true" aria-label="Plus de pages">
+        <div className="fixed inset-0 z-[60] md:hidden" role="dialog" aria-modal="true" aria-label="Plus de pages">
           <button type="button" aria-label="Fermer le menu" className="absolute inset-0 bg-ink-950/55 backdrop-blur-[2px]" onClick={() => setOpen(false)} />
           <div className="absolute inset-x-0 bottom-0 rounded-t-3xl bg-paper p-4 pb-[calc(4.5rem+env(safe-area-inset-bottom))] shadow-lift">
             <div className="mb-3 flex items-center justify-between"><p className="font-display text-lg font-bold">Menu</p><button type="button" aria-label="Fermer" onClick={() => setOpen(false)} className="grid size-10 place-items-center rounded-full hover:bg-ink-100"><X className="size-5" /></button></div>
@@ -62,7 +62,7 @@ export function MobileNav() {
           </div>
         </div>
       )}
-      <nav aria-label="Navigation principale" className="glass-dark fixed inset-x-0 bottom-0 z-[70] border-t border-brass-400/25 pb-[env(safe-area-inset-bottom)] lg:hidden">
+      <nav aria-label="Navigation principale" className="glass-dark fixed inset-x-0 bottom-0 z-[70] border-t border-brass-400/25 !bg-ink-950/95 pb-[env(safe-area-inset-bottom)] md:hidden">
         <ul className="mx-auto grid h-14 max-w-xl grid-cols-5">
           {MAIN.map(({ href, label, icon: I }) => (
             <li key={href}><Link href={href} aria-current={active(href) ? "page" : undefined} className={clsx("relative flex h-full flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors", active(href) ? "text-white before:absolute before:top-0 before:h-0.5 before:w-8 before:rounded-full before:bg-brass-400" : "text-white/55")}><I className={clsx("size-5", active(href) && "stroke-[2.2] text-brass-400")} />{label}</Link></li>

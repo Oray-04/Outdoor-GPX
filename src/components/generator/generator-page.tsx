@@ -149,8 +149,8 @@ export function GeneratorPage() {
   const banner = <StatBanner title={selected ? `Proposition ${idx(selected) + 1}` : "Générateur de parcours"} items={selected ? [{ label: "Distance", value: fmtKm(selected.distanceM) }, { label: "D+", value: fmtM(selected.gainM) }, { label: "D−", value: fmtM(selected.lossM) }] : [{ label: "Cible", value: `${km} km` }, { label: "Dénivelé", value: maxGain ? "maximisé" : "libre" }]} />;
 
   return (
-    <div data-workspace="scroll" className="grid min-h-[calc(100dvh-4rem)] lg:h-[calc(100dvh-4rem)] lg:grid-cols-[25rem_1fr]">
-      <aside className="order-2 min-h-0 overflow-y-auto border-ink-100 bg-white p-4 lg:order-1 lg:border-r">
+    <div data-workspace="scroll" className="grid min-h-[calc(100dvh-4rem)] md:h-[calc(100dvh-4rem)] md:grid-cols-[21rem_1fr] lg:grid-cols-[25rem_1fr]">
+      <aside className="order-2 min-h-0 overflow-y-auto border-ink-100 bg-white p-4 md:order-1 md:border-r">
         <h1 className="flex items-center gap-2 text-xl font-extrabold"><Sparkles className="size-5 text-ember-500" />Générer des parcours</h1>
         <p className="mt-1 text-sm text-ink-500">Indiquez un départ et une distance : plusieurs boucles vous sont proposées, avec leur dénivelé réellement mesuré, en privilégiant chemins et sentiers.</p>
 
@@ -206,7 +206,7 @@ export function GeneratorPage() {
           </section>
         )}
       </aside>
-      <MapFrame className="order-1 h-[52vh] min-h-[20rem] lg:order-2 lg:h-auto" banner={banner}>
+      <MapFrame className="order-1 h-[52vh] min-h-[20rem] md:order-2 md:h-auto" banner={banner}>
         <div className="absolute inset-0"><div ref={el} className="size-full" role="application" aria-label="Carte : cliquez pour choisir le départ" /></div>
         <LayerControl map={map} ready={ready} />
         {!start && ready && <p className="pointer-events-none absolute left-3 top-3 max-w-[16rem] rounded-lg bg-white/95 px-3 py-2 text-sm shadow">Cliquez sur la carte pour choisir le départ.</p>}

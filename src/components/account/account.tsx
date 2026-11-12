@@ -45,7 +45,7 @@ export function Account() {
       <div className="mt-4 grid gap-6">
         <Section id="compte" title="Compte et synchronisation"><CloudCard /></Section>
         <Section id="profil" title="Profil"><ProfileForm /></Section>
-        <Section id="parcours" title={`Mes parcours (${mine.length})`} action={<Link href="/creer" className="text-sm font-semibold text-pine-700 underline">Créer</Link>}>
+        <Section id="parcours" title={`Mes parcours (${mine.length})`} action={<Link href="/creer" className="inline-flex min-h-9 items-center rounded-lg px-2 text-sm font-semibold text-pine-700 underline hover:bg-pine-50">Créer</Link>}>
           {mine.length ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{mine.map((r) => <RouteCard key={r.id} route={r} verified={verified.includes(r.id)} />)}</div> : <Empty>Aucun parcours. <Link className="font-semibold text-pine-700 underline" href="/creer">Créez-en un</Link> ou <Link className="font-semibold text-pine-700 underline" href="/fichiers">importez un fichier</Link>.</Empty>}</Section>
         <Section id="favoris" title={`Mes favoris (${favRoutes.length})`}>{favRoutes.length ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{favRoutes.map((r) => <RouteCard key={r.id} route={r} />)}</div> : <Empty>Ajoutez un parcours en favori depuis sa fiche.</Empty>}</Section>
         <Section id="prives" title={`Mes itinéraires privés (${priv.length})`}>{priv.length ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{priv.map((r) => <RouteCard key={r.id} route={r} />)}</div> : <Empty>Aucun itinéraire privé.</Empty>}</Section>

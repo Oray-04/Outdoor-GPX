@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { CalendarDays, MapPin, X } from "lucide-react";
+import { CalendarDays, MapPin, X, SearchX } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useAllEvents } from "@/lib/repo";
 import { DEFAULT_EVENT_FILTERS, filterEvents, type EventFilters } from "@/lib/events";
 import { SPORTS } from "@/lib/sports";
@@ -41,7 +42,7 @@ export function EventsList({ initialSport }: { initialSport?: string }) {
         {dirty && <div className="flex items-end"><Button variant="secondary" size="sm" onClick={() => setF(DEFAULT_EVENT_FILTERS)}><X className="size-4" />Réinitialiser</Button></div>}
       </div>
       <p className="mt-4 text-sm text-ink-600" aria-live="polite"><b>{list.length}</b> événement(s)</p>
-      {!list.length && <p className="mt-4 rounded-xl border border-dashed border-ink-200 p-8 text-center text-ink-500">Aucun événement ne correspond à ces critères.</p>}
+      {!list.length && <div className="mt-4">{all.length ? <EmptyState icon={SearchX} title="Aucun événement ne correspond à ces critères">Modifiez les dates, la région ou la distance.</EmptyState> : <EmptyState icon={CalendarDays} title="Aucun événement pour le moment" actions={<ButtonLink href="/organisateurs" size="sm">Créer un événement</ButtonLink>}>Les courses et sorties créées dans l&apos;espace organisateur apparaîtront ici.</EmptyState>}</div>}
       {byMonth.map(([k, evs]) => (
         <section key={k} className="mt-6"><h2 className="mb-3 flex items-center gap-2 text-lg font-bold capitalize"><CalendarDays className="size-5 text-pine-600" />{new Date(k + "-01T12:00:00").toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}</h2>
           <ul className="grid gap-3">{evs.map((e) => { const d = new Date(e.date + "T12:00:00"); return (

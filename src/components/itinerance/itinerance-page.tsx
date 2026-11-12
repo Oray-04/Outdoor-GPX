@@ -169,8 +169,8 @@ export function ItinerancePage() {
   };
 
   return (
-    <div data-workspace="scroll" className="grid min-h-[calc(100dvh-4rem)] lg:h-[calc(100dvh-4rem)] lg:grid-cols-[28rem_1fr]">
-      <aside className="order-2 min-h-0 overflow-y-auto border-ink-100 bg-white p-4 lg:order-1 lg:border-r">
+    <div data-workspace="scroll" className="grid min-h-[calc(100dvh-4rem)] md:h-[calc(100dvh-4rem)] md:grid-cols-[21rem_1fr] lg:grid-cols-[28rem_1fr]">
+      <aside className="order-2 min-h-0 overflow-y-auto border-ink-100 bg-white p-4 md:order-1 md:border-r">
         <h1 className="flex items-center gap-2 text-xl font-extrabold"><Store className="size-5 text-ember-500" />Itinérance</h1>
         <p className="mt-1 text-sm text-ink-500">Où remplir les gourdes et acheter à manger le long d'un parcours : préparez vos étapes avant de partir.</p>
         {!routes.length ? (
@@ -189,7 +189,7 @@ export function ItinerancePage() {
 
           {places && places.length > 0 && (<section className="mt-5" aria-label="Résultats">
             <h2 className="eyebrow mb-2">Autonomie sur le parcours</h2>
-            <div className="grid grid-cols-3 gap-2">{gapCard("water", gapWater, 15)}{gapCard("food", gapFood, 40)}{gapCard("meal", places ? gaps(places, total, "meal")[0] : undefined, 9999)}</div>
+            <div className="grid grid-cols-3 gap-2 md:max-lg:grid-cols-1">{gapCard("water", gapWater, 15)}{gapCard("food", gapFood, 40)}{gapCard("meal", places ? gaps(places, total, "meal")[0] : undefined, 9999)}</div>
             {searched("water") && <p className="mt-1.5 text-[11px] text-ink-500">Eau : seules les fontaines et points d'eau comptent ; les sources naturelles (eau non contrôlée) sont affichées mais pas comptées.</p>}
 
             <h2 className="eyebrow mb-2 mt-5">Affichage</h2>
@@ -233,7 +233,7 @@ export function ItinerancePage() {
           </section>)}
         </>)}
       </aside>
-      <MapFrame className="order-1 h-[46vh] min-h-[19rem] lg:order-2 lg:h-auto" banner={banner}>
+      <MapFrame className="order-1 h-[46vh] min-h-[19rem] md:order-2 md:h-auto" banner={banner}>
         <div className="absolute inset-0"><div ref={el} className="size-full" role="region" aria-label="Carte des commerces et points d'eau" /></div>
         <LayerControl map={map} ready={ready} />
       </MapFrame>

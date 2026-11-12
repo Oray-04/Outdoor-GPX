@@ -59,7 +59,7 @@ export function Hero() {
             </button>
           </form>
           <div className="mt-3 flex flex-wrap items-center gap-3 text-sm" aria-live="polite">
-            <button onClick={locate} disabled={geo.status === "loading"} className="inline-flex items-center gap-1.5 font-medium text-pine-400 hover:text-pine-100 disabled:opacity-60">
+            <button onClick={locate} disabled={geo.status === "loading"} className="-mx-2 inline-flex min-h-10 items-center gap-1.5 rounded-lg px-2 font-medium text-pine-400 hover:bg-white/5 hover:text-pine-100 disabled:opacity-60">
               {geo.status === "loading" ? <Loader2 className="size-4 animate-spin" /> : <LocateFixed className="size-4" />}Autour de moi
             </button>
             {msg && <span className="line-clamp-1 text-ink-300">{msg}</span>}

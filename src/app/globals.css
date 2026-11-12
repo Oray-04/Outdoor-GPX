@@ -60,9 +60,9 @@
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Hauteur de la barre de navigation basse (mobile) ; nulle sur ordinateur. */
+/* Hauteur de la barre de navigation basse (mobile) ; nulle sur tablette et ordinateur (navigation dans l'en-tête). */
 :root { --bnav: calc(3.5rem + env(safe-area-inset-bottom)); }
-@media (min-width: 1024px) { :root { --bnav: 0px; } }
+@media (min-width: 768px) { :root { --bnav: 0px; } }
 html { scroll-behavior: smooth; }
 body { padding-bottom: var(--bnav); }
 body:has(main [data-embed]) { padding-bottom: 0; }
@@ -83,6 +83,12 @@ h1.font-display, h2.font-display, h2.text-xs, h2.text-sm, h2.text-base, h2.text-
 ::selection { background: var(--color-brass-400); color: var(--color-ink-950); }
 :focus-visible { outline: 2px solid var(--color-brass-500); outline-offset: 2px; border-radius: 6px; }
 .font-display { font-variant-numeric: tabular-nums; }
+h1, h2, h3 { text-wrap: balance; }
+p, li { text-wrap: pretty; }
+/* cibles tactiles : les pastilles et petits boutons gardent une hauteur confortable au doigt */
+@media (pointer: coarse) { button.rounded-full, a.rounded-full, select { min-height: 2.5rem; } .maplibregl-marker button.rounded-full, .maplibregl-marker a.rounded-full { min-height: 0; } }
+/* panneaux d'outils : barre de défilement fine */
+aside { scrollbar-width: thin; scrollbar-color: var(--color-ink-200) transparent; }
 
 /* Filet laiton sous les titres de section, étiquettes « instrument » */
 .eyebrow { font-family: var(--font-display); font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; color: var(--color-brass-600); }
@@ -105,9 +111,9 @@ input[type=range] { accent-color: var(--color-pine-600); }
 /* Plein écran d'un espace de travail : la carte et son panneau d'outils occupent tout l'écran, sans l'en-tête ni la barre du site */
 [data-workspace][data-fullscreen="true"] { position: fixed !important; inset: 0; z-index: 80; height: 100dvh !important; min-height: 0 !important; max-height: none; background: var(--color-paper); --bnav: 0px; overflow: hidden; }
 [data-workspace]:fullscreen { --bnav: 0px; background: var(--color-paper); overflow: hidden; }
-@media (min-width: 1024px) { [data-workspace][data-fullscreen="true"], [data-workspace]:fullscreen { grid-template-rows: minmax(0, 1fr); } }
+@media (min-width: 768px) { [data-workspace][data-fullscreen="true"], [data-workspace]:fullscreen { grid-template-rows: minmax(0, 1fr); } }
 /* pages « panneau + carte » empilés sur mobile : le panneau reste atteignable en faisant défiler */
-@media (max-width: 1023px) { [data-workspace="scroll"][data-fullscreen="true"], [data-workspace="scroll"]:fullscreen { overflow-y: auto; } }
+@media (max-width: 767px) { [data-workspace="scroll"][data-fullscreen="true"], [data-workspace="scroll"]:fullscreen { overflow-y: auto; } }
 
 /* Fenêtres d'information et contrôles de la carte */
 .maplibregl-popup-content { border-radius: 14px !important; padding: 12px 30px 12px 14px !important; box-shadow: var(--shadow-lift) !important; font-family: var(--font-sans); }

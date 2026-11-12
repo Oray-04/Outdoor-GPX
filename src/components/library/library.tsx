@@ -1,9 +1,10 @@
 "use client";
 import { useMemo, useState } from "react";
-import { List, Map as MapIcon, SlidersHorizontal, X } from "lucide-react";
+import { List, Map as MapIcon, SlidersHorizontal, X, SearchX, Route as RouteIcon } from "lucide-react";
 import clsx from "clsx";
 import { RouteCard } from "@/components/ui/route-card";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { RoutesMap } from "./routes-map";
 import { useAllRoutes, useVerified } from "@/lib/route-vm";
 import { DEFAULT_FILTERS, filterRoutes, type Filters } from "@/lib/route-model";
@@ -96,7 +97,7 @@ export function Library({ initialSport }: { initialSport?: string }) {
               </div>
             </div>
           </div>
-          {!list.length ? <p className="rounded-xl border border-dashed border-ink-200 p-8 text-center text-ink-500">Aucun parcours ne correspond à ces critères.</p>
+          {!list.length ? (all.length ? <EmptyState icon={SearchX} title="Aucun parcours ne correspond à ces critères">Élargissez la distance ou le dénivelé, ou retirez un filtre.</EmptyState> : <EmptyState icon={RouteIcon} title="Votre bibliothèque est vide" actions={<><ButtonLink href="/creer" size="sm">Créer un parcours</ButtonLink><ButtonLink href="/fichiers" size="sm" variant="secondary">Importer un GPX</ButtonLink><ButtonLink href="/itineraires" size="sm" variant="secondary">Itinéraires de référence</ButtonLink></>}>Tracez un parcours, importez un fichier GPS ou partez d&apos;un GR ou d&apos;une véloroute : il apparaîtra ici.</EmptyState>)
             : view === "list" ? <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">{list.map((r) => <RouteCard key={r.id} route={r} verified={verified.includes(r.id)} />)}</div>
             : <RoutesMap routes={list} />}
         </section>

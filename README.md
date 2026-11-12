@@ -124,6 +124,9 @@ Astérisque rouge + légende « * Champ obligatoire » ; la validation correspon
 ### Navigation et périmètre
 Trois univers : **Parcours** (Explorer, Créer, Générer, Itinéraires, Itinérance, Bibliothèque), **Événements** (calendrier, espace organisateur), **Nutrition** (page « Bientôt disponible »). Plus aucune donnée de démonstration ni offre payante : tout est gratuit. Les tracés synthétiques ne subsistent que comme jeux d'essai (`tests/fixtures/`).
 
+### Interface : tablette, états vides, cibles tactiles
+À partir de 768 px de large, la navigation complète est dans l'en-tête (plus de barre basse) et les pages « panneau + carte » (Générer, Itinéraires, Itinérance) s'affichent côte à côte. Barre basse opaque sur téléphone, états vides avec actions (bibliothèque, événements), pastilles et petits boutons d'au moins 40 px au doigt, titres équilibrés.
+
 ### Itinérance — `/itinerance`
 Commerces alimentaires, restauration et points d'eau à moins de 100 m – 5 km d'un parcours (OpenStreetMap via Overpass, 3 serveurs de secours) : recherches rapides (Essentiel, Eau seulement, Courses, Repas, Tout) ou catégories au choix ; épingles à pictogramme avec fenêtre d'information ; **autonomie** (plus long tronçon sans eau / sans courses) ; résultats regroupés par **étapes** de 5 à 50 km ; filtres (catégorie, nom ou village, « sans détour ») ; distance au tracé, position kilométrique, détour aller-retour à vol d'oiseau, adresse, horaires et téléphone déclarés ; repères sur le profil ; ajout d'un lieu ou de tous comme POI ; export CSV ; résultats gardés pour la session. Lieux « potentiellement disponibles », jamais garantis.
 
