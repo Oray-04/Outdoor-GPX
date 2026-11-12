@@ -24,7 +24,7 @@ import { chartToPng, chartToPdf } from "@/lib/export-profile";
 import { cloudEnabled } from "@/lib/cloud";
 import { communityRoute } from "@/lib/community";
 import type { RouteVM } from "@/lib/route-model";
-import { editorHref, trackerHref, withBase } from "@/lib/url";
+import { editorHref, withBase } from "@/lib/url";
 
 export function RoutePage({ id }: { id: string }) {
   const all = useAllRoutes();
@@ -110,7 +110,6 @@ export function RoutePage({ id }: { id: string }) {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant={isFav ? "primary" : "secondary"} aria-pressed={isFav} onClick={() => toggleFavorite(route.id)}><Heart className={clsx("size-4", isFav && "fill-current")} />{isFav ? "Favori" : "Ajouter aux favoris"}</Button>
-          <Link href={trackerHref(route.id)} className="inline-flex h-11 items-center gap-2 rounded-xl border border-ink-200 bg-white px-5 text-[15px] font-semibold hover:bg-ink-50"><Navigation className="size-4" />Suivre</Link>
           {route.origin === "community" && <Button variant="brand" onClick={saveCopy}>Enregistrer sur mon appareil</Button>}
           <Button variant="secondary" onClick={() => exp("gpx")}><Download className="size-4" />GPX</Button>
           <Button variant="secondary" onClick={share}><Share2 className="size-4" />Partager</Button>

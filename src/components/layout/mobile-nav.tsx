@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Compass, PenLine, Sparkles, Route as RouteIcon, Menu, X, CalendarDays, FileUp, Footprints, WifiOff, User, Briefcase, Mountain, Store, Apple, FolderHeart } from "lucide-react";
+import { Compass, PenLine, Sparkles, Route as RouteIcon, Menu, X, CalendarDays, FileUp, WifiOff, User, Briefcase, Mountain, Store, Apple, FolderHeart } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "@/lib/auth";
 
@@ -20,7 +20,6 @@ const MORE_GROUPS: { title: string; items: { href: string; label: string; icon: 
     { href: "/itineraires", label: "Itinéraires", icon: Mountain },
     { href: "/itinerance", label: "Itinérance", icon: Store },
     { href: "/fichiers", label: "Fichiers GPS", icon: FileUp },
-    { href: "/suivi", label: "Suivi GPS", icon: Footprints },
     { href: "/hors-ligne", label: "Hors ligne", icon: WifiOff },
   ] },
   { title: "Événements", items: [{ href: "/organisateurs", label: "Organisateur", icon: Briefcase }] },

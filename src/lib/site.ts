@@ -30,7 +30,7 @@ export const ROADMAP = [
   { step: 5, title: "Import et export GPS", status: "done" },
   { step: 6, title: "Fiches parcours et profils altimétriques", status: "done" },
   { step: 7, title: "Événements et espace organisateurs", status: "done" },
-  { step: 8, title: "Communauté locale, espace personnel, suivi GPS", status: "done" },
+  { step: 8, title: "Communauté locale, espace personnel", status: "done" },
   { step: 9, title: "Administration locale", status: "done" },
   { step: 10, title: "Tests, sécurité, performance (mise en production : à faire avec l'étape 2)", status: "partial" },
 ] as const;

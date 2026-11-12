@@ -5,7 +5,7 @@ import { Logo } from "@/components/ui/logo";
 import { SITE } from "@/lib/site";
 
 const cols = [
-  { title: "Parcours", links: [["Explorer", "/explorer"], ["Créer un parcours", "/creer"], ["Générer une boucle", "/generer"], ["Itinéraires", "/itineraires"], ["Itinérance", "/itinerance"], ["Bibliothèque", "/parcours"], ["Fichiers GPS", "/fichiers"], ["Suivi GPS", "/suivi"], ["Hors ligne", "/hors-ligne"]] },
+  { title: "Parcours", links: [["Explorer", "/explorer"], ["Créer un parcours", "/creer"], ["Générer une boucle", "/generer"], ["Itinéraires", "/itineraires"], ["Itinérance", "/itinerance"], ["Bibliothèque", "/parcours"], ["Fichiers GPS", "/fichiers"], ["Hors ligne", "/hors-ligne"]] },
   { title: "Événements", links: [["Tous les événements", "/evenements"], ["Espace organisateur", "/organisateurs"]] },
   { title: "Nutrition", links: [["Bientôt disponible", "/nutrition"]] },
   { title: "Plateforme", links: [["Mon espace", "/compte"], ["Collections", "/collections"], ["Données & licences", "/licences"], ["Feuille de route", "/feuille-de-route"], ["Administration", "/admin"]] },

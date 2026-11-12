@@ -8,7 +8,6 @@ export const routeHref = (id: string) => `/parcours/voir/?id=${encodeURIComponen
 export const eventHref = (id: string) => `/evenements/voir/?id=${encodeURIComponent(id)}`;
 export const manageHref = (id: string) => `/organisateurs/gerer/?id=${encodeURIComponent(id)}`;
 export const editorHref = (id: string) => `/creer/?id=${encodeURIComponent(id)}`;
-export const trackerHref = (id: string) => `/suivi/?route=${encodeURIComponent(id)}`;
 
 export const validId = (s: string | null | undefined) => (s && /^[\w-]{3,64}$/.test(s) ? s : undefined);
 export const collectionHref = (id: string) => `/collections/voir/?id=${encodeURIComponent(id)}`;

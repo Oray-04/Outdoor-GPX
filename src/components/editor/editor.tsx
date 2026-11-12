@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Marker, GeoJSONSource } from "maplibre-gl";
-import { Undo2, Redo2, Route, Route as RouteIcon, MousePointer2, ArrowLeftRight, Repeat, Trash2, Copy, Scissors, Flag, Upload, Download, MapPin, Loader2, Check, AlertTriangle, Plus, Merge, LocateFixed, Wand2 } from "lucide-react";
+import { Undo2, Redo2, Route, Route as RouteIcon, MousePointer2, ArrowLeftRight, Repeat, Trash2, Copy, Scissors, Flag, Upload, Download, MapPin, Loader2, Check, AlertTriangle, Plus, Merge, LocateFixed, Wand2, Save as SaveIcon, Bike, MountainSnow, Zap, Footprints } from "lucide-react";
 import clsx from "clsx";
 import { useMap } from "@/components/map/use-map";
 import { LayerControl } from "@/components/map/layer-control";
@@ -14,7 +14,7 @@ import { poiMarkerEl, poiPopupEl } from "@/lib/poi-icons";
 import { routeMarkerEl } from "@/lib/route-markers";
 import * as E from "@/lib/editor-core";
 import { addElevation, seedElevations } from "@/lib/ign";
-import { ENGINE_LABEL, SOURCE_LABEL, makeRouter, profileForSport, snapToPaths, type Engine, type Source } from "@/lib/routing";
+import { ENGINE_LABEL, PROFILE_HINT, SOURCE_LABEL, makeRouter, profileForSport, snapToPaths, type Engine, type Source } from "@/lib/routing";
 import { setEnginePref, useEnginePref } from "@/lib/map-prefs";
 import { routesRepo, useLayers, useTerrains } from "@/lib/repo";
 import { POI_TYPES, normalizePois, uid, type LL, type Poi, type PoiType, type Pt, type SavedRoute, type Visibility } from "@/lib/types";
@@ -121,29 +121,53 @@ export function Editor({ routeId }: { routeId?: string }) {
     return st.pois.map((p) => ({ d: distanceAlong(coords, cum, p), label: POI_TYPES[p.type].letter, color: POI_TYPES[p.type].color, title: `${p.name} (${POI_TYPES[p.type].label})` }));
   }, [st.pois, coords, cum]);
 
-  // ── Enregistrement automatique ──────────────────────────────
+  // ── Enregistrement MANUEL : rien n'est écrit dans la bibliothèque tant que l'utilisateur n'a pas cliqué « Enregistrer » ──
   const rid = useRef(id); rid.current = id;
-  useEffect(() => {
-    if (!loaded || st.waypoints.length < 2 || elev === "loading" || coords.length < 2) return;
+  const savedSt = useRef<E.EState | null>(null), savedMeta = useRef<string>("");
+  const [, bump] = useState(0);
+  // parcours chargé depuis la bibliothèque : son état de départ est l'état enregistré
+  useEffect(() => { if (loaded && savedSt.current === null) { savedSt.current = st; savedMeta.current = JSON.stringify(meta); bump((n) => n + 1); } }, [loaded]); // eslint-disable-line react-hooks/exhaustive-deps
+  const metaKey = JSON.stringify(meta);
+  const hasTrack = st.waypoints.length >= 2;
+  const dirty = loaded && savedSt.current !== null && (st !== savedSt.current || metaKey !== savedMeta.current) && (hasTrack || !!rid.current);
+  const dirtyRef = useRef(false); dirtyRef.current = dirty;
+  const saveRef = useRef<() => void>(() => {});
+  const canSave = dirty && hasTrack && elev !== "loading" && coords.length >= 2 && saved !== "saving";
+  const save = useCallback(async (): Promise<boolean> => {
+    if (st.waypoints.length < 2 || coords.length < 2) { setMsg({ kind: "warn", text: "Tracez au moins deux points avant d'enregistrer." }); return false; }
     setSaved("saving");
-    const t = setTimeout(async () => {
-      const rId = rid.current ?? uid();
-      if (!rid.current) { setId(rId); rid.current = rId; window.history.replaceState(null, "", withBase(editorHref(rId))); }
-      let { region, country } = meta;
-      if (!region && !country) {
-        try {
-          const c = coords[0];
-          const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=5&accept-language=fr&lat=${c[1]}&lon=${c[0]}`);
-          if (r.ok) { const j = (await r.json()) as { address?: { state?: string; country?: string } }; region = j.address?.state ?? ""; country = j.address?.country ?? ""; setMeta((m) => ({ ...m, region, country })); }
-        } catch { /* optionnel */ }
-      }
-      const route: SavedRoute = { id: rId, name: meta.name.trim() || "Parcours sans titre", description: meta.description, sport: meta.sport, segs: st.segs, waypoints: st.waypoints, coords, pois: st.pois, terrain: meta.terrain, visibility: meta.visibility, region, country, layer: meta.layer, sourceUrl: /^https?:\/\//.test(meta.sourceUrl) ? meta.sourceUrl : undefined, source: sourceKind.current, fileName: fileName.current, createdAt: createdAt.current, updatedAt: Date.now() };
-      const res = routesRepo.upsert(route);
-      setSaved(res.ok ? "saved" : "error");
-      if (!res.ok) setMsg({ kind: "err", text: res.error ?? "Enregistrement impossible." });
-    }, 800);
-    return () => clearTimeout(t);
-  }, [st, meta, coords, elev, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
+    const rId = rid.current ?? uid();
+    let { region, country } = meta;
+    if (!region && !country) {
+      try {
+        const c = coords[0];
+        const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=5&accept-language=fr&lat=${c[1]}&lon=${c[0]}`);
+        if (r.ok) { const j = (await r.json()) as { address?: { state?: string; country?: string } }; region = j.address?.state ?? ""; country = j.address?.country ?? ""; }
+      } catch { /* optionnel */ }
+    }
+    const nextMeta = { ...meta, region, country };
+    const route: SavedRoute = { id: rId, name: meta.name.trim() || "Parcours sans titre", description: meta.description, sport: meta.sport, segs: st.segs, waypoints: st.waypoints, coords, pois: st.pois, terrain: meta.terrain, visibility: meta.visibility, region, country, layer: meta.layer, sourceUrl: /^https?:\/\//.test(meta.sourceUrl) ? meta.sourceUrl : undefined, source: sourceKind.current, fileName: fileName.current, createdAt: createdAt.current, updatedAt: Date.now() };
+    const res = routesRepo.upsert(route);
+    if (!res.ok) { setSaved("error"); setMsg({ kind: "err", text: res.error ?? "Enregistrement impossible." }); return false; }
+    if (!rid.current) { setId(rId); rid.current = rId; window.history.replaceState(null, "", withBase(editorHref(rId))); }
+    savedSt.current = st; savedMeta.current = JSON.stringify(nextMeta); setMeta(nextMeta); setSaved("saved");
+    setMsg({ kind: "ok", text: "Parcours enregistré dans votre bibliothèque." });
+    return true;
+  }, [st, meta, coords]);
+  saveRef.current = () => { if (dirtyRef.current) save(); };
+  // Quitter sans enregistrer : avertissement du navigateur (fermeture, rechargement) et confirmation sur les liens du site
+  useEffect(() => {
+    const before = (e: BeforeUnloadEvent) => { if (dirtyRef.current) { e.preventDefault(); e.returnValue = ""; } };
+    const onClick = (e: MouseEvent) => {
+      if (!dirtyRef.current || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
+      const a = (e.target as HTMLElement | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!a || a.target === "_blank" || a.hasAttribute("download") || a.origin !== location.origin || (a.pathname === location.pathname && a.search === location.search)) return;
+      if (!window.confirm("Vous avez des modifications non enregistrées. Si vous quittez cette page, elles seront perdues.\n\nQuitter sans enregistrer ?")) { e.preventDefault(); e.stopPropagation(); }
+      else dirtyRef.current = false; // évite un second avertissement du navigateur
+    };
+    window.addEventListener("beforeunload", before); document.addEventListener("click", onClick, true);
+    return () => { window.removeEventListener("beforeunload", before); document.removeEventListener("click", onClick, true); };
+  }, []);
 
   // ── Carte : sources/couches ─────────────────────────────────
   useEffect(() => {
@@ -344,6 +368,7 @@ export function Editor({ routeId }: { routeId?: string }) {
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement; if (/INPUT|TEXTAREA|SELECT/.test(t.tagName)) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); saveRef.current(); return; }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); }
       else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") { e.preventDefault(); redo(); }
       else if ((e.key === "Delete" || e.key === "Backspace") && sel != null) { e.preventDefault(); const i = sel; setSel(null); run(() => E.removeWaypoint(st, i, routerRef.current)); }
@@ -535,10 +560,11 @@ export function Editor({ routeId }: { routeId?: string }) {
       <Sheet state={sheet} onState={setSheet} side="right" label="Propriétés du parcours" header={<div className="border-b border-ink-100 bg-white">
           <div className="flex items-center justify-between px-3 pt-0.5 text-xs lg:pt-2">
             <span className="font-semibold text-ink-700">{meta.name || "Nouveau parcours"}</span>
-            <span className={clsx("inline-flex items-center gap-1", saved === "error" ? "text-danger" : "text-ink-500")} aria-live="polite">
-              {saved === "saving" && <><Loader2 className="size-3 animate-spin" />Enregistrement…</>}
-              {saved === "saved" && <><Check className="size-3 text-pine-600" />Enregistré sur cet appareil</>}
-              {saved === "error" && <><AlertTriangle className="size-3" />Non enregistré</>}
+            <span className="flex items-center gap-2">
+              <span className={clsx("inline-flex items-center gap-1", dirty ? "font-semibold text-ember-600" : "text-ink-500")} aria-live="polite" data-save-state={dirty ? "dirty" : rid.current ? "saved" : "new"}>
+                {saved === "saving" ? <><Loader2 className="size-3 animate-spin" />Enregistrement…</> : dirty ? <><AlertTriangle className="size-3" />Non enregistré</> : rid.current ? <><Check className="size-3 text-pine-600" />Enregistré</> : null}
+              </span>
+              <Button size="sm" variant={dirty ? "primary" : "secondary"} className="!h-8 !px-3 !text-xs" disabled={!canSave} onClick={() => save()} title={hasTrack ? "Enregistrer le parcours dans la bibliothèque (Ctrl+S)" : "Tracez au moins deux points"}><SaveIcon className="size-3.5" />Enregistrer</Button>
             </span>
           </div>
           <p className="px-3 pb-1 pt-0.5 font-display text-sm font-bold lg:hidden" aria-label="Résumé du parcours">{stats ? `${fmtKm(stats.distanceM)} · +${fmtM(stats.gainM)} · −${fmtM(stats.lossM)} · ${fmtDuration(durationMin)}` : "Posez des points sur la carte"}</p>
@@ -550,6 +576,13 @@ export function Editor({ routeId }: { routeId?: string }) {
         </div>}>
         <div className="grid gap-4 p-4">
           {tab === "trace" && (<>
+            <div>
+              <div role="group" aria-label="Type de sport" className="grid grid-cols-4 gap-1 rounded-xl bg-ink-100 p-1">
+                {([["velo", "Vélo de route", Bike], ["vtt", "VTT", MountainSnow], ["trail", "Trail", Zap], ["rando", "Randonnée", Footprints]] as const).map(([k, l, I]) => (
+                  <button key={k} type="button" aria-pressed={meta.sport === k} onClick={() => setMeta({ ...meta, sport: k })} className={clsx("flex flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 text-[11px] font-semibold leading-tight transition-colors", meta.sport === k ? "bg-white text-pine-700 shadow" : "text-ink-600 hover:text-ink-900")}><I className="size-4" />{l}</button>))}
+              </div>
+              <p className="mt-1.5 text-xs text-ink-500">{SPORTS[meta.sport].label} : le tracé privilégie les <b>{PROFILE_HINT[routeProfile]}</b>. S'applique aux prochains tronçons tracés{st.segs.length ? " ; les tronçons existants ne changent pas" : ""}.</p>
+            </div>
             <div className="lg:hidden"><ElevationChart points={profile} markers={chartMarkers} onHover={setHoverIdx} height={150} /></div>
             <dl className="grid grid-cols-2 gap-3">
               {[["Distance", stats ? fmtKm(stats.distanceM) : "—"], ["Durée estimée", stats ? fmtDuration(durationMin) : "—"], ["D+", stats ? fmtM(stats.gainM) : "—"], ["D−", stats ? fmtM(stats.lossM) : "—"], ["Altitude min", stats ? fmtM(stats.minEle) : "—"], ["Altitude max", stats ? fmtM(stats.maxEle) : "—"]].map(([l, v]) => (

@@ -18,6 +18,12 @@ export interface Proposal {
   cleanedM: number;
   /** Plus long saut entre deux points consécutifs (m), pour repérer un tracé incohérent. */
   maxStepM: number;
+  /** Part de voies revêtues (%), si connue. */
+  pavedPct?: number;
+  /** Boucle rallongée (dans la limite de +10 %) pour se rapprocher du D+ demandé. */
+  stretched?: boolean;
+  /** Altitudes mesurées au pas large seulement (la mesure fine a échoué) : D+ moins précis. */
+  coarse?: boolean;
 }
 /** Marge acceptée sur le dénivelé cible (±20 %). */
 export const GAIN_TOLERANCE = 0.2;
@@ -28,8 +34,10 @@ export interface GenDeps {
   via(points: LL[], profile: Profile, signal?: AbortSignal, avoid?: LL[]): Promise<LL[] | null>;
   /** Ajoute l'altitude à chaque point. */
   elevate(line: LL[], signal?: AbortSignal): Promise<Pt[]>;
+  /** Altitudes à pas plus large, pour classer rapidement de longues boucles ; les propositions retenues sont toujours re-mesurées avec `elevate`. */
+  elevateFast?(line: LL[], signal?: AbortSignal): Promise<Pt[]>;
   /** Part de sentiers (facultatif). */
-  surface?(line: LL[], profile: Profile, signal?: AbortSignal): Promise<{ offRoadPct: number; pathPct: number } | null>;
+  surface?(line: LL[], profile: Profile, signal?: AbortSignal): Promise<{ offRoadPct: number; pathPct: number; pavedPct?: number } | null>;
 }
 /** Cause précise d'un échec de génération (pour un message utile plutôt que générique). */
 export class GenerationError extends Error {
@@ -165,10 +173,24 @@ export async function fitLoop(start: LL, theta: number, targetKm: number, profil
   return best;
 }
 
+/** Dépassement de distance maximal accepté pour atteindre le D+ demandé (+10 %). */
+export const DISTANCE_OVER = 0.10;
+/**
+ * Distance acceptable ? Avec un D+ cible : jamais plus de 10 % au-dessus de la distance demandée (et pas moins de 75 %).
+ * Sans D+ cible : ±25 % comme auparavant.
+ */
+export const distanceAllowed = (km: number, targetKm: number, hasGain: boolean) =>
+  hasGain ? km <= targetKm * (1 + DISTANCE_OVER) + 1e-9 && km >= targetKm * 0.75 : Math.abs(km - targetKm) / targetKm <= 0.25;
+
+/**
+ * Classement. Avec un D+ cible, l'objectif est le D+ et lui seul : l'écart de D+ domine, les allers-retours départagent,
+ * la distance ne sert qu'à départager deux boucles équivalentes (elle est déjà bornée par `distanceAllowed`).
+ */
 export function scoreProposal(p: { distanceM: number; gainM: number; overlapPct: number }, targetKm: number, targetGain: number | null): number {
   const distErr = Math.abs(p.distanceM / 1000 - targetKm) / targetKm;
-  const gainErr = targetGain == null ? 0 : Math.abs(p.gainM - targetGain) / Math.max(targetGain, 150);
-  return distErr + 0.7 * gainErr + 1.2 * (p.overlapPct / 100); // les vraies boucles passent devant les allers-retours
+  if (targetGain == null) return distErr + 1.2 * (p.overlapPct / 100); // les vraies boucles passent devant les allers-retours
+  const gainErr = Math.abs(p.gainM - targetGain) / Math.max(targetGain, 150);
+  return gainErr + 0.5 * (p.overlapPct / 100) + 0.1 * distErr;
 }
 
 const angDiff = (a: number, b: number) => Math.abs(((a - b + 540) % 360) - 180);
@@ -193,7 +215,7 @@ export async function generateLoops(input: GenInput, deps: GenDeps, opts: { sign
   if (targetGain != null) {
     let r = 0;
     for (const t of pool) {
-      try { ringGain.set(t, trackStats(await deps.elevate(loopWaypoints(start, ringRadius, t, 23), opts.signal), 3).gainM); } catch (e) { if ((e as Error).name === "AbortError") throw e; /* direction ignorée */ }
+      try { ringGain.set(t, trackStats(await (deps.elevateFast ?? deps.elevate)(loopWaypoints(start, ringRadius, t, 23), opts.signal), 3).gainM); } catch (e) { if ((e as Error).name === "AbortError") throw e; /* direction ignorée */ }
       opts.onProgress?.({ phase: "relief", done: ++r, total: pool.length });
     }
     if (ringGain.size >= n) thetas = [...ringGain.keys()].sort((a, b) => Math.abs(ringGain.get(a)! - targetGain) - Math.abs(ringGain.get(b)! - targetGain)).slice(0, n);
@@ -208,7 +230,7 @@ export async function generateLoops(input: GenInput, deps: GenDeps, opts: { sign
       const theta = queue.shift()!;
       try {
         const r = await fitLoop(start, theta, targetKm, profile, deps, { signal: opts.signal });
-        if (r && Math.abs(r.km - targetKm) / targetKm <= 0.25) fitted.push({ theta, ...r });
+        if (r && distanceAllowed(r.km, targetKm, targetGain != null)) fitted.push({ theta, ...r });
       } catch (e) { if ((e as Error).name === "AbortError") throw e; svcErr = e; } // une direction en échec n'arrête pas les autres
       opts.onProgress?.({ phase: "tracé", done: ++done, total: n });
     }
@@ -217,9 +239,10 @@ export async function generateLoops(input: GenInput, deps: GenDeps, opts: { sign
   if (!fitted.length && svcErr) throw new GenerationError("routing", kindOf(svcErr));
   // altitudes + score : le D+ est celui du tracé réellement généré (altitudes IGN, même calcul que partout sur le site)
   const scored: Proposal[] = []; let nEval = 0;
+  const quick = deps.elevateFast ?? deps.elevate;
   const evaluate = async (f: { theta: number; line: LL[]; removedM: number }) => {
     let coords: Pt[];
-    try { coords = await deps.elevate(f.line, opts.signal); } catch (e) { if ((e as Error).name === "AbortError") throw e; elevErr = e; opts.onProgress?.({ phase: "altitudes", done: ++nEval, total: fitted.length }); return; }
+    try { coords = await quick(f.line, opts.signal); } catch (e) { if ((e as Error).name === "AbortError") throw e; elevErr = e; opts.onProgress?.({ phase: "altitudes", done: ++nEval, total: fitted.length }); return; }
     const st = trackStats(coords, 3), ov = Math.round(overlapRatio(f.line) * 100);
     const base = { id: `g-${Math.round(f.theta)}`, bearing: f.theta, line: f.line, coords, distanceM: st.distanceM, gainM: st.gainM, lossM: st.lossM, overlapPct: ov };
     scored.push({ ...base, cleanedM: Math.round(f.removedM), maxStepM: Math.round(maxStepM(f.line)), gainOk: gainWithinTolerance(st.gainM, targetGain), score: scoreProposal(base, targetKm, targetGain) });
@@ -242,7 +265,20 @@ export async function generateLoops(input: GenInput, deps: GenDeps, opts: { sign
     for (const theta of rest) {
       try {
         const r = await fitLoop(start, theta, targetKm, profile, deps, { signal: opts.signal });
-        if (r && Math.abs(r.km - targetKm) / targetKm <= 0.25) { fitted.push({ theta, ...r }); await evaluate({ theta, line: r.line, removedM: r.removedM }); }
+        if (r && distanceAllowed(r.km, targetKm, true)) { fitted.push({ theta, ...r }); await evaluate({ theta, line: r.line, removedM: r.removedM }); }
+      } catch (e) { if ((e as Error).name === "AbortError") throw e; }
+    }
+  }
+  // Boucles trop « plates » pour le D+ demandé : on les rallonge jusqu'à +10 % de distance (pas plus) pour aller chercher du relief.
+  // Seul le D+ est visé ; la boucle rallongée ne remplace l'autre que si son D+ mesuré est réellement plus proche de la cible.
+  if (targetGain != null) {
+    const short = scored.filter((p) => p.gainM < targetGain * 0.95 && p.distanceM / 1000 < targetKm * 1.04).sort((a, b) => b.gainM - a.gainM).slice(0, 4);
+    for (const p of short) {
+      try {
+        const r = await fitLoop(start, p.bearing, targetKm * 1.07, profile, deps, { signal: opts.signal, tol: 0.025, maxIter: 3 });
+        if (!r || !distanceAllowed(r.km, targetKm, true) || r.km <= p.distanceM / 1000) continue;
+        const before = scored.length; await evaluate({ theta: p.bearing, line: r.line, removedM: r.removedM });
+        if (scored.length > before) { const q = scored.pop()!; if (Math.abs(q.gainM - targetGain) < Math.abs(p.gainM - targetGain)) scored[scored.indexOf(p)] = { ...q, stretched: true }; }
       } catch (e) { if ((e as Error).name === "AbortError") throw e; }
     }
   }
@@ -250,9 +286,15 @@ export async function generateLoops(input: GenInput, deps: GenDeps, opts: { sign
   scored.sort((a, b) => (Number(!!b.gainOk) - Number(!!a.gainOk)) || a.score - b.score);
   const top = pickDistinct(scored, count);
   top.sort((a, b) => (Number(!!b.gainOk) - Number(!!a.gainOk)) || a.score - b.score);
+  // Mesure définitive : les propositions retenues sont re-mesurées au pas fin (mêmes altitudes et même calcul que dans l'éditeur)
+  if (deps.elevateFast) for (const p of top) {
+    try { const c = await deps.elevate(p.line, opts.signal); const st = trackStats(c, 3); p.coords = c; p.distanceM = st.distanceM; p.gainM = st.gainM; p.lossM = st.lossM; p.gainOk = gainWithinTolerance(st.gainM, targetGain); p.score = scoreProposal(p, targetKm, targetGain); }
+    catch (e) { if ((e as Error).name === "AbortError") throw e; p.coarse = true; }
+  }
+  top.sort((a, b) => (Number(!!b.gainOk) - Number(!!a.gainOk)) || a.score - b.score);
   if (deps.surface) {
     let s = 0;
-    for (const p of top) { const r = await deps.surface(p.line, profile, opts.signal).catch(() => null); if (r) { p.offRoadPct = r.offRoadPct; p.pathPct = r.pathPct; } opts.onProgress?.({ phase: "analyse", done: ++s, total: top.length }); }
+    for (const p of top) { const r = await deps.surface(p.line, profile, opts.signal).catch(() => null); if (r) { p.offRoadPct = r.offRoadPct; p.pathPct = r.pathPct; p.pavedPct = r.pavedPct; } opts.onProgress?.({ phase: "analyse", done: ++s, total: top.length }); }
   }
   return top;
 }

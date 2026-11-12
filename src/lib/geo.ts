@@ -139,7 +139,7 @@ export function maxDeviation(pts: readonly (readonly number[])[], idx: number[])
   return worst;
 }
 
-const bearing = (a: readonly number[], b: readonly number[]) => Math.atan2((b[0] - a[0]) * Math.cos((a[1] * Math.PI) / 180), b[1] - a[1]);
+const bearingRad = (a: readonly number[], b: readonly number[]) => Math.atan2((b[0] - a[0]) * Math.cos((a[1] * Math.PI) / 180), b[1] - a[1]);
 
 /**
  * Simplification adaptative d'une trace GPS : retire les points redondants ou trop proches tout en gardant la forme.
@@ -165,7 +165,7 @@ export function simplifyTrack(pts: readonly (readonly number[])[], level: Simpli
     let a = i - 1; while (a > 0 && cum[i] - cum[a] < WIN) a--;
     let b = i + 1; while (b < n - 1 && cum[b] - cum[i] < WIN) b++;
     if (cum[i] - cum[a] < 5 || cum[b] - cum[i] < 5) continue; // points trop proches : du bruit, pas un virage
-    let d = Math.abs(bearing(pts[i], pts[b]) - bearing(pts[a], pts[i]));
+    let d = Math.abs(bearingRad(pts[i], pts[b]) - bearingRad(pts[a], pts[i]));
     if (d > Math.PI) d = 2 * Math.PI - d;
     if (d > Math.PI / 4) forced.add(i);
   }
@@ -179,7 +179,7 @@ export function simplifyTrack(pts: readonly (readonly number[])[], level: Simpli
     for (const i of cluster) {
       let a = i - 1; while (a > 0 && cum[i] - cum[a] < WIN) a--;
       let b = i + 1; while (b < n - 1 && cum[b] - cum[i] < WIN) b++;
-      let d = Math.abs(bearing(pts[i], pts[b]) - bearing(pts[a], pts[i])); if (d > Math.PI) d = 2 * Math.PI - d;
+      let d = Math.abs(bearingRad(pts[i], pts[b]) - bearingRad(pts[a], pts[i])); if (d > Math.PI) d = 2 * Math.PI - d;
       if (d > bd) { bd = d; best = i; }
     }
     turns.push(best); cluster = [];
@@ -258,3 +258,14 @@ export function simplifyByRatio(pts: readonly (readonly number[])[], removePct: 
   safe = Math.min(90, Math.max(0, safe)); while (safe > 0 && maxDeviation(pts, pick(safe)) > limitM) safe -= 1;
   return { indices, before: n, after: indices.length, removedPct: Math.round(((n - indices.length) / n) * 100), maxDevM, safePct: safe, exceeded: maxDevM > limitM && pct > safe, limitM: forced >= n ? 0 : limitM };
 }
+
+/** Cap (degrés, 0 = nord) de a vers b, et écart d'angle signé (-180..180). */
+const deg = (r: number) => (r * 180) / Math.PI;
+export function bearing(a: readonly number[], b: readonly number[]): number {
+  const y = Math.sin(rad(b[0] - a[0])) * Math.cos(rad(b[1]));
+  const x = Math.cos(rad(a[1])) * Math.sin(rad(b[1])) - Math.sin(rad(a[1])) * Math.cos(rad(b[1])) * Math.cos(rad(b[0] - a[0]));
+  return (deg(Math.atan2(y, x)) + 360) % 360;
+}
+/** Écart signé entre deux caps, dans ]-180, 180]. */
+export const angleDiff = (from: number, to: number) => ((to - from + 540) % 360) - 180;
+

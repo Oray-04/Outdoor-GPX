@@ -1,7 +1,7 @@
 import type { LL, Pt } from "./types";
 import { cumulative } from "./geo";
 import { effortProfile } from "./events";
-import { bearing, angleDiff } from "./navigation";
+import { bearing, angleDiff } from "./geo";
 
 /**
  * Météo le long d'un parcours (prévisions Open-Meteo) : température, pluie, vent, et surtout

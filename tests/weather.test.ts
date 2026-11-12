@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { sampleRoute, relativeWind, atTime, evaluate, startHourScores, comfortScore, wallMs, addDays, type Forecast, type Hourly } from "../src/lib/weather";
-import { bearing } from "../src/lib/navigation";
+import { bearing } from "../src/lib/geo";
 import type { Pt } from "../src/lib/types";
 
 /** Prévision synthétique : vent constant, pluie à une heure donnée. */

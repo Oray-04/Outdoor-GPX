@@ -4,7 +4,6 @@ import { useSearchParams } from "next/navigation";
 import { EventsList } from "@/components/events/events-list";
 import { Explorer } from "./explorer/explorer";
 import { Editor } from "./editor/editor";
-import { Tracker } from "./tracking/tracker";
 import { Library } from "./library/library";
 import { RoutePage } from "./route/route-page";
 import { EventPage } from "./events/event-page";
@@ -28,8 +27,6 @@ export const ExplorerRoute = () => <Wrap><ExplorerInner /></Wrap>;
 function EditorInner() { const id = validId(useSearchParams().get("id")); return <Editor routeId={id} />; }
 export const EditorRoute = () => <Wrap><EditorInner /></Wrap>;
 
-function TrackerInner() { const id = validId(useSearchParams().get("route")); return <Tracker initialRouteId={id} />; }
-export const TrackerRoute = () => <Wrap><TrackerInner /></Wrap>;
 
 function LibraryInner() { return <Library initialSport={useSearchParams().get("sport") ?? undefined} />; }
 function EventsInner() { return <EventsList initialSport={useSearchParams().get("sport") ?? undefined} />; }

@@ -11,24 +11,38 @@ import { routeOnPaths } from "./ign";
  * En mode « auto », les deux sont interrogés et le résultat le plus direct est retenu :
  * un chemin absent d'une source est ainsi retrouvé dans l'autre.
  */
-export type Profile = "foot" | "trail" | "mtb" | "gravel" | "road";
+export type Profile = "foot" | "hike" | "trail" | "mtb" | "gravel" | "road";
 export type Engine = "auto" | "ign" | "osm";
 export type Source = "ign" | "osm";
 
 export const ENGINE_LABEL: Record<Engine, string> = { auto: "Automatique (IGN + OpenStreetMap)", ign: "IGN (BD TOPO)", osm: "OpenStreetMap" };
 export const SOURCE_LABEL: Record<Source, string> = { ign: "IGN", osm: "OpenStreetMap" };
 
-export const profileForSport = (s: Sport): Profile => ({ trail: "trail", course: "foot", rando: "trail", marche: "foot", vtt: "mtb", gravel: "gravel", velo: "road" } as const)[s];
+export const profileForSport = (s: Sport): Profile => ({ trail: "trail", course: "foot", rando: "hike", marche: "foot", vtt: "mtb", gravel: "gravel", velo: "road" } as const)[s];
 
 const VALHALLA = "https://valhalla1.openstreetmap.de";
 
-/** Réglages vérifiés sur le service : `max_hiking_difficulty` vaut 1 par défaut, ce qui exclut les sentiers de montagne. */
+/**
+ * Réglages par pratique, mesurés sur le service (part de revêtu / de chemins sur des trajets réels) :
+ * - route : vélo de route, 100 % de voies revêtues sur les 3 trajets testés ;
+ * - VTT : chemins et pistes favorisés (use_roads 0, mauvaises surfaces acceptées) ;
+ * - trail : sentiers et allées fortement favorisés (walkway_factor bas), sentiers de montagne admis jusqu'à T4 ;
+ * - randonnée : chemins et sentiers pédestres favorisés, difficulté limitée à T3.
+ * `max_hiking_difficulty` vaut 1 par défaut, ce qui exclurait les sentiers de montagne. Limite du moteur : le profil piéton n'a pas
+ * de pénalité réglable pour les routes ; entre deux villages reliés par une route directe, il la suit (ajouter un point sur le sentier voulu).
+ */
 export const COSTING: Record<Profile, { costing: "pedestrian" | "bicycle"; options: Record<string, number | string | boolean> }> = {
-  foot: { costing: "pedestrian", options: { use_tracks: 0.8, max_hiking_difficulty: 3, sidewalk_factor: 2 } },
-  trail: { costing: "pedestrian", options: { use_tracks: 1.0, max_hiking_difficulty: 4, sidewalk_factor: 3, use_living_streets: 0.2 } },
-  mtb: { costing: "bicycle", options: { bicycle_type: "Mountain", use_roads: 0.0, use_hills: 0.4, avoid_bad_surfaces: 0.0 } },
-  gravel: { costing: "bicycle", options: { bicycle_type: "Cross", use_roads: 0.2, avoid_bad_surfaces: 0.3 } },
-  road: { costing: "bicycle", options: { bicycle_type: "Road", use_roads: 0.8, avoid_bad_surfaces: 0.9 } },
+  foot: { costing: "pedestrian", options: { use_tracks: 0.8, max_hiking_difficulty: 3, sidewalk_factor: 2, use_ferry: 0 } },
+  hike: { costing: "pedestrian", options: { use_tracks: 1.0, max_hiking_difficulty: 3, walkway_factor: 0.4, sidewalk_factor: 1.5, use_ferry: 0 } },
+  trail: { costing: "pedestrian", options: { use_tracks: 1.0, max_hiking_difficulty: 4, walkway_factor: 0.25, sidewalk_factor: 2, use_living_streets: 0.2, service_penalty: 30, use_ferry: 0 } },
+  mtb: { costing: "bicycle", options: { bicycle_type: "Mountain", use_roads: 0.0, use_hills: 0.5, avoid_bad_surfaces: 0.0, use_living_streets: 0.3, use_ferry: 0 } },
+  gravel: { costing: "bicycle", options: { bicycle_type: "Cross", use_roads: 0.2, avoid_bad_surfaces: 0.3, use_ferry: 0 } },
+  road: { costing: "bicycle", options: { bicycle_type: "Road", use_roads: 0.6, avoid_bad_surfaces: 1.0, use_hills: 0.6, use_ferry: 0 } },
+};
+/** Ce que le moteur privilégie pour chaque pratique (affiché dans l'éditeur et le générateur). */
+export const PROFILE_HINT: Record<Profile, string> = {
+  foot: "rues, allées et chemins faciles", hike: "chemins et sentiers pédestres", trail: "sentiers, y compris de montagne",
+  mtb: "chemins et pistes", gravel: "pistes et petites routes", road: "routes goudronnées",
 };
 
 /** Décodage d'une polyligne encodée (Valhalla : précision 6). */
@@ -110,7 +124,7 @@ export function pickBest(ign: LL[] | null, osm: LL[] | null): { line: LL[]; sour
 
 export async function routeSegment(a: LL, b: LL, opts: { engine: Engine; profile: Profile; signal?: AbortSignal }): Promise<SegmentResult | null> {
   const { engine, profile, signal } = opts;
-  const canIgn = (engine === "auto" || engine === "ign") && (profile === "foot" || profile === "trail") && inFrance(a[0], a[1]) && inFrance(b[0], b[1]);
+  const canIgn = (engine === "auto" || engine === "ign") && (profile === "foot" || profile === "trail" || profile === "hike") && inFrance(a[0], a[1]) && inFrance(b[0], b[1]);
   const canOsm = engine === "auto" || engine === "osm" || (engine === "ign" && !canIgn);
   const [ign, osm] = await Promise.all([canIgn ? routeOnPaths(a, b, signal) : null, canOsm ? osmRoute(a, b, profile, undefined, signal) : null]);
   let best = pickBest(ign, osm);
@@ -176,17 +190,18 @@ export async function snapToPaths(line: LL[], profile: Profile, opts: { signal?:
 }
 
 /** Part du parcours hors routes (chemins, sentiers, pistes), mesurée sur le graphe OpenStreetMap. */
-export async function surfaceShare(line: LL[], profile: Profile, signal?: AbortSignal): Promise<{ offRoadPct: number; pathPct: number } | null> {
+export async function surfaceShare(line: LL[], profile: Profile, signal?: AbortSignal): Promise<{ offRoadPct: number; pathPct: number; pavedPct: number } | null> {
   const c = COSTING[profile];
   const pts = thin(line, Math.max(12, lineLength(line) / 400)).map((p) => ({ lat: p[1], lon: p[0] }));
-  const d = await postJson<{ edges?: { use?: string; length?: number }[] }>("/trace_attributes", {
+  const d = await postJson<{ edges?: { use?: string; length?: number; surface?: string }[] }>("/trace_attributes", {
     shape: pts, costing: c.costing, costing_options: { [c.costing]: c.options }, shape_match: "map_snap",
-    filters: { attributes: ["edge.use", "edge.length"], action: "include" },
+    filters: { attributes: ["edge.use", "edge.length", "edge.surface"], action: "include" },
   }, signal);
   const edges = d?.edges; if (!edges?.length) return null;
   const tot = edges.reduce((s, e) => s + (e.length ?? 0), 0); if (!tot) return null;
   const sum = (uses: string[]) => edges.filter((e) => uses.includes(e.use ?? "")).reduce((s, e) => s + (e.length ?? 0), 0);
-  return { offRoadPct: Math.round((100 * sum(["path", "footway", "track", "steps", "bridleway", "mountain_bike", "cycleway", "pedestrian"])) / tot), pathPct: Math.round((100 * sum(["path", "footway", "steps", "bridleway", "mountain_bike"])) / tot) };
+  const paved = edges.filter((e) => (e.surface ?? "").startsWith("paved")).reduce((s2, e) => s2 + (e.length ?? 0), 0);
+  return { pavedPct: Math.round((100 * paved) / tot), offRoadPct: Math.round((100 * sum(["path", "footway", "track", "steps", "bridleway", "mountain_bike", "cycleway", "pedestrian"])) / tot), pathPct: Math.round((100 * sum(["path", "footway", "steps", "bridleway", "mountain_bike"])) / tot) };
 }
 
 /** Itinéraire passant par plusieurs points (une seule requête, demi-tours autorisés à chaque étape). */

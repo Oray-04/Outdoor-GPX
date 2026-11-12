@@ -103,9 +103,9 @@ export async function fetchElevations(pts: LL[], signal?: AbortSignal): Promise<
 }
 
 /** Associe une altitude à chaque point d'une trace (un point tous les ~25 m interrogé puis interpolé). */
-export async function addElevation(line: LL[], signal?: AbortSignal): Promise<Pt[]> {
+export async function addElevation(line: LL[], signal?: AbortSignal, stepM = 25): Promise<Pt[]> {
   if (!line.length) return [];
-  const sample = thin(line, 25);
+  const sample = thin(line, stepM);
   const ele = await fetchElevations(sample, signal);
   // interpolation sur la distance cumulée
   const out: Pt[] = [];
