@@ -1,3 +1,5 @@
+"use client";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { Logo } from "@/components/ui/logo";
 import { SITE } from "@/lib/site";
@@ -10,6 +12,8 @@ const cols = [
 ] as const;
 
 export function Footer() {
+  const path = usePathname();
+  if (path.startsWith("/integrer")) return null;
   return (
     <footer className="relative bg-ink-950 text-ink-300"><div className="hairline absolute inset-x-0 top-0" aria-hidden="true" />
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6">

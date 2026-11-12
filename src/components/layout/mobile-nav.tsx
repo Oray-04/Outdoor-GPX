@@ -42,6 +42,7 @@ export function MobileNav() {
   const active = (h: string) => path.startsWith(h);
   const moreActive = MORE.some((m) => active(m.href));
 
+  if (path.startsWith("/integrer")) return null; // vue intégrable : aucune navigation du site
   return (
     <>
       {open && (

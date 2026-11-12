@@ -23,6 +23,7 @@ export function Header() {
     return () => window.removeEventListener("scroll", on);
   }, []);
 
+  if (path.startsWith("/integrer")) return null; // vue intégrable : aucune navigation du site
   return (
     <header className={clsx("glass-dark sticky top-0 z-50 text-white transition-shadow duration-300", scrolled && "shadow-[0_12px_30px_-18px_rgb(5_11_11/0.9)]")}>
       <div className="hairline absolute inset-x-0 bottom-0 opacity-60" aria-hidden="true" />

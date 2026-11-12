@@ -28,11 +28,43 @@ export const BASEMAPS: Basemap[] = [
 ];
 export const DEFAULT_BASEMAP = "ign-plan";
 
-export interface Overlay { id: string; label: string; tiles: string; minzoom?: number; maxzoom: number; attribution: string; opacity: number; note: string }
+export interface Overlay {
+  id: string; label: string; tiles: string; minzoom?: number; maxzoom: number; attribution: string; opacity: number; note: string;
+  /** Couche environnementale interrogeable (WMS de la Géoplateforme, données INPN/Patrinat) : nom de couche et libellé du type de protection. */
+  env?: { layer: string; kind: string; regulated: boolean };
+}
+const PATRINAT = "© INPN / PatriNat (OFB, MNHN) – Géoplateforme, Licence Ouverte";
+const wmsEnv = (layer: string) => `https://data.geopf.fr/wms-v/ows?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=${layer}&STYLES=&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256&FORMAT=image/png&TRANSPARENT=true`;
+const env = (id: string, label: string, layer: string, kind: string, regulated: boolean, note: string): Overlay => ({ id, label, tiles: wmsEnv(layer), minzoom: 5, maxzoom: 17, attribution: PATRINAT, opacity: 0.55, note, env: { layer, kind, regulated } });
 export const OVERLAYS: Overlay[] = [
   { id: "ign-cadastre", label: "Cadastre (parcelles)", tiles: wmts("CADASTRALPARCELS.PARCELLAIRE_EXPRESS", "png"), minzoom: 12, maxzoom: 19, attribution: IGN, opacity: 0.95, note: "Limites de parcelles (visible à fort zoom)." },
   { id: "ign-slopes", label: "Pentes de montagne", tiles: wmts("GEOGRAPHICALGRIDSYSTEMS.SLOPES.MOUNTAIN", "png"), maxzoom: 16, attribution: IGN, opacity: 0.6, note: "Zones de forte pente." },
+  env("env-n2000-oiseaux", "Natura 2000 – oiseaux (ZPS)", "Patrinat_ZPS_France", "Site Natura 2000 – Zone de protection spéciale (directive Oiseaux)", false, "Zones de protection des oiseaux. Information environnementale : pas une interdiction de passage en soi."),
+  env("env-n2000-habitats", "Natura 2000 – habitats (SIC/ZSC)", "Patrinat_SIC_France", "Site Natura 2000 – directive Habitats, faune, flore", false, "Protection des habitats et des espèces. Information environnementale."),
+  env("env-pn", "Parcs nationaux", "Patrinat_PN_France", "Parc national", true, "Cœur et aire d'adhésion : une réglementation propre s'applique dans le cœur (voir la fiche officielle)."),
+  env("env-pnr", "Parcs naturels régionaux", "Patrinat_PNR_France", "Parc naturel régional", false, "Territoire de projet, sans réglementation d'accès générale."),
+  env("env-rnn", "Réserves naturelles nationales", "Patrinat_RNN_France", "Réserve naturelle nationale", true, "Réglementation propre à chaque réserve (voir la fiche officielle)."),
+  env("env-rnr", "Réserves naturelles régionales", "Patrinat_RNR_France", "Réserve naturelle régionale", true, "Réglementation propre à chaque réserve (voir la fiche officielle)."),
+  env("env-apb", "Arrêtés de protection de biotope", "Patrinat_APB_France", "Arrêté de protection de biotope", true, "Mesures de protection fixées par arrêté préfectoral."),
+  env("env-rb", "Réserves biologiques (forêts)", "Patrinat_RB_France", "Réserve biologique", true, "Réserves en forêt publique ; accès parfois limité (réserves intégrales)."),
+  env("env-znieff1", "ZNIEFF de type 1 (inventaire)", "Patrinat_ZNIEFF1_France", "ZNIEFF de type 1 (inventaire scientifique)", false, "Inventaire scientifique sans portée réglementaire directe."),
 ];
+export const ENV_OVERLAYS = OVERLAYS.filter((o) => o.env);
+
+export interface EnvZone { overlayId: string; kind: string; regulated: boolean; name: string; zone: string; areaHa: number | null; created: string; manager: string; url: string }
+/** Zones protégées en un point, pour les couches données (GetFeatureInfo). Une seule requête par couche active. */
+export async function envZonesAt(lng: number, lat: number, overlayIds: string[], signal?: AbortSignal): Promise<EnvZone[]> {
+  const x = (lng * 20037508.34) / 180, y = (Math.log(Math.tan(((90 + lat) * Math.PI) / 360)) / (Math.PI / 180)) * 20037508.34 / 180, h = 60;
+  const out: EnvZone[] = [];
+  for (const o of ENV_OVERLAYS.filter((v) => overlayIds.includes(v.id))) {
+    const u = `https://data.geopf.fr/wms-v/ows?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetFeatureInfo&LAYERS=${o.env!.layer}&QUERY_LAYERS=${o.env!.layer}&STYLES=&CRS=EPSG:3857&BBOX=${x - h},${y - h},${x + h},${y + h}&WIDTH=101&HEIGHT=101&I=50&J=50&INFO_FORMAT=application/json&FEATURE_COUNT=5`;
+    const r = await fetch(u, { signal }); if (!r.ok) throw new Error(`Couche « ${o.label} » indisponible (${r.status})`);
+    const j = (await r.json()) as { features?: { properties: Record<string, string | number | null> }[] };
+    for (const f of j.features ?? []) { const p = f.properties; const a = Number(p.surf_off ?? p.area_sig);
+      out.push({ overlayId: o.id, kind: o.env!.kind, regulated: o.env!.regulated, name: String(p.nom_site ?? "(sans nom)"), zone: String(p.zone ?? ""), areaHa: Number.isFinite(a) && a > 0 ? a : null, created: String(p.date_crea ?? "").slice(0, 4), manager: String(p.gest_site ?? p.operateur ?? ""), url: /^https:\/\/inpn\.mnhn\.fr\//.test(String(p.url_fiche ?? "")) ? String(p.url_fiche) : "" }); }
+  }
+  return out.filter((z, i, a) => a.findIndex((q) => q.overlayId === z.overlayId && q.name === z.name && q.zone === z.zone) === i);
+}
 
 export const tilesWithKey = (b: Basemap, key?: string) => (b.keyed ? `${b.tiles}?apikey=${encodeURIComponent(key ?? "")}` : b.tiles);
 

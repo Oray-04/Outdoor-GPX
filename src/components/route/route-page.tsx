@@ -17,6 +17,7 @@ import { cumulative, fmtKm, fmtM, fmtDuration } from "@/lib/geo";
 import { SPORTS, DIFFICULTY_LABEL } from "@/lib/sports";
 import { POI_TYPES, uid } from "@/lib/types";
 import { Field } from "@/components/ui/field";
+import { ShareBox } from "@/components/share/share-box";
 import { PoiIcon } from "@/components/ui/poi-icon";
 import { FORMATS, serialize, download, safeName, type GpsFormat } from "@/lib/formats";
 import { chartToPng, chartToPdf } from "@/lib/export-profile";
@@ -67,6 +68,7 @@ export function RoutePage({ id }: { id: string }) {
   );
 
   const mine = route.origin === "mine";
+  const saved = mine ? routesRepo.get(route.id) : undefined;
   const isFav = favs.includes(route.id);
   const s = route.stats;
   const avg = reviews.length ? reviews.reduce((a, r) => a + r.rating, 0) / reviews.length : 0;
@@ -154,6 +156,7 @@ export function RoutePage({ id }: { id: string }) {
               <a className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-ink-200 bg-white px-3.5 text-sm font-semibold hover:bg-ink-50" target="_blank" rel="noreferrer" href={`https://www.openstreetmap.org/directions?to=${start[1]},${start[0]}`}><ExternalLink className="size-4" />Itinéraire d'accès</a></div></section>
           <section className="rounded-2xl bg-white p-5 ring-1 ring-ink-100"><h2 className="text-lg font-bold">Points d'intérêt</h2>
             {route.pois.length ? <ul className="mt-3 grid gap-2">{route.pois.map((p) => <li key={p.id} className="flex items-center gap-2 text-sm"><PoiIcon type={p.type} size={26} /><span className="flex-1">{p.name}</span><span className="text-ink-400">km {(distanceAlong(route.coords, cum, p) / 1000).toFixed(1).replace(".", ",")}</span></li>)}</ul> : <p className="mt-2 text-sm text-ink-500">Aucun point d'intérêt renseigné.</p>}</section>
+          {mine && saved && <ShareBox route={saved} />}
           <section className="rounded-2xl bg-white p-5 ring-1 ring-ink-100"><h2 className="text-lg font-bold">Télécharger</h2><div className="mt-3 grid grid-cols-2 gap-2">{(Object.keys(FORMATS) as GpsFormat[]).map((f) => <Button key={f} size="sm" variant="secondary" onClick={() => exp(f)}><Download className="size-4" />{FORMATS[f].label}</Button>)}</div></section>
           <section className="rounded-2xl bg-white p-5 ring-1 ring-ink-100">
             <Button size="sm" variant="ghost" onClick={() => setReporting(!reporting)}><Flag className="size-4" />Signaler une erreur</Button>

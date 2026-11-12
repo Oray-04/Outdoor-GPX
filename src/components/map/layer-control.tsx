@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Map as MLMap } from "maplibre-gl";
 import { Layers, Lock, X } from "lucide-react";
 import clsx from "clsx";
-import { BASEMAPS, GROUP_LABEL, OVERLAYS, applyLayers, dropKeyedLayers, type BasemapGroup } from "@/lib/basemaps";
+import { BASEMAPS, ENV_OVERLAYS, GROUP_LABEL, OVERLAYS, applyLayers, dropKeyedLayers, envZonesAt, type BasemapGroup, type EnvZone } from "@/lib/basemaps";
 import { setBasemapPref, setOverlayPref, setThunderforestKey, thunderforestFromEnv, useBasemapPref, useOverlayPref, useThunderforestKey } from "@/lib/map-prefs";
 
 /**
@@ -18,6 +18,12 @@ export function LayerControl({ map, ready, className, scope }: { map: { current:
   const [draft, setDraft] = useState("");
   const box = useRef<HTMLDivElement>(null);
   const lastKey = useRef(tfKey);
+  const [zones, setZones] = useState<EnvZone[] | null>(null); const [zBusy, setZBusy] = useState(false); const [zErr, setZErr] = useState<string | null>(null);
+  const envActive = ENV_OVERLAYS.filter((o) => overlays.includes(o.id)).map((o) => o.id);
+  const identify = async () => {
+    const m = map.current; if (!m) return; const c = m.getCenter(); setZBusy(true); setZErr(null);
+    try { setZones(await envZonesAt(c.lng, c.lat, envActive)); } catch (e) { setZErr((e as Error).message || "Service indisponible."); setZones(null); } finally { setZBusy(false); }
+  };
 
   useEffect(() => {
     const m = map.current; if (!m || !ready) return;
@@ -66,11 +72,34 @@ export function LayerControl({ map, ready, className, scope }: { map: { current:
           ))}
           <div className="mt-1 border-t border-ink-100 pt-1">
             <p className="px-1.5 pt-1 text-xs font-bold uppercase tracking-wider text-ink-400">Surcouches</p>
-            {OVERLAYS.map((o) => (
+            {OVERLAYS.filter((o) => !o.env).map((o) => (
               <label key={o.id} title={o.note} className="flex cursor-pointer items-center gap-2 rounded-lg px-1.5 py-1.5 hover:bg-ink-50">
                 <input type="checkbox" className="accent-[var(--color-pine-600)]" checked={overlays.includes(o.id)} onChange={(e) => setOverlayPref(e.target.checked ? [...overlays, o.id] : overlays.filter((x) => x !== o.id))} /><span>{o.label}</span>
               </label>
             ))}
+          </div>
+          <div className="mt-1 border-t border-ink-100 pt-1">
+            <p className="px-1.5 pt-1 text-xs font-bold uppercase tracking-wider text-ink-400">Espaces naturels (France)</p>
+            {ENV_OVERLAYS.map((o) => (
+              <label key={o.id} title={o.note} className="flex cursor-pointer items-center gap-2 rounded-lg px-1.5 py-1.5 hover:bg-ink-50">
+                <input type="checkbox" className="accent-[var(--color-pine-600)]" checked={overlays.includes(o.id)} onChange={(e) => { setZones(null); setOverlayPref(e.target.checked ? [...overlays, o.id] : overlays.filter((x) => x !== o.id)); }} /><span>{o.label}</span>
+              </label>
+            ))}
+            {envActive.length > 0 && (
+              <div className="mx-1.5 mb-1 mt-1 grid gap-1.5 rounded-lg bg-ink-50 p-2 text-xs">
+                <button type="button" disabled={zBusy} onClick={identify} className="h-8 rounded bg-pine-600 px-2.5 font-semibold text-white disabled:opacity-50">{zBusy ? "Recherche…" : "Zones au centre de la carte"}</button>
+                {zErr && <p role="alert" className="text-danger">{zErr}</p>}
+                {zones && !zones.length && <p className="text-ink-600">Aucune zone des couches affichées au centre de la carte.</p>}
+                {zones?.map((z) => (
+                  <div key={z.overlayId + z.name + z.zone} className="rounded-md bg-white p-2 ring-1 ring-ink-100">
+                    <p className="font-semibold">{z.name}{z.zone ? ` (${z.zone})` : ""}</p>
+                    <p className="text-ink-600">{z.kind}{z.areaHa ? ` · ${Math.round(z.areaHa).toLocaleString("fr-FR")} ha` : ""}{z.created ? ` · créé en ${z.created}` : ""}</p>
+                    {z.manager && <p className="text-ink-500">Gestionnaire : {z.manager}</p>}
+                    <p className={z.regulated ? "mt-1 text-warn" : "mt-1 text-ink-500"}>{z.regulated ? "Une réglementation propre peut s'appliquer (accès, chiens, bivouac, manifestations) : consultez la fiche officielle et le gestionnaire." : "Information environnementale : ce classement n'interdit pas le passage en lui-même."}</p>
+                    {z.url && <a className="font-semibold text-pine-700 underline" href={z.url} target="_blank" rel="noopener noreferrer">Fiche officielle (INPN)</a>}
+                  </div>))}
+                <p className="text-ink-500">Source : INPN / PatriNat via la Géoplateforme. Les contours sont indicatifs ; seuls les textes officiels font foi.</p>
+              </div>)}
           </div>
         </div>
       )}
