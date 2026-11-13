@@ -11,7 +11,7 @@ import { ElevationChart, type ChartMarker } from "@/components/route/elevation-c
 import { Button } from "@/components/ui/button";
 import { routesRepo } from "@/lib/repo";
 import { routeMarkerEl } from "@/lib/route-markers";
-import { FAMILY, PRESETS, RESUPPLY, RESUPPLY_KINDS, RESUPPLY_NOTICE, ResupplyError, familyOf, findResupply, gaps, placesCsv, resupplyGlyph, resupplyIconSvg, sections, type ResupplyFamily, type ResupplyKind, type ResupplyPlace } from "@/lib/resupply";
+import { FAMILY, PRESETS, RESUPPLY, RESUPPLY_KINDS, RESUPPLY_NOTICE, MAX_PER_QUERY, ResupplyError, familyOf, findResupply, gaps, placesCsv, resupplyGlyph, resupplyIconSvg, sections, type ResupplyFamily, type ResupplyKind, type ResupplyPlace, type ResupplyReport } from "@/lib/resupply";
 import { buildProfile } from "@/lib/profile";
 import { download, safeName } from "@/lib/formats";
 import { bboxOf, cumulative, fmtKm, trackStats } from "@/lib/geo";
@@ -138,14 +138,22 @@ export function ItinerancePage() {
     ctrl.current?.abort(); const c = new AbortController(); ctrl.current = c;
     setBusy(true); setMsg(null); setPlaces(null); setSel(null); setProgress([0, 1]);
     try {
-      const r = await findResupply(line, kinds, radius, { signal: c.signal, onProgress: (d, t) => setProgress([d, t]) });
+      let rep: ResupplyReport | null = null;
+      const r = await findResupply(line, kinds, radius, { signal: c.signal, onProgress: (d, t) => setProgress([d, t]), onReport: (x) => { rep = x; } });
+      const bad = rep as ResupplyReport | null, partial = !!bad && (bad.failed > 0 || bad.truncated > 0);
       setPlaces(r); setShown(RESUPPLY_KINDS); setOpenSec(0);
-      try { sessionStorage.setItem(cacheKey, JSON.stringify(r)); } catch { /* quota : pas de cache */ }
-      setMsg(r.length ? { kind: "ok", text: `${r.length} lieu(x) à moins de ${fmtOff(radius)} du tracé, dont ${r.filter((p) => p.detour).length} avec détour.` } : { kind: "warn", text: `Aucun lieu recensé à moins de ${fmtOff(radius)} du tracé pour ces catégories. Élargissez la distance : en montagne, les commerces sont souvent dans la vallée.` });
+      if (!partial) try { sessionStorage.setItem(cacheKey, JSON.stringify(r)); } catch { /* quota : pas de cache */ }
+      const note = !bad ? "" : (bad.failed ? ` Attention : ${bad.failed} tronçon(s) sur ${bad.chunks} n'ont pas pu être interrogés (${bad.failedRanges.map(([a, b]) => `km ${km1(a)} à ${km1(b)}`).join(", ")}) : le résultat est incomplet, relancez la recherche dans un instant.` : "") + (bad.truncated ? ` ${bad.truncated} tronçon(s) très denses ont été limités à ${MAX_PER_QUERY} lieux : réduisez la distance au parcours ou le nombre de catégories.` : "");
+      setMsg(r.length ? { kind: partial ? "warn" : "ok", text: `${r.length} lieu(x) à moins de ${fmtOff(radius)} du tracé, dont ${r.filter((p) => p.detour).length} avec détour.${note}` } : { kind: "warn", text: `Aucun lieu recensé à moins de ${fmtOff(radius)} du tracé pour ces catégories. Élargissez la distance : en montagne, les commerces sont souvent dans la vallée.${note}` });
     } catch (e) {
       if ((e as Error).name === "AbortError") return;
-      const k = e instanceof ResupplyError ? e.kind : "network";
-      setMsg({ kind: "err", text: k === "too-long" ? "Parcours trop long pour une seule recherche (plus de 1 500 km) : découpez-le en étapes dans l'éditeur." : k === "rate" ? "Le service OpenStreetMap (Overpass) limite momentanément les requêtes. Réessayez dans une minute." : k === "server" ? "Le service OpenStreetMap (Overpass) a renvoyé une erreur. Réessayez dans un instant, ou réduisez la distance au tracé." : "Service OpenStreetMap (Overpass) injoignable : vérifiez votre connexion et réessayez." });
+      const err = e instanceof ResupplyError ? e : null, k = err?.kind ?? "network", detail = err?.tried.length ? ` Détail : ${[...new Set(err.tried)].slice(-4).join(" ; ")}.` : "";
+      setMsg({ kind: "err", text: (k === "too-long" ? "Parcours trop long pour une seule recherche (plus de 1 500 km) : découpez-le en étapes dans l'éditeur."
+        : k === "offline" ? "Votre appareil est hors connexion : la recherche de lieux demande Internet."
+        : k === "rate" ? "Les serveurs OpenStreetMap (Overpass) limitent momentanément les requêtes, malgré plusieurs essais. Réessayez dans une minute."
+        : k === "timeout" ? "Les serveurs OpenStreetMap (Overpass) n'ont pas répondu à temps, malgré plusieurs essais : ils sont surchargés. Réessayez dans un instant, ou réduisez la distance au parcours et le nombre de catégories."
+        : k === "server" ? "Les serveurs OpenStreetMap (Overpass) ont renvoyé une erreur, malgré plusieurs essais. Réessayez dans un instant, ou réduisez la distance au parcours."
+        : "Aucun des serveurs OpenStreetMap (Overpass) n'a pu être joint, malgré plusieurs essais. Ils sont peut-être indisponibles, ou bloqués par votre réseau ou une extension du navigateur.") + (k === "too-long" || k === "offline" ? "" : detail) });
     } finally { setBusy(false); setProgress(null); }
   }
   const poiOf = (p: ResupplyPlace) => ({ id: uid(), type: RESUPPLY[p.kind].poi, name: `${p.name || RESUPPLY[p.kind].one}${p.hours ? ` (${p.hours})` : ""}`.slice(0, 120), lng: p.lng, lat: p.lat });
@@ -184,7 +192,7 @@ export function ItinerancePage() {
           </div>
           <label className="mt-4 grid gap-1 text-sm font-medium">Jusqu'à quelle distance du parcours ?<select className={sel2} value={radius} onChange={(e) => { setRadius(+e.target.value); setPlaces(null); }}>{RADII.map((r) => <option key={r} value={r}>{fmtOff(r)}{r <= 250 ? " (au bord du chemin)" : r >= 2000 ? " (détours acceptés)" : ""}</option>)}</select></label>
           <div className="mt-4">{busy ? <Button variant="secondary" size="lg" className="w-full" onClick={() => ctrl.current?.abort()}><Square className="size-4" />Arrêter</Button> : <Button size="lg" className="w-full" onClick={run}><Store className="size-5" />Générer les points de ravitaillement</Button>}</div>
-          {busy && progress && <div role="status" className="mt-2"><p className="flex items-center gap-2 text-xs text-ink-500"><Loader2 className="size-3.5 animate-spin" />Recherche le long du tracé… tronçon {progress[0]}/{progress[1]}</p><div className="mt-1 h-1.5 overflow-hidden rounded-full bg-ink-100"><div className="h-full rounded-full bg-pine-600 transition-all" style={{ width: `${(progress[0] / Math.max(1, progress[1])) * 100}%` }} /></div></div>}
+          {busy && progress && <div role="status" className="mt-2"><p className="flex items-center gap-2 text-xs text-ink-500"><Loader2 className="size-3.5 animate-spin" />Recherche le long du tracé… tronçon {Math.min(progress[0] + 1, progress[1])}/{progress[1]} · plusieurs serveurs sont essayés si besoin</p><div className="mt-1 h-1.5 overflow-hidden rounded-full bg-ink-100"><div className="h-full rounded-full bg-pine-600 transition-all" style={{ width: `${(progress[0] / Math.max(1, progress[1])) * 100}%` }} /></div></div>}
           {msg && <p role={msg.kind === "err" ? "alert" : "status"} className={clsx("mt-3 rounded-lg px-3 py-2 text-sm", msg.kind === "err" ? "bg-danger/10 text-danger" : msg.kind === "warn" ? "bg-warn/10 text-ink-700" : "bg-pine-50 text-pine-700")}>{msg.text}</p>}
 
           {places && places.length > 0 && (<section className="mt-5" aria-label="Résultats">

@@ -9,7 +9,7 @@ export const CSP = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://data.geopf.fr https://tile.openstreetmap.org https://tile.opentopomap.org https://api.thunderforest.com https://tile.thunderforest.com https://s3.amazonaws.com",
   "font-src 'self' data:",
-  "connect-src 'self' blob: https://s3.amazonaws.com https://data.geopf.fr https://tile.openstreetmap.org https://tile.opentopomap.org https://api.thunderforest.com https://tile.thunderforest.com https://nominatim.openstreetmap.org https://overpass-api.de https://overpass.private.coffee https://overpass.kumi.systems https://valhalla1.openstreetmap.de https://api.open-meteo.com https://geo.api.gouv.fr https://apicarto.ign.fr https://hiking.waymarkedtrails.org https://*.supabase.co wss://*.supabase.co",
+  "connect-src 'self' blob: https://s3.amazonaws.com https://data.geopf.fr https://tile.openstreetmap.org https://tile.opentopomap.org https://api.thunderforest.com https://tile.thunderforest.com https://nominatim.openstreetmap.org https://overpass-api.de https://overpass.private.coffee https://maps.mail.ru https://overpass.kumi.systems https://valhalla1.openstreetmap.de https://api.open-meteo.com https://geo.api.gouv.fr https://apicarto.ign.fr https://hiking.waymarkedtrails.org https://*.supabase.co wss://*.supabase.co",
   "worker-src 'self' blob:",
   "child-src 'self' blob:",
   "object-src 'none'",

@@ -1,5 +1,5 @@
 import type { LL, PoiType } from "./types";
-import { cumulative, simplifyIndices } from "./geo";
+import { cumulative, haversine, simplifyIndices } from "./geo";
 
 /**
  * Ravitaillement en itinérance : commerces alimentaires, restauration et points d'eau proches d'un tracé.
@@ -30,22 +30,48 @@ export interface ResupplyPlace {
   osmUrl: string;
 }
 
-export const OVERPASS_MIRRORS = ["https://overpass-api.de/api/interpreter", "https://overpass.private.coffee/api/interpreter", "https://overpass.kumi.systems/api/interpreter"];
-export class ResupplyError extends Error { constructor(public kind: "rate" | "server" | "network" | "too-long", public status?: number) { super(`Recherche de lieux : ${kind}${status ? ` (${status})` : ""}`); } }
+/** Serveurs Overpass publics couvrant le monde entier, essayés dans l'ordre (celui qui a répondu en dernier passe en tête). */
+export const OVERPASS_MIRRORS = ["https://overpass-api.de/api/interpreter", "https://overpass.private.coffee/api/interpreter", "https://maps.mail.ru/osm/tools/overpass/api/interpreter", "https://overpass.kumi.systems/api/interpreter"];
+export type ResupplyErrorKind = "rate" | "server" | "timeout" | "network" | "offline" | "too-long";
+export class ResupplyError extends Error { constructor(public kind: ResupplyErrorKind, public status?: number, public tried: string[] = []) { super(`Recherche de lieux : ${kind}${status ? ` (${status})` : ""}`); } }
 
-/** Tronçons du tracé simplifié (≤ `per` sommets, le dernier sommet ouvre le suivant) : Overpass accepte un rayon autour d'une ligne. */
-export function routeChunks(line: LL[], per = 60, tolM = 25): LL[][] {
-  const s = simplifyIndices(line, tolM, 100000).map((i) => line[i]);
-  if (s.length <= per) return [s];
-  const out: LL[][] = []; for (let i = 0; i < s.length - 1; i += per - 1) out.push(s.slice(i, Math.min(s.length, i + per)));
+/**
+ * Tronçons du tracé simplifié : au plus `per` sommets et `maxLenM` mètres chacun, le dernier sommet ouvrant le suivant (aucun trou).
+ * La longueur est bornée parce que les serveurs publics interrompent une recherche trop étendue (mesuré en zone dense : 60 km échouent, 25 km souvent).
+ */
+export function routeChunks(line: LL[], per = 60, tolM = 25, maxLenM = Infinity): LL[][] {
+  const raw = simplifyIndices(line, tolM, 100000).map((i) => line[i]), s: LL[] = [raw[0]];
+  // un long segment droit est recoupé : sinon un seul tronçon pourrait couvrir des dizaines de kilomètres
+  for (let i = 1; i < raw.length; i++) { const n = Number.isFinite(maxLenM) ? Math.ceil(haversine(raw[i - 1], raw[i]) / maxLenM) : 1; for (let k = 1; k <= n; k++) s.push(k === n ? raw[i] : [raw[i - 1][0] + ((raw[i][0] - raw[i - 1][0]) * k) / n, raw[i - 1][1] + ((raw[i][1] - raw[i - 1][1]) * k) / n]); }
+  const out: LL[][] = []; let cur: LL[] = [s[0]], len = 0;
+  for (let i = 1; i < s.length; i++) {
+    cur.push(s[i]); len += haversine(s[i - 1], s[i]);
+    if (i < s.length - 1 && (cur.length >= per || len >= maxLenM)) { out.push(cur); cur = [s[i]]; len = 0; }
+  }
+  out.push(cur);
   return out;
 }
-/** Requête Overpass QL : objets des catégories demandées à moins de `radiusM` de la ligne. */
+/** Longueur de tronçon selon le rayon (10 km jusqu'à 500 m, 5 km à 2 km, 4 km au-delà) : mesuré sur 300 km, des tronçons courts répondent en 2 s environ, alors que des tronçons de 25 km sont souvent interrompus au bout de 25 s. */
+export const chunkLengthM = (radiusM: number) => Math.round(Math.min(10000, Math.max(4000, 10000 * Math.sqrt(500 / Math.max(1, radiusM)))));
+/** Coupe un tronçon en deux moitiés qui partagent un sommet (un segment unique est coupé en son milieu). */
+export function splitChunk(c: LL[]): [LL[], LL[]] {
+  if (c.length === 2) { const m: LL = [(c[0][0] + c[1][0]) / 2, (c[0][1] + c[1][1]) / 2]; return [[c[0], m], [m, c[1]]]; }
+  const k = Math.floor(c.length / 2); return [c.slice(0, k + 1), c.slice(k)];
+}
+/**
+ * Requête Overpass QL : objets des catégories demandées à moins de `radiusM` de la ligne.
+ * Les filtres simples d'une même clé sont réunis en une seule expression (une recherche par clé au lieu d'une par valeur) :
+ * la requête est 4 à 5 fois plus légère, donc moins souvent refusée ou interrompue par les serveurs publics.
+ */
 export function buildQuery(chunk: LL[], kinds: ResupplyKind[], radiusM: number): string {
   const around = `(around:${Math.round(radiusM)},${chunk.map((p) => `${p[1].toFixed(5)},${p[0].toFixed(5)}`).join(",")})`;
-  const parts = kinds.flatMap((k) => RESUPPLY[k].filters.map((f) => `nwr${f}${around};`));
-  return `[out:json][timeout:40];(${parts.join("")});out tags center 400;`;
+  const byKey = new Map<string, Set<string>>(), complex = new Set<string>();
+  for (const f of kinds.flatMap((k) => RESUPPLY[k].filters)) { const m = /^\["([\w:]+)"="([\w:]+)"\]$/.exec(f); if (m) (byKey.get(m[1]) ?? byKey.set(m[1], new Set()).get(m[1])!).add(m[2]); else complex.add(f); }
+  const parts = [...[...byKey].map(([k, v]) => (v.size === 1 ? `nwr["${k}"="${[...v][0]}"]${around};` : `nwr["${k}"~"^(${[...v].join("|")})$"]${around};`)), ...[...complex].map((f) => `nwr${f}${around};`)];
+  return `[out:json][timeout:${QUERY_TIMEOUT_S}];(${parts.join("")});out tags center ${MAX_PER_QUERY};`;
 }
+/** Durée accordée au serveur pour une requête, et nombre maximal d'objets par tronçon (au-delà, le tronçon est signalé comme tronqué). */
+export const QUERY_TIMEOUT_S = 25, MAX_PER_QUERY = 3000;
 
 interface OsmEl { type: string; id: number; lat?: number; lon?: number; center?: { lat: number; lon: number }; tags?: Record<string, string> }
 export function kindOf(t: Record<string, string>): ResupplyKind | null {
@@ -90,26 +116,85 @@ export function parsePlaces(els: OsmEl[], line: LL[]): ResupplyPlace[] {
   return out.sort((a, b) => a.atM - b.atM || a.offM - b.offM);
 }
 
-async function overpass(q: string, signal?: AbortSignal): Promise<OsmEl[]> {
-  let last: ResupplyError = new ResupplyError("network");
-  for (const url of OVERPASS_MIRRORS) {
-    try {
-      const r = await fetch(url, { method: "POST", body: new URLSearchParams({ data: q }), signal });
-      if (r.ok) return ((await r.json()) as { elements: OsmEl[] }).elements ?? [];
-      last = new ResupplyError(r.status === 429 ? "rate" : "server", r.status);
-    } catch (e) { if (signal?.aborted) throw new DOMException("Aborted", "AbortError"); last = new ResupplyError("network"); }
+const RANK: Record<ResupplyErrorKind, number> = { rate: 5, server: 4, timeout: 3, network: 2, offline: 1, "too-long": 0 };
+let preferred = 0;
+const pause = (ms: number, signal?: AbortSignal) => new Promise<void>((res, rej) => { const t = setTimeout(res, ms); signal?.addEventListener("abort", () => { clearTimeout(t); rej(new DOMException("Aborted", "AbortError")); }, { once: true }); });
+export interface OverpassOptions { signal?: AbortSignal; mirrors?: string[]; /** délai par serveur (ms) */ timeoutMs?: number; /** attentes avant chaque nouvelle série d'essais (ms) */ retryWaits?: number[] }
+
+/**
+ * Interroge les serveurs Overpass : délai d'attente par serveur, passage au serveur suivant, puis nouvelles séries d'essais espacées
+ * (les serveurs publics refusent souvent une requête pendant quelques secondes). L'erreur remontée est la plus parlante rencontrée
+ * (limite de requêtes > erreur du serveur > délai dépassé > injoignable), et non celle du dernier serveur essayé.
+ */
+export async function overpass(q: string, o: OverpassOptions = {}): Promise<{ elements: OsmEl[]; truncated: boolean }> {
+  const mirrors = o.mirrors ?? OVERPASS_MIRRORS, waits = o.retryWaits ?? [3000, 8000], tried: string[] = [];
+  let best: ResupplyError | null = null;
+  const keep = (e: ResupplyError) => { if (!best || RANK[e.kind] > RANK[best.kind]) best = e; };
+  for (let round = 0; round <= waits.length; round++) {
+    if (round > 0) await pause(waits[round - 1], o.signal);
+    for (let k = 0; k < mirrors.length; k++) {
+      const idx = ((o.mirrors ? 0 : preferred) + k) % mirrors.length, url = mirrors[idx], host = new URL(url).host;
+      const c = new AbortController(); let timedOut = false;
+      const onAbort = () => c.abort(); o.signal?.addEventListener("abort", onAbort, { once: true });
+      const timer = setTimeout(() => { timedOut = true; c.abort(); }, o.timeoutMs ?? (QUERY_TIMEOUT_S + 10) * 1000);
+      try {
+        const r = await fetch(url, { method: "POST", body: new URLSearchParams({ data: q }), signal: c.signal });
+        if (!r.ok) { tried.push(`${host} : ${r.status}`); keep(new ResupplyError(r.status === 429 ? "rate" : "server", r.status)); continue; }
+        let j: { elements?: OsmEl[]; remark?: string };
+        try { j = await r.json(); } catch { tried.push(`${host} : réponse illisible`); keep(new ResupplyError("server", r.status)); continue; }
+        // Overpass répond parfois 200 avec une remarque d'erreur (requête interrompue, mémoire) et un résultat vide ou partiel
+        if (j.remark && /runtime error|timed out|out of memory/i.test(j.remark)) { tried.push(`${host} : ${j.remark.slice(0, 60)}`); keep(new ResupplyError(/timed out/i.test(j.remark) ? "timeout" : "server", r.status)); continue; }
+        if (!o.mirrors) preferred = idx;
+        const elements = j.elements ?? [];
+        return { elements, truncated: elements.length >= MAX_PER_QUERY };
+      } catch {
+        if (o.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+        tried.push(`${host} : ${timedOut ? "délai dépassé" : "injoignable"}`); keep(new ResupplyError(timedOut ? "timeout" : "network"));
+      } finally { clearTimeout(timer); o.signal?.removeEventListener("abort", onAbort); }
+    }
+    if (typeof navigator !== "undefined" && navigator.onLine === false) { best = new ResupplyError("offline"); break; }
   }
-  throw last;
+  const e = best ?? new ResupplyError("network"); e.tried = tried; throw e;
 }
 
 /** Longueur maximale traitée en une recherche (au-delà, découper le parcours en étapes). */
 export const MAX_ROUTE_KM = 1500;
-/** Cherche les lieux des catégories choisies à moins de `radiusM` du tracé. Requêtes séquentielles (serveurs publics, usage raisonnable). */
-export async function findResupply(line: LL[], kinds: ResupplyKind[], radiusM: number, o: { signal?: AbortSignal; onProgress?: (done: number, total: number) => void } = {}): Promise<ResupplyPlace[]> {
+export interface ResupplyReport { chunks: number; failed: number; truncated: number; /** bornes (m) des tronçons non interrogés */ failedRanges: [number, number][]; error?: ResupplyError }
+export interface FindOptions extends OverpassOptions { onProgress?: (done: number, total: number) => void; /** bilan : tronçons en échec ou tronqués (résultat partiel) */ onReport?: (r: ResupplyReport) => void; /** pause entre deux tronçons (ms) */ gapMs?: number }
+/**
+ * Cherche les lieux des catégories choisies à moins de `radiusM` du tracé. Requêtes l'une après l'autre, avec une courte pause
+ * (serveurs publics, usage raisonnable). Un tronçon en échec n'annule pas les autres : le résultat partiel est rendu et signalé par
+ * `onReport` ; l'erreur n'est levée que si aucun tronçon n'a répondu.
+ */
+export async function findResupply(line: LL[], kinds: ResupplyKind[], radiusM: number, o: FindOptions = {}): Promise<ResupplyPlace[]> {
   if (line.length < 2 || !kinds.length) return [];
   const cum = cumulative(line); if (cum[cum.length - 1] > MAX_ROUTE_KM * 1000) throw new ResupplyError("too-long");
-  const chunks = routeChunks(line), all: OsmEl[] = [];
-  for (let i = 0; i < chunks.length; i++) { all.push(...await overpass(buildQuery(chunks[i], kinds, radiusM), o.signal)); o.onProgress?.(i + 1, chunks.length); }
+  // plus le rayon est large, moins le détail du tracé compte : moins de sommets, donc moins de tronçons et des requêtes plus légères
+  const chunks = routeChunks(line, 80, Math.min(200, Math.max(25, radiusM * 0.2)), chunkLengthM(radiusM)), all: OsmEl[] = [];
+  // tronçon refusé pour cause de recherche trop lourde (interrompue ou tronquée) : on le coupe en deux et on recommence, jusqu'à 3 fois
+  const ask = async (c: LL[], depth: number): Promise<{ elements: OsmEl[]; truncated: boolean }> => {
+    const splittable = depth < 3 && (c.length > 2 || haversine(c[0], c[c.length - 1]) > 1000);
+    let r: { elements: OsmEl[]; truncated: boolean } | null = null;
+    try { r = await overpass(buildQuery(c, kinds, radiusM), o); if (!r.truncated || !splittable) return r; }
+    catch (e) { const k = (e as ResupplyError).kind; if ((e as Error).name === "AbortError" || !splittable || (k !== "timeout" && k !== "server")) throw e; }
+    const [a, b] = splitChunk(c), ra = await ask(a, depth + 1); await pause(o.gapMs ?? 400, o.signal); const rb = await ask(b, depth + 1);
+    return { elements: [...ra.elements, ...rb.elements], truncated: ra.truncated || rb.truncated };
+  };
+  const rep: ResupplyReport = { chunks: chunks.length, failed: 0, truncated: 0, failedRanges: [] };
+  for (let i = 0; i < chunks.length; i++) {
+    if (i > 0) await pause(o.gapMs ?? 400, o.signal);
+    try { const r = await ask(chunks[i], 0); all.push(...r.elements); if (r.truncated) rep.truncated++; }
+    catch (e) {
+      if ((e as Error).name === "AbortError") throw e;
+      rep.failed++; rep.error = e as ResupplyError;
+      const a = locateOnRoute(chunks[i][0], line, cum).atM, b = locateOnRoute(chunks[i][chunks[i].length - 1], line, cum).atM; rep.failedRanges.push([Math.min(a, b), Math.max(a, b)]);
+      if (rep.failed === i + 1 && i >= 1) break; // les deux premiers tronçons ont échoué malgré les reprises : inutile d'insister sur tout le parcours
+    }
+    o.onProgress?.(i + 1, chunks.length);
+  }
+  if (rep.failed && all.length === 0 && rep.failed >= Math.min(chunks.length, 2)) throw rep.error!;
+  if (rep.failed === chunks.length) throw rep.error!;
+  o.onReport?.(rep);
   return parsePlaces(all, line).filter((p) => p.offM <= radiusM * 1.05);
 }
 /** Texte d'avertissement à afficher avec tout résultat. */
