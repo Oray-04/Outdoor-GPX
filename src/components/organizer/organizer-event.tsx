@@ -4,17 +4,22 @@ import { LocationFields } from "@/components/ui/location-fields";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { GeoJSONSource, Marker, Popup } from "maplibre-gl";
-import { ArrowLeft, Plus, Trash2, FileDown, Printer, Users, Eye, X, UserPlus } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, FileDown, Printer, Users, Eye, X, UserPlus, ChevronDown, Sparkles, Check, Flag, FlagTriangleRight } from "lucide-react";
 import clsx from "clsx";
 import { useMap } from "@/components/map/use-map";
 import { LayerControl } from "@/components/map/layer-control";
 import { AnalysisTab } from "./analysis-tab";
 import { PrepTab } from "./prep-tab";
+import { Stepper, StepFrame, StepParcours, AnalyseRunner, DocumentsRunner, FinalCheck, LockedPanel, useFlow } from "./flow";
+import type { StepId } from "@/lib/trail-flow";
+import { PoiIcon } from "@/components/ui/poi-icon";
+import { poiPinSvg } from "@/lib/poi-icons";
+import { routeMarkerSvg } from "@/lib/route-markers";
 import { Button } from "@/components/ui/button";
 import { collectionsRepo, eventsRepo, routesRepo } from "@/lib/repo";
 import { cloudEnabled } from "@/lib/cloud";
 import { collectionHref, editorHref } from "@/lib/url";
-import { POST_KINDS, ROLES, passageTable, positionOnTrack, raceFactsFromRoute, raceOutOfSync, postNumbers, postLabel, volunteersAt, assignVolunteer, addVolunteerAt, cleanAssignments, type EventModel, type Member, type Post, type PostKind, type Race, type Role, type Volunteer } from "@/lib/events";
+import { POST_KINDS, ROLES, passageTable, positionOnTrack, raceFactsFromRoute, raceOutOfSync, proposePosts, POST_ICON, POST_COLOR, postNumbers, postLabel, volunteersAt, assignVolunteer, addVolunteerAt, cleanAssignments, type EventModel, type Member, type Post, type PostKind, type Race, type Role, type Volunteer } from "@/lib/events";
 import { SPORTS, estimateMinutes, type Sport } from "@/lib/sports";
 import { bboxOf, fmtDuration } from "@/lib/geo";
 import { download, safeName } from "@/lib/formats";
@@ -22,31 +27,66 @@ import { passagePdf, volunteersPdf, mapPdf } from "@/lib/pdf";
 import { uid } from "@/lib/types";
 import { eventHref } from "@/lib/url";
 
-type Tab = "infos" | "courses" | "logistique" | "benevoles" | "passages" | "preparation" | "analyse" | "equipe";
-const TABS: [Tab, string][] = [["infos", "Infos"], ["courses", "Courses"], ["logistique", "Logistique"], ["benevoles", "Bénévoles"], ["passages", "Temps de passage"], ["preparation", "Préparation"], ["analyse", "Analyse cadastrale"], ["equipe", "Équipe"]];
 const inp = "h-10 w-full rounded-lg border border-ink-200 bg-white px-3 text-sm";
+const panel = "rounded-2xl bg-white p-5 shadow-card ring-1 ring-ink-100";
+
+/** Sous-onglets d'une étape : mêmes pastilles partout. */
+function Tabs<T extends string>({ value, onChange, items, label }: { value: T; onChange: (v: T) => void; items: [T, string][]; label: string }) {
+  return <div role="tablist" aria-label={label} className="flex w-fit max-w-full gap-1 overflow-x-auto rounded-full bg-ink-100 p-1">{items.map(([k, l]) => <button key={k} role="tab" type="button" aria-selected={value === k} onClick={() => onChange(k)} className={clsx("shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold transition", value === k ? "bg-white text-ink-900 shadow-sm" : "text-ink-600 hover:text-ink-900")}>{l}</button>)}</div>;
+}
+function Fold({ title, hint, children, open }: { title: string; hint?: string; children: React.ReactNode; open?: boolean }) {
+  return <details className={clsx(panel, "group")} open={open}><summary className="flex cursor-pointer list-none items-center gap-3"><span className="min-w-0 flex-1"><span className="block text-base font-bold">{title}</span>{hint && <span className="block text-sm text-ink-500">{hint}</span>}</span><ChevronDown className="size-5 shrink-0 text-ink-400 transition group-open:rotate-180" /></summary><div className="mt-4">{children}</div></details>;
+}
 
 export function OrganizerEvent({ id }: { id: string }) {
   const ev = eventsRepo.useAll().find((e) => e.id === id);
-  const [tab, setTab] = useState<Tab>("infos");
   if (!ev) return <div className="mx-auto max-w-xl px-4 py-24 text-center"><h1 className="text-3xl font-bold">Événement introuvable</h1><p className="mt-2 text-ink-600">Les événements sont enregistrés sur cet appareil.</p><Link href="/organisateurs" className="mt-6 inline-block font-semibold text-pine-700 underline">Retour</Link></div>;
-  const save = (fn: (e: EventModel) => EventModel) => eventsRepo.upsert(fn(ev));
+  return <Workspace ev={ev} />;
+}
+
+function Workspace({ ev }: { ev: EventModel }) {
+  const save = (fn: (e: EventModel) => EventModel) => { eventsRepo.upsert(fn(eventsRepo.get(ev.id) ?? ev)); };
+  const flow = useFlow(ev);
+  const [picked, setPicked] = useState<StepId | null>(null);
+  const [sub, setSub] = useState<"postes" | "benevoles" | "passages">("postes");
+  const active = picked ?? flow.current, step = flow.steps.find((s) => s.id === active)!;
+  const pick = (s: StepId) => { setPicked(s); requestAnimationFrame(() => document.getElementById("etapes")?.scrollIntoView({ behavior: "smooth", block: "start" })); };
+  const frame = (auto: string | undefined, children: React.ReactNode) => <StepFrame step={step} flow={flow} ev={ev} save={save} onPick={pick} auto={auto}>{children}</StepFrame>;
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-      <Link href="/organisateurs" className="inline-flex items-center gap-1.5 text-sm text-ink-500 hover:text-ink-900"><ArrowLeft className="size-4" />Espace organisateurs</Link>
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl font-extrabold sm:text-3xl">{ev.name}</h1><Link href={eventHref(ev.id)} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-ink-200 bg-white px-3 text-sm font-semibold hover:bg-ink-50"><Eye className="size-4" />Voir la page publique</Link></div>
-      <div className="mt-4 flex overflow-x-auto border-b border-ink-100" role="tablist">{TABS.map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={clsx("shrink-0 px-4 py-2.5 text-sm font-semibold", tab === k ? "border-b-2 border-pine-600 text-pine-700" : "text-ink-500")}>{l}</button>)}</div>
+      <Link href="/organisateurs" className="inline-flex items-center gap-1.5 text-sm text-ink-500 hover:text-ink-900"><ArrowLeft className="size-4" />Organisation Trail</Link>
+      <header className="mt-2 flex flex-wrap items-end justify-between gap-4">
+        <div className="min-w-0"><h1 className="text-3xl sm:text-4xl">{ev.name}</h1><p className="mt-1 text-sm text-ink-600">{/^\d{4}-\d{2}-\d{2}$/.test(ev.date) ? new Date(`${ev.date}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : "Date à préciser"} · {ev.place || "Lieu à préciser"} · {ev.races.length} course(s)</p></div>
+        <div className="flex items-center gap-4"><div className="w-44" role="img" aria-label={`Préparation : ${flow.percent} %`}><p className="flex items-baseline justify-between text-xs font-semibold text-ink-600"><span>Préparation</span><span className="font-display text-lg text-ink-900">{flow.percent} %</span></p><div className="mt-1 h-2 overflow-hidden rounded-full bg-ink-100"><div className="h-full rounded-full bg-gradient-to-r from-pine-600 to-pine-400 transition-all" style={{ width: `${flow.percent}%` }} /></div></div>
+          <Link href={eventHref(ev.id)} className="inline-flex h-10 items-center gap-1.5 rounded-full border border-ink-200 bg-white px-4 text-sm font-semibold hover:bg-ink-50"><Eye className="size-4" />Page publique</Link></div>
+      </header>
       <Consistency ev={ev} save={save} />
-      <div className="mt-6">
-        {tab === "infos" && <Infos ev={ev} save={save} />}
-        {tab === "courses" && <Races ev={ev} save={save} />}
-        {tab === "logistique" && <Logistics ev={ev} save={save} />}
-        {tab === "benevoles" && <Volunteers ev={ev} save={save} />}
-        {tab === "passages" && <Passages ev={ev} />}
-        {tab === "preparation" && <PrepTab ev={ev} save={save} />}
-        {tab === "analyse" && <AnalysisTab ev={ev} />}
-        {tab === "equipe" && <Team ev={ev} save={save} />}
-      </div>
+      <div id="etapes" className="mt-5 scroll-mt-20"><Stepper flow={flow} active={active} onPick={pick} /></div>
+      {step.status === "locked" ? <LockedPanel step={step} flow={flow} onPick={pick} /> : (<>
+        {active === "parcours" && frame(undefined, <StepParcours ev={ev} />)}
+        {active === "trail" && frame("la distance, le dénivelé, les altitudes et la discipline de chaque course sont repris du parcours choisi.", <>
+          <div className={panel}><h3 className="mb-3 text-base font-bold">L&apos;événement</h3><Infos ev={ev} save={save} /></div>
+          <div><h3 className="mb-3 text-base font-bold">Les courses</h3><Races ev={ev} save={save} /></div>
+          <PrepTab ev={ev} save={save} part="params" />
+          <Fold title="Équipe et rôles" hint="Facultatif : les personnes qui préparent l'événement avec vous."><Team ev={ev} save={save} /></Fold>
+        </>)}
+        {active === "analyse" && frame("nature de chaque épreuve, part de goudron, traversées de routes, départements, catégories d'âge admises, matériel à exiger et dispositif médical recommandé.", <>
+          <AnalyseRunner ev={ev} save={save} />
+          <PrepTab ev={ev} save={save} part="analyse" />
+          <Fold title="Analyse cadastrale et réglementaire" hint="Parcelles traversées, statut des chemins, forêts publiques et zones protégées : pour préparer les demandes d'accord."><AnalysisTab ev={ev} /></Fold>
+        </>)}
+        {active === "documents" && frame("le règlement, le dossier administratif, l'échéancier daté et le dossier de préparation sont rédigés à partir de l'analyse ; les postes sont proposés sur la carte.", <>
+          <DocumentsRunner ev={ev} save={save} />
+          <PrepTab ev={ev} save={save} part="documents" />
+        </>)}
+        {active === "logistique" && frame("les postes sont proposés depuis le parcours (points d'intérêt, distance, routes traversées) ; les kilomètres et les temps de passage sont calculés.", <>
+          <Tabs label="Logistique" value={sub} onChange={setSub} items={[["postes", `Postes (${ev.posts.length})`], ["benevoles", `Bénévoles (${ev.volunteers.length})`], ["passages", "Temps de passage"]]} />
+          {sub === "postes" && <Logistics ev={ev} save={save} />}
+          {sub === "benevoles" && <Volunteers ev={ev} save={save} />}
+          {sub === "passages" && <Passages ev={ev} />}
+        </>)}
+        {active === "verification" && frame(undefined, <FinalCheck flow={flow} ev={ev} save={save} onPick={pick} />)}
+      </>)}
     </div>
   );
 }
@@ -80,7 +120,6 @@ function Infos({ ev, save }: P) {
       <Field l="Lien d'inscription (https://…)"><input className={inp} value={ev.registrationUrl} onChange={(e) => set("registrationUrl", e.target.value)} placeholder="https://" /></Field>
       <div className="md:col-span-2"><Field l="Description"><textarea rows={4} className="rounded-lg border border-ink-200 p-3 text-sm" value={ev.description} onChange={(e) => set("description", e.target.value)} /></Field></div>
       <Field l="Informations pratiques"><textarea rows={5} className="rounded-lg border border-ink-200 p-3 text-sm" value={ev.practical} onChange={(e) => set("practical", e.target.value)} placeholder="Retrait des dossards, parkings, douches…" /></Field>
-      <Field l="Règlement"><textarea rows={5} className="rounded-lg border border-ink-200 p-3 text-sm" value={ev.rules} onChange={(e) => set("rules", e.target.value)} /></Field>
       <Publication ev={ev} save={save} />
       <p className="text-xs text-ink-500 md:col-span-2">Enregistrement automatique sur cet appareil.</p>
     </div>
@@ -173,6 +212,24 @@ function Races({ ev, save }: P) {
   );
 }
 
+/** Pictogramme d'un type de poste : celui des points d'intérêt du site ; drapeaux pour le départ et l'arrivée. */
+function PostIcon({ kind, size = 28 }: { kind: PostKind; size?: number }) {
+  const ic = POST_ICON[kind];
+  if (ic === "start" || ic === "finish") { const I = ic === "start" ? FlagTriangleRight : Flag; return <span className="inline-grid shrink-0 place-items-center rounded-[30%] text-white shadow-sm ring-1 ring-black/10" style={{ width: size, height: size, background: POST_COLOR[kind] }} role="img" aria-label={POST_KINDS[kind].label}><I style={{ width: size * 0.58, height: size * 0.58 }} /></span>; }
+  return <PoiIcon type={ic} size={size} />;
+}
+/** Marqueur de carte d'un poste : épingle du site, numéro du poste, bénévoles affectés / nécessaires. */
+function postMarkerEl(kind: PostKind, n: number, staff: string, short: boolean, selected: boolean, auto: boolean, title: string): HTMLButtonElement {
+  const ic = POST_ICON[kind], b = document.createElement("button"); b.type = "button"; b.className = "group relative block cursor-pointer bg-transparent p-0 leading-none"; b.title = title; b.setAttribute("aria-label", title); b.dataset.post = kind;
+  const inner = document.createElement("span"); inner.className = "block origin-bottom transition-transform duration-150 group-hover:scale-110" + (selected ? " scale-110 drop-shadow-[0_0_0_2px_#0a1514]" : "");
+  inner.innerHTML = ic === "start" || ic === "finish" ? routeMarkerSvg(ic, 44) : poiPinSvg(ic, 34);
+  const num = document.createElement("span"); num.className = "absolute -left-2 -top-1.5 grid min-w-[1.15rem] place-items-center rounded-full border border-white bg-ink-950 px-1 text-[10px] font-bold leading-[1.05rem] text-white shadow"; num.textContent = String(n); num.dataset.num = "1";
+  const c = document.createElement("span"); c.className = "absolute -right-3 -top-1.5 rounded-full border border-white px-1 text-[10px] font-bold leading-[1.05rem] text-white shadow"; c.style.background = short ? "#c0362c" : "#1e7a58"; c.textContent = staff; c.dataset.staff = "1";
+  b.append(inner, num, c);
+  if (auto) { const a = document.createElement("span"); a.className = "absolute -bottom-1 left-1/2 size-2 -translate-x-1/2 rounded-full border border-white bg-brass-400"; a.title = "Poste proposé, à vérifier"; b.append(a); }
+  return b;
+}
+
 function Logistics({ ev, save }: P) {
   const routes = routesRepo.useAll();
   const [raceId, setRaceId] = useState(ev.races[0]?.id ?? "");
@@ -222,12 +279,9 @@ function Logistics({ ev, save }: P) {
     posts.forEach((p, i) => {
       if (p.lng == null || p.lat == null) return;
       const vols = volunteersAt(ev, p.id), need = Math.max(0, p.staffNeeded), short = vols.length < need;
-      const b = document.createElement("button"); b.type = "button"; b.className = "relative block cursor-pointer bg-transparent p-0";
-      const d = document.createElement("span"); d.className = "grid size-7 place-items-center rounded-full border-2 border-white text-[11px] font-bold text-white shadow" + (sel === p.id ? " ring-2 ring-ink-900" : ""); d.style.background = POST_KINDS[p.kind].color; d.textContent = String(i + 1);
-      const c = document.createElement("span"); c.className = "absolute -right-2.5 -top-2 rounded-full border border-white px-1 text-[10px] font-bold leading-4 text-white shadow"; c.style.background = short ? "#c0362c" : "#1e7a58"; c.textContent = `${vols.length}/${need}`; c.dataset.staff = "1";
-      b.append(d, c); b.title = `Poste ${i + 1} — ${p.name} (km ${p.km}) : ${vols.length ? vols.map((v) => v.name).join(", ") : "aucun bénévole"}`; b.setAttribute("aria-label", b.title);
+      const b = postMarkerEl(p.kind, i + 1, `${vols.length}/${need}`, short, sel === p.id, !!p.auto, `Poste ${i + 1} — ${p.name} (km ${p.km}) : ${vols.length ? vols.map((v) => v.name).join(", ") : "aucun bénévole"}${p.auto ? " — proposé, à vérifier" : ""}`);
       b.addEventListener("click", (e) => { e.stopPropagation(); setSel(p.id); setTimeout(() => document.getElementById(`post-${p.id}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }), 50); });
-      marks.current.push(new lib.Marker({ element: b }).setLngLat([p.lng, p.lat]).addTo(m));
+      marks.current.push(new lib.Marker({ element: b, anchor: "bottom" }).setLngLat([p.lng, p.lat]).addTo(m));
     });
   }, [posts, ev.volunteers, sel, ready, map, ml]); // eslint-disable-line react-hooks/exhaustive-deps
   // fenêtre du poste choisi : ses bénévoles, tels qu'ils figurent sur leurs fiches
@@ -240,11 +294,14 @@ function Logistics({ ev, save }: P) {
     const k = document.createElement("div"); k.className = "text-xs text-gray-600"; k.textContent = `${POST_KINDS[p.kind].label} · km ${p.km} · ${vols.length}/${p.staffNeeded} bénévole(s)`;
     const l = document.createElement("div"); l.className = "mt-1 text-xs"; l.textContent = vols.length ? vols.map((v) => v.name).join(", ") : "Aucun bénévole affecté";
     box.append(h, k, l);
-    popup.current = new lib.Popup({ closeButton: true, closeOnClick: false, offset: 18 }).setLngLat([p.lng, p.lat]).setDOMContent(box).addTo(m);
+    popup.current = new lib.Popup({ closeButton: true, closeOnClick: false, offset: 40 }).setLngLat([p.lng, p.lat]).setDOMContent(box).addTo(m);
     popup.current.on("close", () => setSel((x) => (x === p.id ? null : x)));
   }, [sel, posts, ev.volunteers, ready, map, ml]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const upd = (id: string, patch: Partial<Post>) => save((e) => ({ ...e, posts: e.posts.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
+  const autoN = posts.filter((p) => p.auto).length;
+  /** Proposition automatique : ajoute seulement les postes qui n'existent pas déjà (même type à moins de 300 m). */
+  const propose = () => { if (!race || !route) return; const add = proposePosts({ race, coords: route.coords, pois: route.pois, roads: ev.prep?.roads?.[race.id] ?? [], newId: uid }).filter((n) => !posts.some((p) => p.kind === n.kind && Math.abs(p.km - n.km) < 0.3)); save((e) => ({ ...e, posts: [...e.posts, ...add] })); setMsg(add.length ? `${add.length} poste(s) proposé(s) : vérifiez chacun, déplacez-le si besoin (kilomètre), puis confirmez.${ev.prep?.roads?.[race.id] ? "" : " Les signaleurs ne sont proposés qu'après l'analyse des parcours (étape 3)."}` : "Rien à ajouter : tous les postes proposés existent déjà."); };
   const exportMap = async () => {
     const m = map.current; if (!m || !race) return;
     try {
@@ -260,19 +317,20 @@ function Logistics({ ev, save }: P) {
     <div className="grid gap-4 lg:grid-cols-[1fr_24rem]">
       <div>
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          <select aria-label="Course" className="h-9 rounded-lg border border-ink-200 bg-white px-2 text-sm" value={race?.id} onChange={(e) => setRaceId(e.target.value)}>{ev.races.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}</select>
-          <div className="flex flex-wrap gap-1">{(Object.keys(POST_KINDS) as PostKind[]).map((k) => <button key={k} aria-pressed={kind === k} onClick={() => setKind(k)} className={clsx("rounded-full border px-2.5 py-1 text-xs font-medium", kind === k ? "border-transparent text-white" : "border-ink-200")} style={kind === k ? { background: POST_KINDS[k].color } : undefined}>{POST_KINDS[k].label}</button>)}</div>
+          <select aria-label="Course" className="h-10 rounded-full border border-ink-200 bg-white px-3 text-sm font-semibold" value={race?.id} onChange={(e) => setRaceId(e.target.value)}>{ev.races.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}</select>
+          <div role="group" aria-label="Type de poste à placer" className="flex flex-wrap gap-1.5">{(Object.keys(POST_KINDS) as PostKind[]).map((k) => <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(k)} className={clsx("inline-flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-3 text-xs font-semibold transition", kind === k ? "border-ink-900 bg-ink-950 text-white" : "border-ink-200 bg-white text-ink-700 hover:border-ink-400")}><PostIcon kind={k} size={22} />{POST_KINDS[k].label}</button>)}</div>
         </div>
-        <div className="relative h-[28rem] overflow-hidden rounded-2xl ring-1 ring-ink-100"><div className="absolute inset-0"><div ref={el} className="size-full" role="application" aria-label="Carte logistique : cliquez pour placer un poste" /></div><LayerControl map={map} ready={ready} /></div>
+        <div className="relative h-[30rem] overflow-hidden rounded-2xl shadow-card ring-1 ring-ink-100"><div className="absolute inset-0"><div ref={el} className="size-full" role="application" aria-label="Carte logistique : cliquez pour placer un poste" /></div><LayerControl map={map} ready={ready} /></div>
         <p className="mt-2 text-xs text-ink-500" aria-live="polite">{msg ?? (route ? "Choisissez un type puis cliquez sur le tracé : le kilomètre est calculé automatiquement. La pastille de chaque poste indique bénévoles affectés / nécessaires ; les affectations sont les mêmes que sur les fiches de l'onglet Bénévoles." : "Liez un parcours à cette course pour placer les postes sur le tracé.")}</p>
-        <div className="mt-3 flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={exportMap} disabled={!posts.length}><FileDown className="size-4" />Carte en PDF</Button><Button size="sm" variant="secondary" onClick={() => window.print()}><Printer className="size-4" />Imprimer la page</Button></div>
+        <div className="mt-3 flex flex-wrap gap-2">{route && <Button size="sm" onClick={propose} data-action="proposer"><Sparkles className="size-4" />{posts.length ? "Compléter avec les postes proposés" : "Proposer les postes automatiquement"}</Button>}{autoN > 0 && <Button size="sm" variant="secondary" onClick={() => save((e) => ({ ...e, posts: e.posts.map((p) => (p.raceId === race?.id ? { ...p, auto: undefined } : p)) }))}><Check className="size-4" />Confirmer les {autoN} postes proposés</Button>}<Button size="sm" variant="secondary" onClick={exportMap} disabled={!posts.length}><FileDown className="size-4" />Carte en PDF</Button><Button size="sm" variant="secondary" onClick={() => window.print()}><Printer className="size-4" />Imprimer la page</Button></div>
       </div>
-      <ul className="grid max-h-[34rem] content-start gap-2 overflow-y-auto">
+      <ul className="grid max-h-[40rem] content-start gap-2.5 overflow-y-auto p-0.5">
         {posts.map((p, i) => (
-          <li key={p.id} id={`post-${p.id}`} aria-label={`Poste ${i + 1} — ${p.name}`} className={clsx("rounded-xl bg-white p-3 ring-1", sel === p.id ? "ring-2 ring-pine-600" : "ring-ink-100")}>
-            <div className="flex items-center gap-2"><span className="grid size-6 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white" style={{ background: POST_KINDS[p.kind].color }}>{i + 1}</span>
+          <li key={p.id} id={`post-${p.id}`} aria-label={`Poste ${i + 1} — ${p.name}`} className={clsx("rounded-2xl bg-white p-3 shadow-card ring-1", sel === p.id ? "ring-2 ring-pine-600" : "ring-ink-100")}>
+            <div className="flex items-center gap-2"><span className="relative shrink-0"><PostIcon kind={p.kind} size={30} /><span className="absolute -left-1.5 -top-1.5 grid min-w-[1.1rem] place-items-center rounded-full border border-white bg-ink-950 px-1 text-[10px] font-bold leading-4 text-white">{i + 1}</span></span>
               <input aria-label="Nom du poste" className="min-w-0 flex-1 rounded border border-transparent px-1 text-sm font-semibold hover:border-ink-200" value={p.name} onFocus={() => setSel(p.id)} onChange={(e) => upd(p.id, { name: e.target.value })} />
               <button aria-label="Supprimer le poste" className="grid size-7 place-items-center rounded hover:bg-ink-100" onClick={() => save((e) => ({ ...e, posts: e.posts.filter((x) => x.id !== p.id), volunteers: e.volunteers.map((v) => (v.postId === p.id ? { ...v, postId: "" } : v)) }))}><Trash2 className="size-4" /></button></div>
+            <p className="mt-1 flex flex-wrap items-center gap-2 pl-10 text-xs text-ink-500">{POST_KINDS[p.kind].label}{p.auto && <><span className="rounded-full bg-brass-100 px-2 py-0.5 font-semibold text-brass-600">Proposé — à vérifier</span><button type="button" className="font-semibold text-pine-700 underline" onClick={() => upd(p.id, { auto: undefined })}>Confirmer</button></>}</p>
             <div className="mt-2 grid grid-cols-3 gap-2 text-xs"><label>Km<input type="number" step="0.1" className="h-8 w-full rounded border border-ink-200 px-1" value={p.km} onChange={(e) => upd(p.id, { km: +e.target.value || 0 })} /></label>
               <label>Barrière (h)<input type="number" step="0.25" min={0} className="h-8 w-full rounded border border-ink-200 px-1" value={p.cutoffH ?? ""} onChange={(e) => upd(p.id, { cutoffH: e.target.value === "" ? undefined : +e.target.value })} /></label>
               <label>Bénévoles<input type="number" min={0} className="h-8 w-full rounded border border-ink-200 px-1" value={p.staffNeeded} onChange={(e) => upd(p.id, { staffNeeded: +e.target.value || 0 })} /></label></div>

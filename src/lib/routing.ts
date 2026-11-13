@@ -204,6 +204,50 @@ export async function surfaceShare(line: LL[], profile: Profile, signal?: AbortS
   return { pavedPct: Math.round((100 * paved) / tot), offRoadPct: Math.round((100 * sum(["path", "footway", "track", "steps", "bridleway", "mountain_bike", "cycleway", "pedestrian"])) / tot), pathPct: Math.round((100 * sum(["path", "footway", "steps", "bridleway", "mountain_bike"])) / tot) };
 }
 
+// ── Relevé d'un tracé : nature des voies, traversées et passages sur route ──
+export interface TraceEdge { use?: string; length?: number; surface?: string; road_class?: string; names?: string[]; begin_shape_index?: number; end_shape_index?: number; end_node?: { intersecting_edges?: { use?: string; road_class?: string; names?: string[] }[] } }
+/** Point où le tracé rencontre une route ouverte à la circulation : `traversee` (il la coupe) ou `route` (il l'emprunte sur `lengthM`). */
+export interface RoadPoint { kind: "traversee" | "route"; atM: number; lng: number; lat: number; roadClass: string; name: string; lengthM: number }
+const ROAD_RANK: Record<string, number> = { motorway: 7, trunk: 6, primary: 5, secondary: 4, tertiary: 3, unclassified: 2, residential: 1 };
+export const ROAD_CLASS_LABEL: Record<string, string> = { motorway: "autoroute", trunk: "voie rapide", primary: "route principale", secondary: "route secondaire", tertiary: "route locale", unclassified: "petite route", residential: "rue" };
+const isRoad = (e: { use?: string; road_class?: string } | undefined) => !!e && e.use === "road" && (e.road_class ?? "") in ROAD_RANK;
+/**
+ * Traversées et passages sur route d'un tracé, à partir des tronçons du graphe OpenStreetMap suivis par le tracé.
+ * Traversée : le tracé reste sur un chemin et croise une route à un carrefour. Passage sur route : il quitte un chemin pour une route.
+ * Les points à moins de `mergeM` l'un de l'autre sont regroupés (on garde la route la plus importante).
+ */
+export function roadPointsFromEdges(edges: TraceEdge[], shape: LL[], mergeM = 150): RoadPoint[] {
+  const raw: RoadPoint[] = []; let at = 0;
+  for (let i = 0; i < edges.length; i++) {
+    const e = edges[i], next = edges[i + 1], len = (e.length ?? 0) * 1000, endAt = at + len, node = shape[e.end_shape_index ?? -1];
+    if (node && !isRoad(e)) {
+      if (isRoad(next)) { let l = 0; for (let k = i + 1; k < edges.length && isRoad(edges[k]); k++) l += (edges[k].length ?? 0) * 1000; raw.push({ kind: "route", atM: endAt, lng: node[0], lat: node[1], roadClass: next!.road_class!, name: next!.names?.[0] ?? "", lengthM: Math.round(l) }); }
+      else if (next) { const x = (e.end_node?.intersecting_edges ?? []).filter(isRoad).sort((a, b) => ROAD_RANK[b.road_class!] - ROAD_RANK[a.road_class!])[0]; if (x) raw.push({ kind: "traversee", atM: endAt, lng: node[0], lat: node[1], roadClass: x.road_class!, name: x.names?.[0] ?? "", lengthM: 0 }); }
+    }
+    at = endAt;
+  }
+  if (isRoad(edges[0]) && shape[0]) { let l = 0; for (let k = 0; k < edges.length && isRoad(edges[k]); k++) l += (edges[k].length ?? 0) * 1000; raw.unshift({ kind: "route", atM: 0, lng: shape[0][0], lat: shape[0][1], roadClass: edges[0].road_class!, name: edges[0].names?.[0] ?? "", lengthM: Math.round(l) }); }
+  const out: RoadPoint[] = [];
+  for (const p of raw) { const last = out[out.length - 1]; if (last && p.atM - last.atM < mergeM) { if (ROAD_RANK[p.roadClass] > ROAD_RANK[last.roadClass]) out[out.length - 1] = { ...p, atM: last.atM, lengthM: Math.max(p.lengthM, last.lengthM) }; else last.lengthM = Math.max(last.lengthM, p.lengthM); } else out.push({ ...p }); }
+  return out.map((p) => ({ ...p, atM: Math.round(p.atM) }));
+}
+export const roadRank = (c: string) => ROAD_RANK[c] ?? 0;
+export interface RouteSurvey { pavedPct: number; offRoadPct: number; pathPct: number; roads: RoadPoint[] }
+/** Relevé complet d'un tracé en une requête : part de goudron et de chemins, traversées et passages sur route. `null` si le service ne répond pas. */
+export async function routeSurvey(line: LL[], profile: Profile, signal?: AbortSignal): Promise<RouteSurvey | null> {
+  const c = COSTING[profile];
+  const pts = thin(line, Math.max(12, lineLength(line) / 400)).map((p) => ({ lat: p[1], lon: p[0] }));
+  const d = await postJson<{ edges?: TraceEdge[]; shape?: string }>("/trace_attributes", {
+    shape: pts, costing: c.costing, costing_options: { [c.costing]: c.options }, shape_match: "map_snap",
+    filters: { attributes: ["edge.use", "edge.length", "edge.surface", "edge.road_class", "edge.names", "edge.begin_shape_index", "edge.end_shape_index", "node.intersecting_edge.road_class", "node.intersecting_edge.use", "node.intersecting_edge.names", "shape"], action: "include" },
+  }, signal);
+  const edges = d?.edges; if (!edges?.length) return null;
+  const tot = edges.reduce((s2, e) => s2 + (e.length ?? 0), 0); if (!tot) return null;
+  const sum = (uses: string[]) => edges.filter((e) => uses.includes(e.use ?? "")).reduce((s2, e) => s2 + (e.length ?? 0), 0);
+  const paved = edges.filter((e) => (e.surface ?? "").startsWith("paved")).reduce((s2, e) => s2 + (e.length ?? 0), 0);
+  return { pavedPct: Math.round((100 * paved) / tot), offRoadPct: Math.round((100 * sum(["path", "footway", "track", "steps", "bridleway", "mountain_bike", "cycleway", "pedestrian"])) / tot), pathPct: Math.round((100 * sum(["path", "footway", "steps", "bridleway", "mountain_bike"])) / tot), roads: roadPointsFromEdges(edges, d?.shape ? decodePolyline(d.shape) : []) };
+}
+
 /** Itinéraire passant par plusieurs points (une seule requête, demi-tours autorisés à chaque étape). */
 /**
  * `avoid` : points par lesquels le tracé ne doit pas repasser (le tronçon le plus proche de chacun est exclu) — sert à chercher

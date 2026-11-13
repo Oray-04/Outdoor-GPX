@@ -19,6 +19,12 @@ export interface Prep {
   budget?: Record<string, number>;
   /** Part de goudron mesurée par course (%), et départements traversés. */
   paved?: Record<string, number>; departments?: string[];
+  /** Analyse automatique : date du dernier passage, part de chemins et points de rencontre avec une route, par course. */
+  analysedAt?: number; offRoad?: Record<string, number>; roads?: Record<string, import("./routing").RoadPoint[]>;
+  /** Date de génération des documents et de la logistique proposée. */
+  docsAt?: number;
+  /** Points validés par l'organisateur (documents officiels, décisions de sécurité). */
+  validated?: string[];
 }
 
 // ───────────────────────── Nature de l'épreuve ─────────────────────────

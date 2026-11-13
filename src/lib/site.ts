@@ -17,7 +17,7 @@ export const NAV: NavGroup[] = [
     { href: "/evenements/?sport=trail", label: "Trail et courses de montagne" },
     { href: "/evenements/?sport=rando", label: "Randonnée" },
     { href: "/evenements/?sport=velo", label: "Cyclisme" },
-    { href: "/organisateurs", label: "Espace organisateur", hint: "Créer et gérer un événement" },
+    { href: "/organisateurs", label: "Organisation Trail", hint: "Préparer son trail, étape par étape" },
   ] },
   { id: "nutrition", label: "Nutrition", href: "/nutrition", match: ["/nutrition"] },
 ];

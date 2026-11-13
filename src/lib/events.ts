@@ -14,6 +14,10 @@ export const POST_KINDS: Record<PostKind, { label: string; color: string; letter
   parking: { label: "Parking", color: "#36504a", letter: "P" },
 };
 
+/** Pictogramme de chaque type de poste : ceux des points d'intérêt du site (même dessin sur les cartes, les listes et les fiches) ; départ et arrivée reprennent les drapeaux des parcours. */
+export const POST_ICON: Record<PostKind, import("./types").PoiType | "start" | "finish"> = { depart: "start", arrivee: "finish", ravito: "ravito", eau: "eau", controle: "controle", secours: "secours", signaleur: "danger", parking: "parking" };
+export const POST_COLOR: Record<PostKind, string> = { depart: "#1e7a58", arrivee: "#0d1b17", ravito: "#d9622b", eau: "#1f8fbf", controle: "#6b4bc4", secours: "#cf2a35", signaleur: "#b8862b", parking: "#2b4a8c" };
+
 export interface Race { id: string; label: string; sport: Sport; distanceKm: number; gainM: number; startTime: string; maxHours: number; routeId?: string; fee?: string; /** repris du parcours lié */ lossM?: number; minEle?: number; maxEle?: number }
 
 /** Valeurs d'une course reprises du parcours lié (jamais saisies à la main) : distance, dénivelés, altitudes. */
@@ -26,7 +30,7 @@ export function raceOutOfSync(r: Race, coords: Pt[]): boolean {
   const f = raceFactsFromRoute(coords);
   return r.distanceKm !== f.distanceKm || r.gainM !== f.gainM || r.lossM !== f.lossM || r.minEle !== f.minEle || r.maxEle !== f.maxEle;
 }
-export interface Post { id: string; raceId: string; kind: PostKind; name: string; km: number; lng?: number; lat?: number; /** heures après le départ */ cutoffH?: number; staffNeeded: number; note: string }
+export interface Post { id: string; raceId: string; kind: PostKind; name: string; km: number; lng?: number; lat?: number; /** heures après le départ */ cutoffH?: number; staffNeeded: number; note: string; /** proposé automatiquement, pas encore vérifié par l'organisateur */ auto?: boolean }
 export interface Volunteer { id: string; name: string; phone: string; postId: string; from: string; to: string; instructions: string }
 export type Role = "admin" | "logistique" | "benevoles" | "lecture";
 export interface Member { id: string; name: string; email: string; role: Role }
@@ -148,4 +152,36 @@ export function filterEvents(events: EventModel[], f: EventFilters): EventModel[
     if (!e.races.some((r) => r.distanceKm >= f.minKm && r.distanceKm <= f.maxKm) && e.races.length) return false;
     return true;
   }).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// ── Logistique proposée automatiquement à partir du parcours ──
+const POI_POST: Partial<Record<string, PostKind>> = { ravito: "ravito", eau: "eau", controle: "controle", secours: "secours", parking: "parking", danger: "signaleur" };
+export interface ProposeInput { race: Race; coords: Pt[]; pois?: { type: string; name: string; lng: number; lat: number }[]; roads?: { kind: "traversee" | "route"; atM: number; lng: number; lat: number; roadClass: string; name: string; lengthM: number }[]; newId: () => string }
+const ROAD_RANKS: Record<string, number> = { motorway: 7, trunk: 6, primary: 5, secondary: 4, tertiary: 3, unclassified: 2, residential: 1 };
+const ROAD_WORD: Record<string, string> = { motorway: "autoroute", trunk: "voie rapide", primary: "route principale", secondary: "route secondaire", tertiary: "route locale", unclassified: "petite route", residential: "rue" };
+/**
+ * Postes proposés pour une course : départ, arrivée, points d'intérêt déjà placés sur le parcours (repris tels quels, sans ressaisie),
+ * ravitaillements espacés selon la distance, ravitaillement et secours à l'arrivée, barrière horaire à mi-course au-delà du marathon,
+ * signaleurs aux traversées et passages sur route détectés. Tous marqués `auto` : ce sont des propositions à vérifier sur le terrain.
+ */
+export function proposePosts({ race, coords, pois = [], roads = [], newId }: ProposeInput): Post[] {
+  if (coords.length < 2) return [];
+  const { d, e } = effortProfile(coords), totalKm = d[d.length - 1] / 1000, totalE = e[e.length - 1] || 1;
+  const at = (km: number) => { const t = Math.max(0, Math.min(d[d.length - 1], km * 1000)); let i = 0; while (i < d.length - 1 && d[i] < t) i++; return { i, lng: coords[i][0], lat: coords[i][1] }; };
+  const out: Post[] = [];
+  const add = (kind: PostKind, name: string, km: number, staff: number, o: Partial<Post> = {}) => { const p = at(km); out.push({ id: newId(), raceId: race.id, kind, name, km: +km.toFixed(2), lng: p.lng, lat: p.lat, staffNeeded: staff, note: "", auto: true, ...o }); };
+  add("depart", "Départ", 0, 4);
+  // points d'intérêt du parcours : déjà saisis une fois dans l'éditeur, repris ici
+  for (const poi of pois) { const kind = POI_POST[poi.type]; if (!kind) continue; const pos = positionOnTrack(coords, poi.lng, poi.lat); if (pos.offTrackM > 300) continue; out.push({ id: newId(), raceId: race.id, kind, name: poi.name || POST_KINDS[kind].label, km: +pos.km.toFixed(2), lng: poi.lng, lat: poi.lat, staffNeeded: kind === "ravito" ? 4 : kind === "eau" || kind === "parking" ? 1 : 2, note: "Repris des points d'intérêt du parcours", auto: true }); }
+  const has = (k: PostKind) => out.some((p) => p.kind === k);
+  const ravKm: number[] = out.filter((p) => p.kind === "ravito").map((p) => p.km);
+  if (!ravKm.length && totalKm > 12) { const step = totalKm > 80 ? 15 : totalKm > 42 ? 12 : 10, n = Math.max(1, Math.round(totalKm / step) - 1); for (let k = 1; k <= n; k++) { const km = (k * totalKm) / (n + 1); ravKm.push(km); add("ravito", `Ravitaillement ${k}`, km, 4, { note: "Emplacement à ajuster selon l'accès en véhicule" }); } }
+  if (!out.some((p) => p.kind === "ravito" && p.km >= totalKm - 0.5)) add("ravito", "Ravitaillement d'arrivée", totalKm, 4, { note: "Boissons, eau, solide" });
+  if (!has("secours")) { add("secours", "Poste de secours — arrivée", totalKm, 2); if (totalKm > 21 && ravKm.length) add("secours", "Poste de secours — mi-course", ravKm[Math.floor(ravKm.length / 2)], 2, { note: "À placer avec le responsable des secours, sur un accès véhicule" }); }
+  if (totalKm > 42 && !out.some((p) => p.cutoffH != null) && ravKm.length && race.maxHours > 0) { const km = ravKm[Math.floor(ravKm.length / 2)], frac = Math.min(1, e[at(km).i] / totalE); add("controle", "Contrôle et barrière horaire", km, 2, { cutoffH: Math.ceil(race.maxHours * frac * 4) / 4, note: "Barrière calculée au prorata de l'effort sur le temps limite" }); }
+  // signaleurs : toutes les routes classées et petites routes, puis les rues jusqu'à 15 postes
+  const ranked = [...roads].sort((a, b) => (ROAD_RANKS[b.roadClass] ?? 0) - (ROAD_RANKS[a.roadClass] ?? 0) || a.atM - b.atM), keep = ranked.filter((r, i) => (ROAD_RANKS[r.roadClass] ?? 0) >= 2 || i < 15).slice(0, 25).sort((a, b) => a.atM - b.atM);
+  for (const r of keep) { if (out.some((p) => p.kind === "signaleur" && Math.abs(p.km - r.atM / 1000) < 0.15)) continue; const rank = ROAD_RANKS[r.roadClass] ?? 0; out.push({ id: newId(), raceId: race.id, kind: "signaleur", name: `${r.kind === "traversee" ? "Traversée" : "Entrée sur route"} — ${r.name || ROAD_WORD[r.roadClass] || "route"}`, km: +(r.atM / 1000).toFixed(2), lng: r.lng, lat: r.lat, staffNeeded: rank >= 3 ? 2 : 1, note: r.kind === "route" && r.lengthM > 0 ? `Le parcours suit la route sur ${r.lengthM >= 1000 ? `${(r.lengthM / 1000).toFixed(1).replace(".", ",")} km` : `${r.lengthM} m`}` : `Traversée d'une ${ROAD_WORD[r.roadClass] ?? "route"}`, auto: true }); }
+  add("arrivee", "Arrivée", totalKm, 6);
+  return out.sort((a, b) => a.km - b.km);
 }
