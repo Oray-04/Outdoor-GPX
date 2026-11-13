@@ -11,8 +11,34 @@ const cardinal = (d: number) => ["N", "NE", "E", "SE", "S", "SO", "O", "NO"][Mat
 const hhmm = (h: number) => `${String(Math.floor(h)).padStart(2, "0")}:${h % 1 ? "30" : "00"}`;
 const today = () => new Date().toISOString().slice(0, 10);
 
-/** Météo et vent le long du parcours : conditions réellement vécues à l'heure de passage en chaque point. */
+const PREF = "crete:meteo";
+const readPref = () => { try { return localStorage.getItem(PREF) === "on"; } catch { return false; } };
+
+/**
+ * Météo et vent le long du parcours, activable : désactivée par défaut, aucune requête ni surcouche sur la carte tant qu'elle est éteinte.
+ * Le choix est mémorisé sur l'appareil et vaut pour toutes les fiches.
+ */
 export function WeatherPanel({ route, onOverlay }: { route: RouteVM; onOverlay: (o: MapOverlay | null) => void }) {
+  const [on, setOn] = useState(false);
+  useEffect(() => { setOn(readPref()); }, []);
+  const toggle = (v: boolean) => { setOn(v); try { localStorage.setItem(PREF, v ? "on" : "off"); } catch { /* préférence non mémorisée */ } if (!v) onOverlay(null); };
+  return (
+    <section className="mt-6 rounded-2xl bg-white p-4 ring-1 ring-ink-100 sm:p-5" aria-label="Météo et vent le long du parcours">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0"><h2 className="flex items-center gap-2 text-lg font-bold"><Wind className="size-5 text-glacier-600" />Météo et vent le long du parcours</h2>
+          <p className="mt-1 text-sm text-ink-500">{on ? "Conditions prévues à l'heure où vous passerez en chaque point, et vent par rapport à votre sens de déplacement." : "Désactivée. Activez-la pour voir pluie, température et vent à l'heure de passage, et le vent sur la carte."}</p></div>
+        <label className="inline-flex cursor-pointer items-center gap-3 rounded-full border border-ink-200 bg-white/70 py-1.5 pl-3 pr-1.5 text-sm font-semibold">
+          <span>{on ? "Activée" : "Désactivée"}</span>
+          <input type="checkbox" role="switch" aria-label="Afficher la météo du parcours" checked={on} onChange={(e) => toggle(e.target.checked)} className="peer sr-only" />
+          <span aria-hidden="true" className="relative h-6 w-11 rounded-full bg-ink-200 transition peer-checked:bg-pine-600 peer-focus-visible:ring-2 peer-focus-visible:ring-brass-500 after:absolute after:left-0.5 after:top-0.5 after:size-5 after:rounded-full after:bg-white after:shadow after:transition peer-checked:after:translate-x-5" />
+        </label>
+      </div>
+      {on && <WeatherBody route={route} onOverlay={onOverlay} />}
+    </section>
+  );
+}
+
+function WeatherBody({ route, onOverlay }: { route: RouteVM; onOverlay: (o: MapOverlay | null) => void }) {
   const km = route.stats.distanceM / 1000;
   const defSpeed = Math.round(Math.max(2, km / Math.max(0.2, route.durationMin / 60)) * 2) / 2;
   const [date, setDate] = useState(today());
@@ -53,9 +79,7 @@ export function WeatherPanel({ route, onOverlay }: { route: RouteVM; onOverlay: 
   const inp = "h-10 rounded-lg border border-ink-200 bg-white px-3 text-sm";
 
   return (
-    <section className="mt-6 rounded-2xl bg-white p-4 ring-1 ring-ink-100 sm:p-5" aria-label="Météo et vent le long du parcours">
-      <h2 className="flex items-center gap-2 text-lg font-bold"><Wind className="size-5 text-glacier-600" />Météo et vent le long du parcours</h2>
-      <p className="mt-1 text-sm text-ink-500">Conditions prévues à l'heure où vous passerez en chaque point, et vent par rapport à votre sens de déplacement.</p>
+    <div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
         <label className="grid gap-1 text-sm font-medium">Jour<input type="date" className={inp} value={date} min={today()} max={addDays(today(), 15)} onChange={(e) => e.target.value && setDate(e.target.value)} /></label>
@@ -96,7 +120,7 @@ export function WeatherPanel({ route, onOverlay }: { route: RouteVM; onOverlay: 
           <tbody>{res.points.map((p) => <tr key={p.index} className="border-b border-ink-50 last:border-0"><td className="py-1.5">{(p.distM / 1000).toFixed(1)}</td><td>{new Date(p.timeMs).toISOString().slice(11, 16)}</td><td>{p.w ? WMO[p.w.code] ?? "—" : "—"}</td><td>{p.w ? `${Math.round(p.w.temp)} °C` : "—"}</td><td>{p.w ? `${Math.round(p.w.wind)} km/h ${cardinal(p.w.dir)} (rafales ${Math.round(p.w.gust)})` : "—"}</td><td><span className="inline-flex items-center gap-1.5"><i className="inline-block size-2.5 rounded-full" style={{ background: WIND_COLOR[p.cls] }} />{WIND_LABEL[p.cls]}</span></td><td>{p.w ? `${p.w.precip.toFixed(1)} mm` : "—"}</td></tr>)}</tbody></table></div>}
       </>)}
       <p className="mt-4 flex items-start gap-2 text-xs text-ink-500"><Sun className="mt-0.5 size-3.5 shrink-0" />Prévisions Open-Meteo (modèles à maille de quelques kilomètres), vent à 10 m. Elles ne tiennent pas compte du relief local (crêtes, couloirs, abris) : en montagne, le vent réel peut être très différent. Indicatif uniquement ; pour une sortie en altitude, consultez les bulletins officiels.</p>
-    </section>
+    </div>
   );
 }
 

@@ -124,6 +124,9 @@ Astérisque rouge + légende « * Champ obligatoire » ; la validation correspon
 ### Navigation et périmètre
 Trois univers : **Parcours** (Explorer — avec les itinéraires de référence —, Créer, Générer, Bibliothèque — avec l'itinérance de chaque parcours), **Événements** (calendrier, espace organisateur), **Nutrition** (page « Bientôt disponible »). Plus aucune donnée de démonstration ni offre payante : tout est gratuit. Les tracés synthétiques ne subsistent que comme jeux d'essai (`tests/fixtures/`).
 
+### Météo du parcours : activable
+Sur la fiche d'un parcours, la section « Météo et vent le long du parcours » a un interrupteur. Désactivée par défaut : aucune requête au service météo et aucune flèche de vent sur la carte. Activée, elle affiche prévisions à l'heure de passage, créneaux de départ et vent sur la carte ; le choix est mémorisé sur l'appareil pour toutes les fiches (`crete:meteo`).
+
 ### Identité visuelle « Frosted Touch »
 Verre dépoli doux : cartes, conteneurs, panneaux, barre de navigation et menus translucides (flou 12 px, rebord lumineux de 1 px, rayons de 16 à 22 px, ombres larges et diffuses) sur un fond de dégradés pastel (sauge, glacier, ivoire, cuivre) sous les courbes de niveau. Micro-interactions : légère élévation et rebord qui s'illumine au survol. Lisibilité : texte secondaire assombri (contraste ≥ 4,5:1), champs presque opaques, pas de second flou dans un panneau déjà flouté, ni derrière une carte ; panneaux opaques si le navigateur ne gère pas le flou ou si la transparence réduite est demandée. Tout est dans `globals.css` (aucune structure de page modifiée).
 
