@@ -1,5 +1,5 @@
 import type { Sport } from "./sports";
-import { haversine } from "./geo";
+import { haversine, trackStats } from "./geo";
 import type { Pt } from "./types";
 
 export type PostKind = "depart" | "arrivee" | "ravito" | "eau" | "controle" | "secours" | "signaleur" | "parking";
@@ -14,7 +14,18 @@ export const POST_KINDS: Record<PostKind, { label: string; color: string; letter
   parking: { label: "Parking", color: "#36504a", letter: "P" },
 };
 
-export interface Race { id: string; label: string; sport: Sport; distanceKm: number; gainM: number; startTime: string; maxHours: number; routeId?: string; fee?: string }
+export interface Race { id: string; label: string; sport: Sport; distanceKm: number; gainM: number; startTime: string; maxHours: number; routeId?: string; fee?: string; /** repris du parcours lié */ lossM?: number; minEle?: number; maxEle?: number }
+
+/** Valeurs d'une course reprises du parcours lié (jamais saisies à la main) : distance, dénivelés, altitudes. */
+export function raceFactsFromRoute(coords: Pt[]): Pick<Race, "distanceKm" | "gainM" | "lossM" | "minEle" | "maxEle"> {
+  const s = trackStats(coords, 3), ele = Number.isFinite(s.minEle) && Number.isFinite(s.maxEle);
+  return { distanceKm: +(s.distanceM / 1000).toFixed(1), gainM: Math.round(s.gainM), lossM: Math.round(s.lossM), minEle: ele ? Math.round(s.minEle) : undefined, maxEle: ele ? Math.round(s.maxEle) : undefined };
+}
+/** Vrai si les valeurs enregistrées de la course ne correspondent plus au parcours lié (parcours modifié depuis). */
+export function raceOutOfSync(r: Race, coords: Pt[]): boolean {
+  const f = raceFactsFromRoute(coords);
+  return r.distanceKm !== f.distanceKm || r.gainM !== f.gainM || r.lossM !== f.lossM || r.minEle !== f.minEle || r.maxEle !== f.maxEle;
+}
 export interface Post { id: string; raceId: string; kind: PostKind; name: string; km: number; lng?: number; lat?: number; /** heures après le départ */ cutoffH?: number; staffNeeded: number; note: string }
 export interface Volunteer { id: string; name: string; phone: string; postId: string; from: string; to: string; instructions: string }
 export type Role = "admin" | "logistique" | "benevoles" | "lecture";
@@ -38,6 +49,41 @@ export interface EventModel {
   ownerId?: string;
   /** Préparation de l'épreuve (effectifs, points cochés, budget) : reste sur cet appareil */
   prep?: import("./race-prep").Prep;
+}
+
+// ── Postes et bénévoles : une seule source (le poste noté sur la fiche du bénévole), lue par la carte comme par les fiches ──
+/** Numéro de chaque poste tel qu'affiché sur la carte : par course, dans l'ordre des kilomètres. */
+export function postNumbers(ev: Pick<EventModel, "races" | "posts">): Map<string, { n: number; race: Race | undefined }> {
+  const out = new Map<string, { n: number; race: Race | undefined }>();
+  for (const raceId of [...new Set(ev.posts.map((p) => p.raceId))]) {
+    const race = ev.races.find((r) => r.id === raceId);
+    ev.posts.map((p, i) => ({ p, i })).filter((x) => x.p.raceId === raceId).sort((a, b) => a.p.km - b.p.km || a.i - b.i).forEach((x, k) => out.set(x.p.id, { n: k + 1, race }));
+  }
+  return out;
+}
+/** Libellé d'un poste, identique sur la carte et sur les fiches : « Poste 3 — Ravitaillement 1 (km 12,4) ». */
+export function postLabel(ev: Pick<EventModel, "races" | "posts">, p: Post, withRace = ev.races.length > 1): string {
+  const x = postNumbers(ev).get(p.id);
+  return `Poste ${x?.n ?? "?"} — ${p.name || POST_KINDS[p.kind].label} (km ${String(+p.km.toFixed(1)).replace(".", ",")})${withRace && x?.race ? ` · ${x.race.label}` : ""}`;
+}
+export const volunteersAt = (ev: Pick<EventModel, "volunteers">, postId: string) => ev.volunteers.filter((v) => v.postId === postId);
+const normName = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+/** Affecte un bénévole à un poste (ou le libère avec ""). Un bénévole n'a qu'un poste : l'ancien est quitté ; un poste inconnu vaut « non affecté ». */
+export function assignVolunteer<E extends Pick<EventModel, "posts" | "volunteers">>(ev: E, volunteerId: string, postId: string): E {
+  const target = postId && ev.posts.some((p) => p.id === postId) ? postId : "";
+  return { ...ev, volunteers: ev.volunteers.map((v) => (v.id === volunteerId ? { ...v, postId: target } : v)) };
+}
+/** Ajoute un bénévole directement à un poste depuis la carte. Si une fiche porte déjà ce nom, elle est réaffectée : pas de doublon. */
+export function addVolunteerAt<E extends Pick<EventModel, "posts" | "volunteers">>(ev: E, name: string, postId: string, newId: string): E {
+  const n = name.replace(/\s+/g, " ").trim(); if (!n) return ev;
+  const same = ev.volunteers.find((v) => normName(v.name) === normName(n));
+  if (same) return assignVolunteer(ev, same.id, postId);
+  return assignVolunteer({ ...ev, volunteers: [...ev.volunteers, { id: newId, name: n, phone: "", postId: "", from: "", to: "", instructions: "" }] }, newId, postId);
+}
+/** Fiches dont le poste n'existe plus : remises à « non affecté » (aucune fiche n'est supprimée). */
+export function cleanAssignments<E extends Pick<EventModel, "posts" | "volunteers">>(ev: E): E {
+  const ids = new Set(ev.posts.map((p) => p.id));
+  return ev.volunteers.some((v) => v.postId && !ids.has(v.postId)) ? { ...ev, volunteers: ev.volunteers.map((v) => (v.postId && !ids.has(v.postId) ? { ...v, postId: "" } : v)) } : ev;
 }
 
 /** Distance cumulée (m) et « effort » cumulé (km + D+/100) en chaque point de la trace. */

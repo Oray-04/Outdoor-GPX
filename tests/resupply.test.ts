@@ -134,7 +134,7 @@ describe("robustesse de la recherche Overpass", () => {
     const sizes: number[] = [];
     vi.stubGlobal("fetch", vi.fn(async (_: string, init: RequestInit) => { const n = decodeURIComponent(String(init.body)).match(/around:\d+,([\d.,]+)\)/)![1].split(",").length / 2; sizes.push(n); return n > 3 ? ok([], { remark: "runtime error: Query timed out" }) : ok([el(sizes.length, 6.01)]); }));
     let rep: import("../src/lib/resupply").ResupplyReport | null = null;
-    const r = await findResupply([[6, 45.0003], [6.01, 45.0003], [6.02, 45.0003], [6.03, 45.0003], [6.04, 45.0003], [6.05, 45.0003]], ["bakery"], 400, { mirrors: ["https://a.test/i"], retryWaits: [], gapMs: 0, onReport: (x) => { rep = x; } });
+    const r = await findResupply([[6, 45.0003], [6.01, 45.003], [6.02, 45.0003], [6.03, 45.003], [6.04, 45.0003], [6.05, 45.003]], ["bakery"], 400, { mirrors: ["https://a.test/i"], retryWaits: [], gapMs: 0, onReport: (x) => { rep = x; } });
     expect(sizes[0]).toBe(6); expect(sizes.slice(1).every((n) => n <= 4)).toBe(true); expect(r.length).toBeGreaterThanOrEqual(2); expect(rep!.failed).toBe(0);
   });
 });

@@ -3,8 +3,8 @@ import { Field, RequiredLegend, filled } from "@/components/ui/field";
 import { LocationFields } from "@/components/ui/location-fields";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import type { GeoJSONSource, Marker } from "maplibre-gl";
-import { ArrowLeft, Plus, Trash2, FileDown, Printer, Users, Eye } from "lucide-react";
+import type { GeoJSONSource, Marker, Popup } from "maplibre-gl";
+import { ArrowLeft, Plus, Trash2, FileDown, Printer, Users, Eye, X, UserPlus } from "lucide-react";
 import clsx from "clsx";
 import { useMap } from "@/components/map/use-map";
 import { LayerControl } from "@/components/map/layer-control";
@@ -13,10 +13,10 @@ import { PrepTab } from "./prep-tab";
 import { Button } from "@/components/ui/button";
 import { collectionsRepo, eventsRepo, routesRepo } from "@/lib/repo";
 import { cloudEnabled } from "@/lib/cloud";
-import { collectionHref } from "@/lib/url";
-import { POST_KINDS, ROLES, passageTable, positionOnTrack, type EventModel, type Member, type Post, type PostKind, type Race, type Role, type Volunteer } from "@/lib/events";
+import { collectionHref, editorHref } from "@/lib/url";
+import { POST_KINDS, ROLES, passageTable, positionOnTrack, raceFactsFromRoute, raceOutOfSync, postNumbers, postLabel, volunteersAt, assignVolunteer, addVolunteerAt, cleanAssignments, type EventModel, type Member, type Post, type PostKind, type Race, type Role, type Volunteer } from "@/lib/events";
 import { SPORTS, estimateMinutes, type Sport } from "@/lib/sports";
-import { trackStats, bboxOf } from "@/lib/geo";
+import { bboxOf, fmtDuration } from "@/lib/geo";
 import { download, safeName } from "@/lib/formats";
 import { passagePdf, volunteersPdf, mapPdf } from "@/lib/pdf";
 import { uid } from "@/lib/types";
@@ -36,6 +36,7 @@ export function OrganizerEvent({ id }: { id: string }) {
       <Link href="/organisateurs" className="inline-flex items-center gap-1.5 text-sm text-ink-500 hover:text-ink-900"><ArrowLeft className="size-4" />Espace organisateurs</Link>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl font-extrabold sm:text-3xl">{ev.name}</h1><Link href={eventHref(ev.id)} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-ink-200 bg-white px-3 text-sm font-semibold hover:bg-ink-50"><Eye className="size-4" />Voir la page publique</Link></div>
       <div className="mt-4 flex overflow-x-auto border-b border-ink-100" role="tablist">{TABS.map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={clsx("shrink-0 px-4 py-2.5 text-sm font-semibold", tab === k ? "border-b-2 border-pine-600 text-pine-700" : "text-ink-500")}>{l}</button>)}</div>
+      <Consistency ev={ev} save={save} />
       <div className="mt-6">
         {tab === "infos" && <Infos ev={ev} save={save} />}
         {tab === "courses" && <Races ev={ev} save={save} />}
@@ -50,6 +51,17 @@ export function OrganizerEvent({ id }: { id: string }) {
   );
 }
 type P = { ev: EventModel; save: (fn: (e: EventModel) => EventModel) => void };
+
+/** Cohérence des données, quel que soit l'onglet ouvert : courses réalignées sur leur parcours s'il a changé, fiches bénévoles dont le poste a disparu remises à « non affecté ». */
+function Consistency({ ev, save }: P) {
+  const routes = routesRepo.useAll();
+  useEffect(() => {
+    const stale = ev.races.filter((r) => { const rt = r.routeId ? routes.find((x) => x.id === r.routeId) : null; return rt && raceOutOfSync(r, rt.coords); });
+    const orphan = cleanAssignments(ev) !== ev;
+    if (stale.length || orphan) save((e) => cleanAssignments({ ...e, races: e.races.map((r) => { const rt = stale.some((x) => x.id === r.id) ? routes.find((x) => x.id === r.routeId) : null; return rt ? { ...r, ...raceFactsFromRoute(rt.coords) } : r; }) }));
+  }, [ev, routes]); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
+}
 
 function Infos({ ev, save }: P) {
   const set = (k: keyof EventModel, v: string) => save((e) => ({ ...e, [k]: v }));
@@ -112,29 +124,51 @@ function Publication({ ev, save }: P) {
 
 function Races({ ev, save }: P) {
   const routes = routesRepo.useAll();
+  const [routeId, setRouteId] = useState(""); const [label, setLabel] = useState(""); const [tried, setTried] = useState(false);
   const upd = (id: string, patch: Partial<Race>) => save((e) => ({ ...e, races: e.races.map((r) => (r.id === id ? { ...r, ...patch } : r)) }));
-  const add = () => save((e) => ({ ...e, races: [...e.races, { id: uid(), label: `Course ${e.races.length + 1}`, sport: "trail", distanceKm: 10, gainM: 300, startTime: "08:00", maxHours: 4 }] }));
-  const link = (raceId: string, routeId: string) => {
-    if (!routeId) { upd(raceId, { routeId: undefined }); return; }
-    const r = routes.find((x) => x.id === routeId); if (!r) return;
-    const s = trackStats(r.coords, 3);
-    upd(raceId, { routeId, distanceKm: +(s.distanceM / 1000).toFixed(1), gainM: Math.round(s.gainM), sport: r.sport });
+  const chosen = routes.find((x) => x.id === routeId);
+  const preview = useMemo(() => (chosen ? raceFactsFromRoute(chosen.coords) : null), [chosen?.id, chosen?.updatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** Création : le parcours est obligatoire ; distance, dénivelés, altitudes et discipline en sont repris. */
+  const add = () => {
+    setTried(true); if (!chosen || !preview) return;
+    const est = estimateMinutes(chosen.sport, preview.distanceKm * 1000, preview.gainM) / 60;
+    save((e) => ({ ...e, races: [...e.races, { id: uid(), label: label.trim() || chosen.name, sport: chosen.sport, ...preview, startTime: "08:00", maxHours: Math.max(1, Math.ceil(est * 1.6 * 2) / 2), routeId: chosen.id }] }));
+    setRouteId(""); setLabel(""); setTried(false);
   };
+  const link = (raceId: string, id: string) => { const r = routes.find((x) => x.id === id); if (r) upd(raceId, { routeId: id, sport: r.sport, ...raceFactsFromRoute(r.coords) }); };
+  const stat = (l: string, v: string) => <div><dt className="text-[11px] font-semibold uppercase tracking-wide text-ink-500">{l}</dt><dd className="font-display text-base font-bold">{v}</dd></div>;
+  const facts = (f: Pick<Race, "distanceKm" | "gainM" | "lossM" | "minEle" | "maxEle">, sport: Sport) => <dl className="flex flex-wrap gap-x-6 gap-y-2">{stat("Distance", `${String(f.distanceKm).replace(".", ",")} km`)}{stat("D+", `${f.gainM} m`)}{f.lossM != null && stat("D−", `${f.lossM} m`)}{f.minEle != null && stat("Alt. min", `${f.minEle} m`)}{f.maxEle != null && stat("Alt. max", `${f.maxEle} m`)}{stat("Durée médiane estimée", fmtDuration(estimateMinutes(sport, f.distanceKm * 1000, f.gainM)))}</dl>;
   return (
     <div className="grid gap-4">
-      {ev.races.map((r) => (
-        <article key={r.id} className="grid gap-3 rounded-2xl bg-white p-4 ring-1 ring-ink-100 sm:grid-cols-6">
-          <div className="sm:col-span-2"><Field l="Nom du format"><input className={inp} value={r.label} onChange={(e) => upd(r.id, { label: e.target.value })} /></Field></div>
-          <Field l="Discipline"><select className={inp} value={r.sport} onChange={(e) => upd(r.id, { sport: e.target.value as Sport })}>{Object.entries(SPORTS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></Field>
-          <Field l="Distance (km)"><input type="number" min={0} step="0.1" className={inp} value={r.distanceKm} onChange={(e) => upd(r.id, { distanceKm: +e.target.value || 0 })} /></Field>
-          <Field l="D+ (m)"><input type="number" min={0} className={inp} value={r.gainM} onChange={(e) => upd(r.id, { gainM: +e.target.value || 0 })} /></Field>
+      {ev.races.map((r) => {
+        const rt = r.routeId ? routes.find((x) => x.id === r.routeId) : undefined, legacy = !r.routeId, missing = !!r.routeId && !rt;
+        return (
+        <article key={r.id} aria-label={`Course ${r.label}`} className="grid gap-3 rounded-2xl bg-white p-4 ring-1 ring-ink-100 sm:grid-cols-6">
+          <div className="sm:col-span-3"><Field l="Nom du format"><input className={inp} value={r.label} onChange={(e) => upd(r.id, { label: e.target.value })} /></Field></div>
+          <div className="sm:col-span-3"><Field l="Parcours" required><select className={inp} aria-invalid={legacy || missing} value={rt ? r.routeId : ""} onChange={(e) => link(r.id, e.target.value)}>{!rt && <option value="">{missing ? "Parcours introuvable — choisissez-en un" : "Choisissez un parcours"}</option>}{routes.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></Field></div>
+          {legacy || missing ? (<>
+            <p className="rounded-lg bg-warn/10 px-3 py-2 text-sm text-ink-700 sm:col-span-6">{missing ? "Le parcours lié à cette course n'existe plus sur cet appareil." : "Cette course a été créée sans parcours."} Choisissez un parcours ci-dessus : distance et dénivelés seront repris du tracé. En attendant, les valeurs ci-dessous restent celles saisies à la main.</p>
+            <Field l="Distance (km)"><input type="number" min={0} step="0.1" className={inp} value={r.distanceKm} onChange={(e) => upd(r.id, { distanceKm: +e.target.value || 0 })} /></Field>
+            <Field l="D+ (m)"><input type="number" min={0} className={inp} value={r.gainM} onChange={(e) => upd(r.id, { gainM: +e.target.value || 0 })} /></Field>
+          </>) : <div className="rounded-xl bg-ink-50 p-3 sm:col-span-6">{facts(r, r.sport)}<p className="mt-2 text-xs text-ink-500">Valeurs calculées sur le parcours « {rt!.name} » et mises à jour automatiquement s&apos;il est modifié. <Link className="font-semibold text-pine-700 underline" href={editorHref(rt!.id)}>Modifier le parcours</Link></p></div>}
+          <div className="sm:col-span-2"><Field l="Discipline"><select className={inp} value={r.sport} onChange={(e) => upd(r.id, { sport: e.target.value as Sport })}>{Object.entries(SPORTS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></Field></div>
           <Field l="Départ"><input type="time" className={inp} value={r.startTime} onChange={(e) => upd(r.id, { startTime: e.target.value })} /></Field>
           <Field l="Temps limite (h)"><input type="number" min={0} step="0.5" className={inp} value={r.maxHours} onChange={(e) => upd(r.id, { maxHours: +e.target.value || 0 })} /></Field>
-          <div className="sm:col-span-3"><Field l="Parcours lié (vos parcours enregistrés)"><select className={inp} value={r.routeId ?? ""} onChange={(e) => link(r.id, e.target.value)}><option value="">Aucun</option>{routes.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></Field></div>
           <div className="sm:col-span-2"><Field l="Tarif / note"><input className={inp} value={r.fee ?? ""} onChange={(e) => upd(r.id, { fee: e.target.value })} /></Field></div>
-          <div className="flex items-end justify-end"><Button variant="ghost" size="sm" aria-label="Supprimer la course" onClick={() => confirm("Supprimer cette course et ses postes ?") && save((e) => ({ ...e, races: e.races.filter((x) => x.id !== r.id), posts: e.posts.filter((p) => p.raceId !== r.id) }))}><Trash2 className="size-4" /></Button></div>
-        </article>))}
-      <div><Button variant="brand" onClick={add}><Plus className="size-4" />Ajouter une course / variante</Button>{!routes.length && <p className="mt-2 text-xs text-ink-500">Astuce : créez ou importez d'abord un parcours pour le lier à une course (distance et D+ sont alors repris automatiquement).</p>}</div>
+          <div className="flex justify-end sm:col-span-6"><Button variant="ghost" size="sm" onClick={() => confirm(`Supprimer la course « ${r.label} » et ses postes ?`) && save((e) => ({ ...e, races: e.races.filter((x) => x.id !== r.id), posts: e.posts.filter((p) => p.raceId !== r.id), volunteers: e.volunteers.map((v) => (e.posts.some((p) => p.id === v.postId && p.raceId === r.id) ? { ...v, postId: "" } : v)) }))}><Trash2 className="size-4" />Supprimer la course</Button></div>
+        </article>); })}
+      <section aria-labelledby="new-race" className="rounded-2xl border border-dashed border-ink-300 bg-white/60 p-4">
+        <h2 id="new-race" className="text-lg font-bold">Ajouter une course</h2>
+        {!routes.length ? <p className="mt-1 text-sm text-ink-600">Une course s&apos;appuie toujours sur un parcours. <Link className="font-semibold text-pine-700 underline" href="/creer">Créez un parcours</Link>, <Link className="font-semibold text-pine-700 underline" href="/fichiers">importez un GPX</Link> ou partez d&apos;un <Link className="font-semibold text-pine-700 underline" href="/itineraires">itinéraire de référence</Link>, puis revenez ici.</p> : (<>
+          <p className="mt-1 text-sm text-ink-500">Choisissez d&apos;abord le parcours : distance, dénivelés, altitudes et discipline sont repris du tracé, sans saisie.</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <Field l="Parcours" required error={tried && !chosen ? "Choisissez un parcours pour créer la course." : null}><select className={inp} required aria-invalid={tried && !chosen} value={routeId} onChange={(e) => setRouteId(e.target.value)}><option value="">Choisissez un parcours…</option>{routes.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></Field>
+            <Field l="Nom du format (facultatif)"><input className={inp} value={label} onChange={(e) => setLabel(e.target.value)} placeholder={chosen?.name ?? "ex. Le 25 km"} disabled={!chosen} /></Field>
+          </div>
+          {chosen && preview && <div className="mt-3 rounded-xl bg-ink-50 p-3" aria-live="polite"><p className="mb-2 text-xs font-semibold text-ink-500">Repris du parcours · {SPORTS[chosen.sport]?.label ?? chosen.sport}</p>{facts(preview, chosen.sport)}{preview.gainM === 0 && preview.minEle == null && <p className="mt-2 text-xs text-warn">Ce parcours n&apos;a pas d&apos;altitudes : le dénivelé vaut 0. Ouvrez-le dans l&apos;éditeur pour les calculer.</p>}</div>}
+          <div className="mt-3"><Button variant="brand" disabled={!chosen} onClick={add}><Plus className="size-4" />Créer la course</Button>{!chosen && <span className="ml-3 text-xs text-ink-500">Sélectionnez un parcours pour activer la création.</span>}</div>
+        </>)}
+      </section>
     </div>
   );
 }
@@ -148,7 +182,8 @@ function Logistics({ ev, save }: P) {
   const route = race?.routeId ? routes.find((r) => r.id === race.routeId) : undefined;
   const posts = useMemo(() => ev.posts.filter((p) => p.raceId === race?.id).sort((a, b) => a.km - b.km), [ev.posts, race]);
   const { el, map, ml, ready } = useMap({ preserveBuffer: true });
-  const marks = useRef<Marker[]>([]);
+  const marks = useRef<Marker[]>([]); const popup = useRef<Popup | null>(null);
+  const [sel, setSel] = useState<string | null>(null); const [newName, setNewName] = useState<Record<string, string>>({});
   const clickRef = useRef<(lng: number, lat: number) => void>(() => {});
 
   clickRef.current = (lng, lat) => {
@@ -186,10 +221,28 @@ function Logistics({ ev, save }: P) {
     marks.current.forEach((x) => x.remove()); marks.current = [];
     posts.forEach((p, i) => {
       if (p.lng == null || p.lat == null) return;
-      const d = document.createElement("div"); d.className = "grid size-6 place-items-center rounded-full border-2 border-white text-[11px] font-bold text-white shadow"; d.style.background = POST_KINDS[p.kind].color; d.textContent = String(i + 1); d.title = `${p.name} — km ${p.km}`;
-      marks.current.push(new lib.Marker({ element: d }).setLngLat([p.lng, p.lat]).addTo(m));
+      const vols = volunteersAt(ev, p.id), need = Math.max(0, p.staffNeeded), short = vols.length < need;
+      const b = document.createElement("button"); b.type = "button"; b.className = "relative block cursor-pointer bg-transparent p-0";
+      const d = document.createElement("span"); d.className = "grid size-7 place-items-center rounded-full border-2 border-white text-[11px] font-bold text-white shadow" + (sel === p.id ? " ring-2 ring-ink-900" : ""); d.style.background = POST_KINDS[p.kind].color; d.textContent = String(i + 1);
+      const c = document.createElement("span"); c.className = "absolute -right-2.5 -top-2 rounded-full border border-white px-1 text-[10px] font-bold leading-4 text-white shadow"; c.style.background = short ? "#c0362c" : "#1e7a58"; c.textContent = `${vols.length}/${need}`; c.dataset.staff = "1";
+      b.append(d, c); b.title = `Poste ${i + 1} — ${p.name} (km ${p.km}) : ${vols.length ? vols.map((v) => v.name).join(", ") : "aucun bénévole"}`; b.setAttribute("aria-label", b.title);
+      b.addEventListener("click", (e) => { e.stopPropagation(); setSel(p.id); setTimeout(() => document.getElementById(`post-${p.id}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }), 50); });
+      marks.current.push(new lib.Marker({ element: b }).setLngLat([p.lng, p.lat]).addTo(m));
     });
-  }, [posts, ready, map, ml]);
+  }, [posts, ev.volunteers, sel, ready, map, ml]); // eslint-disable-line react-hooks/exhaustive-deps
+  // fenêtre du poste choisi : ses bénévoles, tels qu'ils figurent sur leurs fiches
+  useEffect(() => {
+    const m = map.current, lib = ml.current; if (!m || !lib || !ready) return;
+    popup.current?.remove(); popup.current = null;
+    const idx = posts.findIndex((x) => x.id === sel), p = posts[idx]; if (!p || p.lng == null || p.lat == null) return;
+    const vols = volunteersAt(ev, p.id), box = document.createElement("div"); box.className = "text-sm";
+    const h = document.createElement("div"); h.className = "font-semibold"; h.textContent = `Poste ${idx + 1} — ${p.name}`;
+    const k = document.createElement("div"); k.className = "text-xs text-gray-600"; k.textContent = `${POST_KINDS[p.kind].label} · km ${p.km} · ${vols.length}/${p.staffNeeded} bénévole(s)`;
+    const l = document.createElement("div"); l.className = "mt-1 text-xs"; l.textContent = vols.length ? vols.map((v) => v.name).join(", ") : "Aucun bénévole affecté";
+    box.append(h, k, l);
+    popup.current = new lib.Popup({ closeButton: true, closeOnClick: false, offset: 18 }).setLngLat([p.lng, p.lat]).setDOMContent(box).addTo(m);
+    popup.current.on("close", () => setSel((x) => (x === p.id ? null : x)));
+  }, [sel, posts, ev.volunteers, ready, map, ml]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const upd = (id: string, patch: Partial<Post>) => save((e) => ({ ...e, posts: e.posts.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
   const exportMap = async () => {
@@ -211,19 +264,30 @@ function Logistics({ ev, save }: P) {
           <div className="flex flex-wrap gap-1">{(Object.keys(POST_KINDS) as PostKind[]).map((k) => <button key={k} aria-pressed={kind === k} onClick={() => setKind(k)} className={clsx("rounded-full border px-2.5 py-1 text-xs font-medium", kind === k ? "border-transparent text-white" : "border-ink-200")} style={kind === k ? { background: POST_KINDS[k].color } : undefined}>{POST_KINDS[k].label}</button>)}</div>
         </div>
         <div className="relative h-[28rem] overflow-hidden rounded-2xl ring-1 ring-ink-100"><div className="absolute inset-0"><div ref={el} className="size-full" role="application" aria-label="Carte logistique : cliquez pour placer un poste" /></div><LayerControl map={map} ready={ready} /></div>
-        <p className="mt-2 text-xs text-ink-500" aria-live="polite">{msg ?? (route ? "Choisissez un type puis cliquez sur le tracé : le kilomètre est calculé automatiquement." : "Liez un parcours à cette course pour placer les postes sur le tracé.")}</p>
+        <p className="mt-2 text-xs text-ink-500" aria-live="polite">{msg ?? (route ? "Choisissez un type puis cliquez sur le tracé : le kilomètre est calculé automatiquement. La pastille de chaque poste indique bénévoles affectés / nécessaires ; les affectations sont les mêmes que sur les fiches de l'onglet Bénévoles." : "Liez un parcours à cette course pour placer les postes sur le tracé.")}</p>
         <div className="mt-3 flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={exportMap} disabled={!posts.length}><FileDown className="size-4" />Carte en PDF</Button><Button size="sm" variant="secondary" onClick={() => window.print()}><Printer className="size-4" />Imprimer la page</Button></div>
       </div>
       <ul className="grid max-h-[34rem] content-start gap-2 overflow-y-auto">
         {posts.map((p, i) => (
-          <li key={p.id} className="rounded-xl bg-white p-3 ring-1 ring-ink-100">
+          <li key={p.id} id={`post-${p.id}`} aria-label={`Poste ${i + 1} — ${p.name}`} className={clsx("rounded-xl bg-white p-3 ring-1", sel === p.id ? "ring-2 ring-pine-600" : "ring-ink-100")}>
             <div className="flex items-center gap-2"><span className="grid size-6 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white" style={{ background: POST_KINDS[p.kind].color }}>{i + 1}</span>
-              <input aria-label="Nom du poste" className="min-w-0 flex-1 rounded border border-transparent px-1 text-sm font-semibold hover:border-ink-200" value={p.name} onChange={(e) => upd(p.id, { name: e.target.value })} />
+              <input aria-label="Nom du poste" className="min-w-0 flex-1 rounded border border-transparent px-1 text-sm font-semibold hover:border-ink-200" value={p.name} onFocus={() => setSel(p.id)} onChange={(e) => upd(p.id, { name: e.target.value })} />
               <button aria-label="Supprimer le poste" className="grid size-7 place-items-center rounded hover:bg-ink-100" onClick={() => save((e) => ({ ...e, posts: e.posts.filter((x) => x.id !== p.id), volunteers: e.volunteers.map((v) => (v.postId === p.id ? { ...v, postId: "" } : v)) }))}><Trash2 className="size-4" /></button></div>
             <div className="mt-2 grid grid-cols-3 gap-2 text-xs"><label>Km<input type="number" step="0.1" className="h-8 w-full rounded border border-ink-200 px-1" value={p.km} onChange={(e) => upd(p.id, { km: +e.target.value || 0 })} /></label>
               <label>Barrière (h)<input type="number" step="0.25" min={0} className="h-8 w-full rounded border border-ink-200 px-1" value={p.cutoffH ?? ""} onChange={(e) => upd(p.id, { cutoffH: e.target.value === "" ? undefined : +e.target.value })} /></label>
               <label>Bénévoles<input type="number" min={0} className="h-8 w-full rounded border border-ink-200 px-1" value={p.staffNeeded} onChange={(e) => upd(p.id, { staffNeeded: +e.target.value || 0 })} /></label></div>
             <input aria-label="Note" placeholder="Matériel, consignes…" className="mt-2 h-8 w-full rounded border border-ink-200 px-2 text-xs" value={p.note} onChange={(e) => upd(p.id, { note: e.target.value })} />
+            {(() => { const vols = volunteersAt(ev, p.id), others = ev.volunteers.filter((v) => v.postId !== p.id), nums = postNumbers(ev); return (
+              <div className="mt-2 border-t border-ink-100 pt-2">
+                <p className={clsx("text-xs font-semibold", vols.length < p.staffNeeded ? "text-danger" : "text-pine-700")}>Bénévoles à ce poste : {vols.length}/{p.staffNeeded}</p>
+                {vols.length > 0 && <ul className="mt-1 flex flex-wrap gap-1">{vols.map((v) => <li key={v.id} className="inline-flex items-center gap-1 rounded-full bg-pine-50 py-0.5 pl-2 pr-0.5 text-xs font-medium text-pine-700">{v.name}<button type="button" aria-label={`Retirer ${v.name} de ce poste`} title="Retirer de ce poste (la fiche est conservée)" className="grid size-5 place-items-center rounded-full hover:bg-pine-100" onClick={() => save((e) => assignVolunteer(e, v.id, ""))}><X className="size-3" /></button></li>)}</ul>}
+                <div className="mt-1.5 grid gap-1.5">
+                  {others.length > 0 && <select aria-label={`Affecter un bénévole existant au poste ${i + 1}`} className="h-8 w-full rounded border border-ink-200 bg-white px-1 text-xs" value="" onChange={(e) => { if (e.target.value) save((x) => assignVolunteer(x, e.target.value, p.id)); }}><option value="">Affecter un bénévole existant…</option>{others.map((v) => { const cur = v.postId ? nums.get(v.postId) : null; return <option key={v.id} value={v.id}>{v.name}{cur ? ` (actuellement poste ${cur.n}${ev.races.length > 1 && cur.race ? `, ${cur.race.label}` : ""})` : " (non affecté)"}</option>; })}</select>}
+                  <form className="flex gap-1" onSubmit={(e) => { e.preventDefault(); const n = (newName[p.id] ?? "").trim(); if (!n) return; save((x) => addVolunteerAt(x, n, p.id, uid())); setNewName((s) => ({ ...s, [p.id]: "" })); }}>
+                    <input aria-label={`Nom d'un nouveau bénévole pour le poste ${i + 1}`} placeholder="Nouveau bénévole (nom)" className="h-8 min-w-0 flex-1 rounded border border-ink-200 px-2 text-xs" value={newName[p.id] ?? ""} onChange={(e) => setNewName((s) => ({ ...s, [p.id]: e.target.value }))} />
+                    <button type="submit" aria-label={`Ajouter ce bénévole au poste ${i + 1}`} className="grid size-8 shrink-0 place-items-center rounded border border-ink-200 hover:bg-ink-50 disabled:opacity-40" disabled={!(newName[p.id] ?? "").trim()}><UserPlus className="size-4" /></button></form>
+                </div>
+              </div>); })()}
           </li>))}
         {!posts.length && <li className="rounded-xl border border-dashed border-ink-200 p-4 text-sm text-ink-500">Aucun poste pour cette course.</li>}
       </ul>
@@ -237,21 +301,23 @@ function Volunteers({ ev, save }: P) {
   const add = (e: React.FormEvent) => { e.preventDefault(); if (!filled(f.name)) { setNameErr(true); return; } setNameErr(false); save((x) => ({ ...x, volunteers: [...x.volunteers, { id: uid(), ...f, name: f.name.trim() }] })); setF({ name: "", phone: "", postId: "", from: "", to: "", instructions: "" }); };
   const pdf = async (vols: Volunteer[], name: string) => download(`${safeName(ev.name)}-${name}.pdf`, await volunteersPdf(ev, vols, ev.posts), "application/pdf");
   const count = (postId: string) => ev.volunteers.filter((v) => v.postId === postId).length;
+  const nums = postNumbers(ev), sorted = [...ev.posts].sort((a, b) => (ev.races.findIndex((r) => r.id === a.raceId) - ev.races.findIndex((r) => r.id === b.raceId)) || (nums.get(a.id)!.n - nums.get(b.id)!.n));
   return (
     <div className="grid gap-6 lg:grid-cols-[22rem_1fr]">
       <form onSubmit={add} noValidate className="grid content-start gap-3 rounded-2xl bg-white p-4 ring-1 ring-ink-100"><h2 className="font-bold">Nouvelle fiche bénévole</h2><RequiredLegend />
         <Field l="Nom" required error={nameErr && !filled(f.name) ? "Le nom du bénévole est obligatoire." : null}><input required aria-invalid={nameErr && !filled(f.name)} className={inp} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
         <Field l="Téléphone"><input className={inp} value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} /></Field>
-        <Field l="Poste"><select className={inp} value={f.postId} onChange={(e) => setF({ ...f, postId: e.target.value })}><option value="">Non affecté</option>{ev.posts.map((p) => <option key={p.id} value={p.id}>{p.name} (km {p.km})</option>)}</select></Field>
+        <Field l="Poste"><select className={inp} value={f.postId} onChange={(e) => setF({ ...f, postId: e.target.value })}><option value="">Non affecté</option>{sorted.map((p) => <option key={p.id} value={p.id}>{postLabel(ev, p)}</option>)}</select></Field>
         <div className="grid grid-cols-2 gap-2"><Field l="De"><input type="time" className={inp} value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} /></Field><Field l="À"><input type="time" className={inp} value={f.to} onChange={(e) => setF({ ...f, to: e.target.value })} /></Field></div>
         <Field l="Consignes"><textarea rows={3} className="rounded-lg border border-ink-200 p-2 text-sm" value={f.instructions} onChange={(e) => setF({ ...f, instructions: e.target.value })} /></Field>
         <Button type="submit" variant="brand"><Plus className="size-4" />Ajouter</Button></form>
       <div>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="flex items-center gap-2 font-bold"><Users className="size-5" />{ev.volunteers.length} bénévole(s)</h2><Button size="sm" variant="secondary" disabled={!ev.volunteers.length} onClick={() => pdf(ev.volunteers, "fiches-benevoles")}><FileDown className="size-4" />Toutes les fiches (PDF)</Button></div>
         <ul className="grid gap-2">{ev.volunteers.map((v) => { const p = ev.posts.find((x) => x.id === v.postId); return (
-          <li key={v.id} className="flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 ring-1 ring-ink-100"><div className="min-w-0 flex-1"><p className="font-semibold">{v.name}</p><p className="text-xs text-ink-500">{p ? `${p.name} · km ${p.km}` : "Non affecté"} · {v.from || "?"}–{v.to || "?"} · {v.phone || "pas de téléphone"}</p></div>
-            <Button size="sm" variant="ghost" onClick={() => pdf([v], safeName(v.name))}><FileDown className="size-4" />Fiche</Button><Button size="sm" variant="ghost" aria-label="Supprimer" onClick={() => save((x) => ({ ...x, volunteers: x.volunteers.filter((y) => y.id !== v.id) }))}><Trash2 className="size-4" /></Button></li>); })}</ul>
-        {ev.posts.length > 0 && <div className="mt-5 rounded-xl bg-ink-50 p-3"><p className="mb-2 text-sm font-semibold">Couverture des postes</p><ul className="grid gap-1 text-sm">{ev.posts.map((p) => <li key={p.id} className="flex justify-between"><span>{p.name}</span><span className={count(p.id) < p.staffNeeded ? "font-semibold text-danger" : "text-pine-700"}>{count(p.id)} / {p.staffNeeded}</span></li>)}</ul></div>}
+          <li key={v.id} className="flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 ring-1 ring-ink-100"><div className="min-w-0 flex-1"><p className="font-semibold">{v.name}</p><p className="text-xs text-ink-500">{v.from || "?"}–{v.to || "?"} · {v.phone || "pas de téléphone"}</p></div>
+            <label className="flex items-center gap-1.5 text-xs font-medium">Poste<select aria-label={`Poste de ${v.name}`} className={clsx("h-9 max-w-[16rem] rounded-lg border bg-white px-2 text-sm", p ? "border-ink-200" : "border-warn/60")} value={p ? v.postId : ""} onChange={(e) => save((x) => assignVolunteer(x, v.id, e.target.value))}><option value="">Non affecté</option>{sorted.map((q) => <option key={q.id} value={q.id}>{postLabel(ev, q)}</option>)}</select></label>
+            <Button size="sm" variant="ghost" onClick={() => pdf([v], safeName(v.name))}><FileDown className="size-4" />Fiche</Button><Button size="sm" variant="ghost" aria-label={`Supprimer la fiche de ${v.name}`} onClick={() => confirm(`Supprimer la fiche de ${v.name} ?`) && save((x) => ({ ...x, volunteers: x.volunteers.filter((y) => y.id !== v.id) }))}><Trash2 className="size-4" /></Button></li>); })}</ul>
+        {ev.posts.length > 0 && <div className="mt-5 rounded-xl bg-ink-50 p-3"><p className="mb-2 text-sm font-semibold">Couverture des postes</p><ul className="grid gap-1 text-sm">{sorted.map((p) => <li key={p.id} className="flex justify-between gap-3"><span>{postLabel(ev, p)}</span><span className={count(p.id) < p.staffNeeded ? "font-semibold text-danger" : "text-pine-700"}>{count(p.id)} / {p.staffNeeded}</span></li>)}</ul></div>}
       </div>
     </div>
   );
