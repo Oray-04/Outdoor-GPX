@@ -124,6 +124,9 @@ Astérisque rouge + légende « * Champ obligatoire » ; la validation correspon
 ### Navigation et périmètre
 Trois univers : **Parcours** (Explorer, Créer, Générer, Itinéraires, Itinérance, Bibliothèque), **Événements** (calendrier, espace organisateur), **Nutrition** (page « Bientôt disponible »). Plus aucune donnée de démonstration ni offre payante : tout est gratuit. Les tracés synthétiques ne subsistent que comme jeux d'essai (`tests/fixtures/`).
 
+### Préparation d'une épreuve — espace organisateur, onglet « Préparation »
+Calculé à partir des courses, postes et bénévoles déjà saisis, d'après un guide fédéral de l'organisateur de trail (ancien : un avertissement demande de vérifier délais, justificatif médical et catégories) : nature de chaque épreuve (course nature, trail découverte, trail, ultra) et plafond de goudron comparé à la part **mesurée** sur le tracé ; catégories d'âge admises ; matériel à exiger (nuit comprise) ; horaires du jour J ; contrôles de la logistique (signaleurs pourvus, secours, ravitaillements, barrières horaires) ; dispositif médical selon l'effectif ; échéancier daté ; dossier administratif (pièces « auto » et pièces à cocher) ; budget prévisionnel ; projet de règlement ; affichage d'urgence ; signalétique ; export PDF. Départements traversés détectés par le géocodage inverse de la Géoplateforme. Données de préparation gardées sur l'appareil (`prep`), non publiées.
+
 ### Interface : tablette, états vides, cibles tactiles
 À partir de 768 px de large, la navigation complète est dans l'en-tête (plus de barre basse) et les pages « panneau + carte » (Générer, Itinéraires, Itinérance) s'affichent côte à côte. Barre basse opaque sur téléphone, états vides avec actions (bibliothèque, événements), pastilles et petits boutons d'au moins 40 px au doigt, titres équilibrés.
 

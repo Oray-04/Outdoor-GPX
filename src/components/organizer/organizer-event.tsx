@@ -9,6 +9,7 @@ import clsx from "clsx";
 import { useMap } from "@/components/map/use-map";
 import { LayerControl } from "@/components/map/layer-control";
 import { AnalysisTab } from "./analysis-tab";
+import { PrepTab } from "./prep-tab";
 import { Button } from "@/components/ui/button";
 import { collectionsRepo, eventsRepo, routesRepo } from "@/lib/repo";
 import { cloudEnabled } from "@/lib/cloud";
@@ -21,8 +22,8 @@ import { passagePdf, volunteersPdf, mapPdf } from "@/lib/pdf";
 import { uid } from "@/lib/types";
 import { eventHref } from "@/lib/url";
 
-type Tab = "infos" | "courses" | "logistique" | "benevoles" | "passages" | "analyse" | "equipe";
-const TABS: [Tab, string][] = [["infos", "Infos"], ["courses", "Courses"], ["logistique", "Logistique"], ["benevoles", "Bénévoles"], ["passages", "Temps de passage"], ["analyse", "Analyse cadastrale"], ["equipe", "Équipe"]];
+type Tab = "infos" | "courses" | "logistique" | "benevoles" | "passages" | "preparation" | "analyse" | "equipe";
+const TABS: [Tab, string][] = [["infos", "Infos"], ["courses", "Courses"], ["logistique", "Logistique"], ["benevoles", "Bénévoles"], ["passages", "Temps de passage"], ["preparation", "Préparation"], ["analyse", "Analyse cadastrale"], ["equipe", "Équipe"]];
 const inp = "h-10 w-full rounded-lg border border-ink-200 bg-white px-3 text-sm";
 
 export function OrganizerEvent({ id }: { id: string }) {
@@ -41,6 +42,7 @@ export function OrganizerEvent({ id }: { id: string }) {
         {tab === "logistique" && <Logistics ev={ev} save={save} />}
         {tab === "benevoles" && <Volunteers ev={ev} save={save} />}
         {tab === "passages" && <Passages ev={ev} />}
+        {tab === "preparation" && <PrepTab ev={ev} save={save} />}
         {tab === "analyse" && <AnalysisTab ev={ev} />}
         {tab === "equipe" && <Team ev={ev} save={save} />}
       </div>

@@ -36,6 +36,8 @@ export interface EventModel {
   collectionId?: string;
   /** Propriétaire (événements publiés par un membre) */
   ownerId?: string;
+  /** Préparation de l'épreuve (effectifs, points cochés, budget) : reste sur cet appareil */
+  prep?: import("./race-prep").Prep;
 }
 
 /** Distance cumulée (m) et « effort » cumulé (km + D+/100) en chaque point de la trace. */

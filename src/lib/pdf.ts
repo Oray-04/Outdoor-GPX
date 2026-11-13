@@ -102,3 +102,21 @@ export async function analysisPdf(title: string, a: Analysis): Promise<Blob> {
   doc.setFontSize(8); doc.setTextColor(110); doc.text("Crête — document indicatif. Fonds et données : © IGN – Géoplateforme, © contributeurs OpenStreetMap.", 15, 291);
   return doc.output("blob");
 }
+
+/** Dossier de préparation d'une épreuve : sections de texte générées par `prepReport`. */
+export async function prepPdf(title: string, subtitle: string, notice: string, sections: { title: string; lines: string[] }[]): Promise<Blob> {
+  const { jsPDF } = await import("jspdf");
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  let y = 16; const W = 180;
+  const room = (h: number) => { if (y + h > 284) { doc.addPage(); y = 16; } };
+  doc.setFontSize(17); doc.setFont("helvetica", "bold"); doc.text("Dossier de préparation", 15, y); y += 8;
+  doc.setFontSize(12); doc.text(doc.splitTextToSize(title, W), 15, y); y += 6;
+  doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.setTextColor(110); doc.text(subtitle, 15, y); doc.setTextColor(0); y += 7;
+  const nl = doc.splitTextToSize(notice, W - 4); doc.setFillColor(253, 230, 219); doc.rect(15, y - 4, W, nl.length * 4.3 + 4, "F"); doc.text(nl, 17, y); y += nl.length * 4.3 + 6;
+  for (const s of sections) {
+    room(14); doc.setFont("helvetica", "bold"); doc.setFontSize(11.5); doc.text(doc.splitTextToSize(s.title, W), 15, y); y += 6; doc.setFont("helvetica", "normal"); doc.setFontSize(9.5);
+    for (const t of s.lines) { const l = doc.splitTextToSize(`• ${t}`, W); room(l.length * 4.5 + 1.5); doc.text(l, 15, y); y += l.length * 4.5 + 1.5; }
+    y += 3;
+  }
+  return doc.output("blob");
+}
