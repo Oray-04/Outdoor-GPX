@@ -19,7 +19,7 @@ export function ReferenceHighlights() {
   return (
     <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
       {(items ?? Array.from({ length: 4 }, () => null)).map((e, i) => e ? (
-        <Link key={e.id} href={`/itineraires/?id=${e.id}`} className="group overflow-hidden rounded-2xl bg-white ring-1 ring-ink-100">
+        <Link key={e.id} href={`/explorer/?itineraire=${e.id}`} className="group overflow-hidden rounded-2xl bg-white ring-1 ring-ink-100">
           <div className="relative h-28 overflow-hidden bg-gradient-to-br from-pine-600 to-ink-900 text-white"><TopoPattern className="transition duration-700 group-hover:scale-110" /><Badge tone="dark" className="absolute left-3 top-3">{PRACTICE_LABEL[e.practice] ?? e.practice}</Badge><Mountain className="absolute bottom-3 right-3 size-6 text-brass-400" /></div>
           <div className="p-4"><h3 className="font-semibold leading-snug">{e.name}</h3><p className="mt-0.5 text-sm text-ink-500">{e.region}</p>
             <p className="mt-3 flex gap-4 text-sm"><span><b className="font-display">{fmtKm(e.distanceM)}</b></span><span><b className="font-display">{fmtM(e.gainM)}</b> D+</span></p></div>
@@ -34,7 +34,7 @@ export function UpcomingEvents() {
   const today = new Date().toISOString().slice(0, 10);
   const events = useAllEvents().filter((e) => e.date >= today).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 4);
   if (!events.length) return (
-    <div className="flex flex-col items-start gap-4 rounded-[var(--radius-card)] border border-dashed border-ink-200 bg-paper p-8 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col items-start gap-4 rounded-[var(--radius-card)] frost-panel border-dashed p-8 sm:flex-row sm:items-center sm:justify-between">
       <div><h3 className="flex items-center gap-2 text-lg font-semibold"><CalendarDays className="size-5 text-pine-600" />Aucun événement à venir pour l'instant</h3><p className="mt-1 max-w-xl text-sm text-ink-500">Le calendrier affiche uniquement les événements réellement créés par des organisateurs. Vous organisez un trail, une randonnée ou une course cycliste ?</p></div>
       <ButtonLink href="/organisateurs" variant="brand"><Plus className="size-4" />Créer un événement</ButtonLink>
     </div>

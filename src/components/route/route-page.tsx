@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Heart, Navigation, Download, Share2, Pencil, Flag, Star, MapPin, Copy, Camera, Trash2, ExternalLink, ImageDown, FileText, BadgeCheck, ArrowLeft } from "lucide-react";
+import { Store, Heart, Navigation, Download, Share2, Pencil, Flag, Star, MapPin, Copy, Camera, Trash2, ExternalLink, ImageDown, FileText, BadgeCheck, ArrowLeft } from "lucide-react";
+import { RouteResupply } from "@/components/itinerance/itinerance-page";
 import clsx from "clsx";
 import { RouteMap, type MapOverlay } from "@/components/map/route-map";
 import { WeatherPanel } from "./weather-panel";
@@ -52,6 +53,8 @@ export function RoutePage({ id }: { id: string }) {
   const [reporting, setReporting] = useState(false);
   const [report, setReport] = useState(""); const [reportErr, setReportErr] = useState(false);
   const fileIn = useRef<HTMLInputElement>(null);
+  const [iti, setIti] = useState(false);
+  useEffect(() => { if (location.hash === "#itinerance") { setIti(true); setTimeout(() => document.getElementById("itinerance")?.scrollIntoView({ block: "start" }), 300); } }, []);
 
   const profile = useMemo(() => (route ? buildProfile(route.coords) : []), [route]);
   const cum = useMemo(() => (route ? cumulative(route.coords) : []), [route]);
@@ -113,6 +116,7 @@ export function RoutePage({ id }: { id: string }) {
           {route.origin === "community" && <Button variant="brand" onClick={saveCopy}>Enregistrer sur mon appareil</Button>}
           <Button variant="secondary" onClick={() => exp("gpx")}><Download className="size-4" />GPX</Button>
           <Button variant="secondary" onClick={share}><Share2 className="size-4" />Partager</Button>
+          <Button variant="secondary" onClick={() => { setIti(true); setTimeout(() => document.getElementById("itinerance")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60); }}><Store className="size-4" />Itinérance</Button>
           {mine && <Link href={editorHref(route.id)} className="inline-flex h-11 items-center gap-2 rounded-xl bg-pine-600 px-5 text-[15px] font-semibold text-white hover:bg-pine-700"><Pencil className="size-4" />Modifier</Link>}
         </div>
       </header>
@@ -133,6 +137,13 @@ export function RoutePage({ id }: { id: string }) {
       </section>
 
       <WeatherPanel route={route} onOverlay={setWx} />
+
+      <section id="itinerance" className="frost-panel mt-6 scroll-mt-24 p-5" aria-labelledby="iti-title">
+        <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><h2 id="iti-title" className="flex items-center gap-2 text-lg font-bold"><Store className="size-5 text-ember-500" />Itinérance : ravitaillement le long du parcours</h2>
+          <p className="mt-0.5 max-w-2xl text-sm text-ink-600">Boulangeries, épiceries, supermarchés, restaurants, points d&apos;eau et sources, calculés sur ce tracé, avec la distance et le détour, regroupés par étapes.</p></div>
+          {!iti && <Button onClick={() => setIti(true)} data-action="itinerance"><Store className="size-4" />Préparer l&apos;itinérance</Button>}</div>
+        {iti && <div className="mt-4"><RouteResupply route={route} editable={!!saved} /></div>}
+      </section>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         <div className="grid content-start gap-6">

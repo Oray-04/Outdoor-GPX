@@ -26,7 +26,7 @@ export default function Page() {
         <div className="hairline mt-12 w-64" aria-hidden="true" />
         <div className="mt-10 flex flex-wrap justify-center gap-3">
           <ButtonLink href="/creer" size="lg">Créer un parcours</ButtonLink>
-          <ButtonLink href="/itineraires" size="lg" variant="onDark">Voir les itinéraires</ButtonLink>
+          <ButtonLink href="/explorer/?itineraire=" size="lg" variant="onDark">Voir les itinéraires</ButtonLink>
         </div>
       </div>
     </section>

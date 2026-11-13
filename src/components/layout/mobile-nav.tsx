@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Compass, PenLine, Sparkles, Route as RouteIcon, Menu, X, CalendarDays, FileUp, WifiOff, User, Briefcase, Mountain, Store, Apple, FolderHeart } from "lucide-react";
+import { Compass, PenLine, Sparkles, Route as RouteIcon, Menu, X, CalendarDays, FileUp, WifiOff, User, Briefcase, Apple, FolderHeart } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "@/lib/auth";
 
@@ -17,8 +17,6 @@ const MAIN = [
 const MORE_GROUPS: { title: string; items: { href: string; label: string; icon: typeof User }[] }[] = [
   { title: "Parcours", items: [
     { href: "/generer", label: "Générer", icon: Sparkles },
-    { href: "/itineraires", label: "Itinéraires", icon: Mountain },
-    { href: "/itinerance", label: "Itinérance", icon: Store },
     { href: "/fichiers", label: "Fichiers GPS", icon: FileUp },
     { href: "/hors-ligne", label: "Hors ligne", icon: WifiOff },
   ] },
@@ -62,7 +60,7 @@ export function MobileNav() {
           </div>
         </div>
       )}
-      <nav aria-label="Navigation principale" className="glass-dark fixed inset-x-0 bottom-0 z-[70] border-t border-brass-400/25 !bg-ink-950/95 pb-[env(safe-area-inset-bottom)] md:hidden">
+      <nav aria-label="Navigation principale" className="glass-dark fixed inset-x-0 bottom-0 z-[70] border-t border-white/10 pb-[env(safe-area-inset-bottom)] md:hidden">
         <ul className="mx-auto grid h-14 max-w-xl grid-cols-5">
           {MAIN.map(({ href, label, icon: I }) => (
             <li key={href}><Link href={href} aria-current={active(href) ? "page" : undefined} className={clsx("relative flex h-full flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors", active(href) ? "text-white before:absolute before:top-0 before:h-0.5 before:w-8 before:rounded-full before:bg-brass-400" : "text-white/55")}><I className={clsx("size-5", active(href) && "stroke-[2.2] text-brass-400")} />{label}</Link></li>

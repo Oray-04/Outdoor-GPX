@@ -42,7 +42,7 @@ export function Account() {
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
       <h1 className="text-3xl font-extrabold sm:text-4xl">{profile.name ? `Bonjour ${profile.name}` : "Mon espace"}</h1>
       <p className="mt-2 text-ink-600">Vos données sont enregistrées sur cet appareil (navigateur). Pensez à exporter vos parcours importants.</p>
-      <nav aria-label="Sections" className="sticky top-16 z-20 -mx-4 mt-4 flex gap-1 overflow-x-auto bg-paper/90 px-4 py-2 backdrop-blur">{nav.map(([id, l]) => <a key={id} href={`#${id}`} className="shrink-0 rounded-full border border-ink-200 bg-white px-3 py-1.5 text-sm font-medium hover:border-pine-400">{l}</a>)}</nav>
+      <nav aria-label="Sections" className="frost-panel sticky top-[4.5rem] z-20 mt-4 flex gap-1 overflow-x-auto !rounded-full px-2 py-1.5">{nav.map(([id, l]) => <a key={id} href={`#${id}`} className="shrink-0 rounded-full border border-ink-200 bg-white px-3 py-1.5 text-sm font-medium hover:border-pine-400">{l}</a>)}</nav>
       <div className="mt-4 grid gap-6">
         <Section id="compte" title="Compte et synchronisation"><CloudCard /></Section>
         <Section id="profil" title="Profil"><ProfileForm /></Section>

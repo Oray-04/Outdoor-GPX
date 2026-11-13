@@ -19,7 +19,7 @@
   --color-ink-700: #1b302d;
   --color-ink-600: #314844;
   --color-ink-500: #4a605b;
-  --color-ink-400: #74867f;
+  --color-ink-400: #5f7069; /* assombri : contraste ≥ 4,5:1 sur verre clair */
   --color-ink-300: #a0aea7;
   --color-ink-200: #d3d9d2;
   --color-ink-100: #e7e9e1;
@@ -54,9 +54,14 @@
   --color-warn: #b8862b;
   --color-danger: #c0362c;
 
-  --radius-card: 1.125rem;
-  --shadow-card: 0 1px 1px rgb(10 21 20 / 0.04), 0 10px 30px -18px rgb(10 21 20 / 0.28);
-  --shadow-lift: 0 2px 4px rgb(10 21 20 / 0.06), 0 26px 50px -22px rgb(10 21 20 / 0.42);
+  /* Frosted Touch : rayons généreux, ombres larges et diffuses */
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.375rem;
+  --radius-3xl: 1.75rem;
+  --radius-card: 1.375rem;
+  --shadow-card: 0 1px 2px rgb(16 40 36 / 0.05), 0 18px 48px -22px rgb(16 40 36 / 0.28);
+  --shadow-lift: 0 2px 6px rgb(16 40 36 / 0.06), 0 34px 70px -28px rgb(16 40 36 / 0.42);
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -67,9 +72,15 @@ html { scroll-behavior: smooth; }
 body { padding-bottom: var(--bnav); }
 body:has(main [data-embed]) { padding-bottom: 0; }
 body {
-  background-color: var(--color-paper);
+  background-color: #eef1ea;
   /* courbes de niveau très discrètes : la signature cartographique du site */
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='520' height='520' viewBox='0 0 520 520' fill='none' stroke='%230a1514' stroke-opacity='.045' stroke-width='1'%3E%3Cpath d='M-20 130c90-60 150 40 240-10s150-90 320-20'/%3E%3Cpath d='M-20 190c100-50 160 50 250 0s170-80 310-10'/%3E%3Cpath d='M-20 260c80-30 170 60 260 10s190-70 300 10'/%3E%3Cpath d='M-20 340c110-40 150 30 250-10s160-50 310 20'/%3E%3Cpath d='M-20 420c90-50 180 40 270-10s150-40 290 30'/%3E%3Cellipse cx='380' cy='70' rx='70' ry='34'/%3E%3Cellipse cx='380' cy='70' rx='42' ry='18'/%3E%3Cellipse cx='120' cy='480' rx='80' ry='30'/%3E%3C/svg%3E");
+  /* dégradés pastel doux (sauge, glacier, ivoire, une touche de cuivre) sous les courbes de niveau : ils donnent sa matière au verre dépoli */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='520' height='520' viewBox='0 0 520 520' fill='none' stroke='%230a1514' stroke-opacity='.045' stroke-width='1'%3E%3Cpath d='M-20 130c90-60 150 40 240-10s150-90 320-20'/%3E%3Cpath d='M-20 190c100-50 160 50 250 0s170-80 310-10'/%3E%3Cpath d='M-20 260c80-30 170 60 260 10s190-70 300 10'/%3E%3Cpath d='M-20 340c110-40 150 30 250-10s160-50 310 20'/%3E%3Cpath d='M-20 420c90-50 180 40 270-10s150-40 290 30'/%3E%3Cellipse cx='380' cy='70' rx='70' ry='34'/%3E%3Cellipse cx='380' cy='70' rx='42' ry='18'/%3E%3Cellipse cx='120' cy='480' rx='80' ry='30'/%3E%3C/svg%3E"),
+    radial-gradient(60rem 42rem at 8% -6%, rgb(197 228 214 / 0.95), transparent 62%),
+    radial-gradient(52rem 40rem at 96% 8%, rgb(203 226 238 / 0.9), transparent 60%),
+    radial-gradient(46rem 36rem at 70% 104%, rgb(246 222 203 / 0.75), transparent 62%),
+    radial-gradient(40rem 34rem at 4% 96%, rgb(226 236 214 / 0.85), transparent 60%),
+    linear-gradient(160deg, #f4f6ef 0%, #eef3f0 45%, #f5f1ea 100%);
   background-attachment: fixed;
   color: var(--color-ink-900);
   font-family: var(--font-sans);
@@ -95,18 +106,80 @@ aside { scrollbar-width: thin; scrollbar-color: var(--color-ink-200) transparent
 .hairline { height: 1px; background: linear-gradient(90deg, transparent, var(--color-brass-400), transparent); }
 
 /* Panneaux : profondeur douce et filet fin, sans toucher à leur structure */
-.rounded-2xl.bg-white.ring-1, .rounded-xl.bg-white.ring-1 { box-shadow: var(--shadow-card); }
-a.rounded-2xl.bg-white.ring-1, .rounded-2xl.bg-white.ring-1:has(> a:only-child) { transition: transform .35s var(--ease-out-soft), box-shadow .35s var(--ease-out-soft); }
-a.rounded-2xl.bg-white.ring-1:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
+
 
 /* Champs : fond ivoire clair, focus laiton */
 input:not([type=range]):not([type=checkbox]):not([type=radio]), select, textarea { transition: border-color .2s, box-shadow .2s; }
 input:not([type=range]):not([type=checkbox]):not([type=radio]):focus, select:focus, textarea:focus { outline: none; border-color: var(--color-brass-500); box-shadow: 0 0 0 3px rgb(176 141 79 / 0.22); }
 input[type=range] { accent-color: var(--color-pine-600); }
 
+/* ───────── Frosted Touch : verre dépoli doux et tactile ─────────
+   Panneaux translucides (flou 12 px), rebord lumineux de 1 px, rayons de 16 à 24 px, ombres larges et diffuses.
+   Appliqué aux cartes et conteneurs existants (fond blanc + filet ou ombre) sans changer leur structure. */
+:root {
+  --frost-bg: rgb(255 255 255 / 0.62);
+  --frost-bg-strong: rgb(255 255 255 / 0.8);
+  --frost-nested: rgb(255 255 255 / 0.5);
+  --frost-edge: rgb(255 255 255 / 0.62);
+  --frost-edge-hover: rgb(255 255 255 / 0.95);
+  --frost-hairline: rgb(16 40 36 / 0.07);
+  --frost-blur: blur(12px) saturate(1.45);
+  --frost-shadow: inset 0 1px 0 rgb(255 255 255 / 0.75), 0 0 0 1px var(--frost-hairline), var(--shadow-card);
+}
 /* Verre des outils posés sur la carte */
-.glass { background: rgb(255 255 255 / 0.86); backdrop-filter: blur(14px) saturate(1.4); -webkit-backdrop-filter: blur(14px) saturate(1.4); border: 1px solid rgb(255 255 255 / 0.7); box-shadow: 0 1px 0 rgb(255 255 255 / 0.6) inset, var(--shadow-card); }
-.glass-dark { background: rgb(10 21 20 / 0.82); backdrop-filter: blur(16px) saturate(1.3); -webkit-backdrop-filter: blur(16px) saturate(1.3); }
+.glass { background: rgb(255 255 255 / 0.78); backdrop-filter: var(--frost-blur); -webkit-backdrop-filter: var(--frost-blur); border: 1px solid var(--frost-edge); box-shadow: var(--frost-shadow); }
+.glass-dark { background: rgb(10 21 20 / 0.68); backdrop-filter: blur(16px) saturate(1.4); -webkit-backdrop-filter: blur(16px) saturate(1.4); }
+/* Panneaux : cartes, conteneurs, formulaires, listes */
+.frost-panel,
+.rounded-2xl.bg-white, .rounded-xl.bg-white.ring-1, .rounded-xl.bg-white.shadow-card, .rounded-3xl.bg-white,
+.bg-white.shadow-card, .rounded-\[var\(--radius-card\)\].bg-white, .rounded-t-3xl.bg-paper {
+  background: var(--frost-bg) !important;
+  backdrop-filter: var(--frost-blur); -webkit-backdrop-filter: var(--frost-blur);
+  border: 1px solid var(--frost-edge);
+  box-shadow: var(--frost-shadow);
+  border-radius: var(--radius-2xl);
+}
+.frost-panel { border-radius: var(--radius-2xl); }
+/* panneaux latéraux des espaces de travail (à côté ou au-dessus de la carte) : plus opaques pour la lecture */
+aside.bg-white, aside[aria-label].bg-white { background: var(--frost-bg-strong) !important; backdrop-filter: var(--frost-blur); -webkit-backdrop-filter: var(--frost-blur); border-color: rgb(255 255 255 / 0.7); }
+/* un panneau qui contient une carte (WebGL) : pas de flou d'arrière-plan, la carte est opaque et le flou serait recalculé à chaque image */
+:is(.frost-panel, .rounded-2xl.bg-white, .rounded-xl.bg-white.ring-1, .bg-white.shadow-card, aside.bg-white):has(.maplibregl-map) { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgb(255 255 255 / 0.9) !important; }
+/* verre dans le verre : pas de second flou (coût d'affichage), simple voile */
+:is(.frost-panel, .rounded-2xl.bg-white, aside.bg-white, .bg-white.shadow-card) :is(.rounded-2xl.bg-white, .rounded-xl.bg-white.ring-1, .rounded-xl.bg-white.shadow-card, .bg-white.shadow-card, .frost-panel) {
+  background: var(--frost-nested) !important; backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+/* tuiles discrètes (statistiques, encadrés) : voile translucide plutôt qu'aplat */
+.bg-ink-50 { background-color: rgb(242 243 236 / 0.62); }
+/* panneaux sombres (bandeaux d'action, héros) : verre fumé */
+.rounded-2xl.bg-ink-950, .rounded-2xl.bg-ink-900 { background: rgb(8 18 17 / 0.84) !important; backdrop-filter: blur(14px) saturate(1.3); -webkit-backdrop-filter: blur(14px) saturate(1.3); border: 1px solid rgb(255 255 255 / 0.12); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08), var(--shadow-lift); }
+/* champs : verre clair, très lisible */
+input:not([type=range]):not([type=checkbox]):not([type=radio]):not([type=color]).bg-white, select.bg-white, textarea.bg-white,
+input.border-ink-200:not([type=range]):not([type=checkbox]):not([type=radio]):not([type=color]), select.border-ink-200, textarea.border-ink-200 {
+  background-color: rgb(255 255 255 / 0.85); border-color: rgb(16 40 36 / 0.14);
+}
+/* micro-interactions : légère élévation, rebord qui s'illumine */
+a.rounded-2xl, a.rounded-\[var\(--radius-card\)\], .frost-hover, button.rounded-2xl.bg-white, li > a.rounded-2xl {
+  transition: transform .35s var(--ease-out-soft), box-shadow .35s var(--ease-out-soft), border-color .35s var(--ease-out-soft), background-color .35s;
+}
+a.rounded-2xl:hover, a.rounded-\[var\(--radius-card\)\]:hover, .frost-hover:hover, button.rounded-2xl.bg-white:hover {
+  transform: translateY(-3px);
+  border-color: var(--frost-edge-hover) !important;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.95), 0 0 0 1px rgb(255 255 255 / 0.55), 0 0 28px -6px rgb(255 255 255 / 0.9), var(--shadow-lift) !important;
+}
+.rounded-2xl.bg-white:has(> a:only-child):hover, .rounded-2xl.bg-white:focus-within { border-color: var(--frost-edge-hover); }
+/* boutons secondaires : verre clair */
+.rounded-full.bg-white.border, button.rounded-full.border-ink-200.bg-white { background: rgb(255 255 255 / 0.7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+/* menus et fenêtres posés au-dessus de la page */
+[role=menu].bg-ink-950\/95 { background: rgb(8 18 17 / 0.78) !important; border-color: rgb(255 255 255 / 0.14) !important; }
+[role=dialog] .rounded-t-3xl, [role=alertdialog].glass { border-radius: var(--radius-3xl); }
+/* sans flou disponible, ou transparence réduite demandée : panneaux opaques, lisibilité d'abord */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root { --frost-bg: rgb(255 255 255 / 0.95); --frost-bg-strong: #fff; --frost-nested: rgb(255 255 255 / 0.9); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root { --frost-bg: #fff; --frost-bg-strong: #fff; --frost-nested: #fbfbf7; }
+  .glass-dark, .rounded-2xl.bg-ink-950 { background: #0a1514 !important; }
+}
 
 /* Plein écran d'un espace de travail : la carte et son panneau d'outils occupent tout l'écran, sans l'en-tête ni la barre du site */
 [data-workspace][data-fullscreen="true"] { position: fixed !important; inset: 0; z-index: 80; height: 100dvh !important; min-height: 0 !important; max-height: none; background: var(--color-paper); --bnav: 0px; overflow: hidden; }

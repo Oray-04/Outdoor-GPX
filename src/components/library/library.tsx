@@ -97,7 +97,7 @@ export function Library({ initialSport }: { initialSport?: string }) {
               </div>
             </div>
           </div>
-          {!list.length ? (all.length ? <EmptyState icon={SearchX} title="Aucun parcours ne correspond à ces critères">Élargissez la distance ou le dénivelé, ou retirez un filtre.</EmptyState> : <EmptyState icon={RouteIcon} title="Votre bibliothèque est vide" actions={<><ButtonLink href="/creer" size="sm">Créer un parcours</ButtonLink><ButtonLink href="/fichiers" size="sm" variant="secondary">Importer un GPX</ButtonLink><ButtonLink href="/itineraires" size="sm" variant="secondary">Itinéraires de référence</ButtonLink></>}>Tracez un parcours, importez un fichier GPS ou partez d&apos;un GR ou d&apos;une véloroute : il apparaîtra ici.</EmptyState>)
+          {!list.length ? (all.length ? <EmptyState icon={SearchX} title="Aucun parcours ne correspond à ces critères">Élargissez la distance ou le dénivelé, ou retirez un filtre.</EmptyState> : <EmptyState icon={RouteIcon} title="Votre bibliothèque est vide" actions={<><ButtonLink href="/creer" size="sm">Créer un parcours</ButtonLink><ButtonLink href="/fichiers" size="sm" variant="secondary">Importer un GPX</ButtonLink><ButtonLink href="/explorer/?itineraire=" size="sm" variant="secondary">Itinéraires de référence</ButtonLink></>}>Tracez un parcours, importez un fichier GPS ou partez d&apos;un GR ou d&apos;une véloroute : il apparaîtra ici.</EmptyState>)
             : view === "list" ? <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">{list.map((r) => <RouteCard key={r.id} route={r} verified={verified.includes(r.id)} />)}</div>
             : <RoutesMap routes={list} />}
         </section>

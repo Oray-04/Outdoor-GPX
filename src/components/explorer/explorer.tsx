@@ -1,7 +1,8 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type { Map as MLMap, Marker } from "maplibre-gl";
-import { Search, LocateFixed, Loader2, Layers, Filter, Eye, EyeOff, X, MapPin, Plus, Trash2, Layers3 } from "lucide-react";
+import { Search, LocateFixed, Loader2, Layers, Filter, Eye, EyeOff, X, MapPin, Plus, Trash2, Layers3, Mountain } from "lucide-react";
+import { ReferencePanel } from "@/components/library/reference-library";
 import Link from "next/link";
 import clsx from "clsx";
 import { useAllRoutes } from "@/lib/route-vm";
@@ -34,7 +35,7 @@ const routeBox = (r: DemoRoute): Bounds => {
 };
 const intersects = (a: Bounds, b: Bounds) => a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
 
-export function Explorer({ initial }: { initial?: { lng: number; lat: number } }) {
+export function Explorer({ initial, initialRef }: { initial?: { lng: number; lat: number }; initialRef?: string | null }) {
   const el = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MLMap | null>(null);
   const mlRef = useRef<typeof import("maplibre-gl") | null>(null);
@@ -52,7 +53,8 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
   const [q, setQ] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [panel, setPanel] = useState<"routes" | "calques" | "layers">("routes");
+  const [panel, setPanel] = useState<"routes" | "itineraires" | "calques" | "layers">(initialRef !== undefined && initialRef !== null ? "itineraires" : "routes");
+  const [refOn, setRefOn] = useState(initialRef !== undefined && initialRef !== null);
   const [sheet, setSheet] = useState<SheetState>("peek");
   const geo = useGeo();
   const allRoutes = useAllRoutes();
@@ -250,14 +252,15 @@ export function Explorer({ initial }: { initial?: { lng: number; lat: number } }
           <button type="button" onClick={locate} className="grid size-10 place-items-center rounded-lg border border-ink-200 hover:bg-ink-50" aria-label="Me géolocaliser" title="Me géolocaliser">{geo.status === "loading" ? <Loader2 className="size-4 animate-spin" /> : <LocateFixed className="size-4" />}</button>
         </form>
         {msg && <p className="border-b border-ink-100 px-3 py-2 text-xs text-ink-600" aria-live="polite">{msg}</p>}
-        <div className="flex border-b border-ink-100 text-sm font-semibold" role="tablist">
-          {([["routes", "Parcours", Filter], ["calques", "Calques", Layers3], ["layers", "POI", Layers]] as const).map(([id, l, I]) => (
-            <button key={id} role="tab" aria-selected={panel === id} onClick={() => { setPanel(id); setSheet((x) => (x === "peek" ? "half" : x)); }} className={clsx("flex flex-1 items-center justify-center gap-1.5 py-2.5", panel === id ? "border-b-2 border-pine-600 text-pine-700" : "text-ink-500")}><I className="size-4" />{l}</button>
+        <div className="m-2 grid grid-cols-4 gap-1 rounded-2xl bg-ink-100/70 p-1 text-xs font-semibold" role="tablist">
+          {([["routes", "Parcours", Filter], ["itineraires", "Itinéraires", Mountain], ["calques", "Calques", Layers3], ["layers", "POI", Layers]] as const).map(([id, l, I]) => (
+            <button key={id} role="tab" aria-selected={panel === id} onClick={() => { setPanel(id); if (id === "itineraires") setRefOn(true); setSheet((x) => (x === "peek" ? "half" : x)); }} className={clsx("flex flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 transition", panel === id ? "bg-white text-pine-700 shadow-sm" : "text-ink-600 hover:bg-white/60 hover:text-ink-900")}><I className="size-4" />{l}</button>
           ))}
         </div>
       </>}>
         <div className="p-3">
-          {panel === "calques" ? (
+          <div hidden={panel !== "itineraires"}><ReferencePanel map={mapRef} ml={mlRef} ready={ready} visible={refOn} setVisible={setRefOn} initialId={initialRef} onSelect={() => { setPanel("itineraires"); setSheet((x) => (x === "peek" ? "half" : x)); }} /></div>
+          {panel === "itineraires" ? null : panel === "calques" ? (
             <div className="grid gap-4">
               <p className="text-xs text-ink-500">Un calque regroupe des parcours (les vôtres, ceux d'une organisation, un import personnel…). Affichez ou masquez-les, chacun a sa couleur.</p>
               <ul className="grid gap-2">{layerList.map((l) => { const n = l.id === "community" ? (communityCount ?? 0) : allRoutes.filter((r) => r.layer === l.id).length; const on = !layerOff.has(l.id); return (

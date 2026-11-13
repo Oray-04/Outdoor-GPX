@@ -36,10 +36,15 @@ const pinEl = (k: ResupplyKind, title: string, dim: boolean) => {
   s.style.background = RESUPPLY[k].color; s.innerHTML = resupplyIconSvg(k, 15); b.append(s); b.title = title; b.setAttribute("aria-label", title); return b;
 };
 
-export function ItinerancePage() {
+/** Parcours étudié : celui de la fiche. `editable` : parcours enregistré sur l'appareil, auquel on peut ajouter des points d'intérêt. */
+export interface ResupplyRoute { id: string; name: string; coords: import("@/lib/types").Pt[]; pois: import("@/lib/types").Poi[] }
+
+/**
+ * Itinérance d'un parcours : commerces, restauration et points d'eau le long du tracé, calculés sur ce tracé.
+ * Intégrée à la fiche de chaque parcours (l'ancien onglet « Itinérance » a été retiré du menu).
+ */
+export function RouteResupply({ route, editable }: { route: ResupplyRoute; editable: boolean }) {
   const { el, map, ml, ready } = useMap();
-  const routes = routesRepo.useAll();
-  const [routeId, setRouteId] = useState("");
   const [kinds, setKinds] = useState<ResupplyKind[]>(PRESETS[0].kinds);
   const [custom, setCustom] = useState(false);
   const [radius, setRadius] = useState(500);
@@ -54,8 +59,6 @@ export function ItinerancePage() {
   const [sel, setSel] = useState<string | null>(null);
   const [hover, setHover] = useState<number | null>(null);
   const ctrl = useRef<AbortController | null>(null); const marks = useRef<Marker[]>([]); const flags = useRef<Marker[]>([]); const popup = useRef<Popup | null>(null); const hov = useRef<Marker | null>(null);
-  useEffect(() => { if (!routeId && routes.length) setRouteId(routes[0].id); }, [routes, routeId]);
-  const route = routes.find((r) => r.id === routeId) ?? null;
   const line = useMemo<LL[]>(() => (route ? route.coords.map((c) => [c[0], c[1]] as LL) : []), [route?.id, route?.coords.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const cum = useMemo(() => cumulative(line), [line]);
   const total = cum[cum.length - 1] ?? 0;
@@ -73,7 +76,7 @@ export function ItinerancePage() {
   const cacheKey = route ? `crete:iti:${route.id}:${route.coords.length}:${Math.round(total)}:${[...kinds].sort().join(",")}:${radius}` : "";
 
   // changement de parcours : résultats mémorisés pour la session (même parcours, mêmes critères) rechargés sans nouvelle requête
-  useEffect(() => { setPlaces(null); setMsg(null); setSel(null); setOpenSec(0); }, [routeId]);
+  useEffect(() => { setPlaces(null); setMsg(null); setSel(null); setOpenSec(0); }, [route.id]);
   useEffect(() => { if (!cacheKey || places) return; try { const c = sessionStorage.getItem(cacheKey); if (c) { setPlaces(JSON.parse(c) as ResupplyPlace[]); setShown(RESUPPLY_KINDS); } } catch { /* cache facultatif */ } }, [cacheKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // tracé, drapeaux, lien pointillé entre le lieu choisi et le parcours
@@ -133,7 +136,7 @@ export function ItinerancePage() {
     setTimeout(() => document.getElementById(`pl-${p.id}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }), 60);
   };
   async function run() {
-    if (!route || line.length < 2) { setMsg({ kind: "warn", text: "Choisissez d'abord un parcours." }); return; }
+    if (!route || line.length < 2) { setMsg({ kind: "warn", text: "Ce parcours n'a pas de tracé." }); return; }
     if (!kinds.length) { setMsg({ kind: "warn", text: "Choisissez au moins une catégorie." }); return; }
     ctrl.current?.abort(); const c = new AbortController(); ctrl.current = c;
     setBusy(true); setMsg(null); setPlaces(null); setSel(null); setProgress([0, 1]);
@@ -158,8 +161,9 @@ export function ItinerancePage() {
   }
   const poiOf = (p: ResupplyPlace) => ({ id: uid(), type: RESUPPLY[p.kind].poi, name: `${p.name || RESUPPLY[p.kind].one}${p.hours ? ` (${p.hours})` : ""}`.slice(0, 120), lng: p.lng, lat: p.lat });
   const addPoi = (list: ResupplyPlace[]) => {
+    const saved = editable ? routesRepo.get(route.id) : undefined; if (!saved) return;
     if (!route) return; const fresh = list.filter((p) => !added.has(`${p.lng.toFixed(5)},${p.lat.toFixed(5)}`)).slice(0, 80); if (!fresh.length) return;
-    const res = routesRepo.upsert({ ...route, pois: [...route.pois, ...fresh.map(poiOf)], updatedAt: Date.now() });
+    const res = routesRepo.upsert({ ...saved, pois: [...saved.pois, ...fresh.map(poiOf)], updatedAt: Date.now() });
     setMsg(res.ok ? { kind: "ok", text: fresh.length === 1 ? `« ${fresh[0].name || RESUPPLY[fresh[0].kind].one} » ajouté aux points d'intérêt du parcours.` : `${fresh.length} lieux ajoutés aux points d'intérêt du parcours.` } : { kind: "err", text: res.error ?? "Ajout impossible." });
   };
   const toggle = <T,>(a: T[], v: T) => (a.includes(v) ? a.filter((x) => x !== v) : [...a, v]);
@@ -177,15 +181,11 @@ export function ItinerancePage() {
   };
 
   return (
-    <div data-workspace="scroll" className="grid min-h-[calc(100dvh-4rem)] md:h-[calc(100dvh-4rem)] md:grid-cols-[21rem_1fr] lg:grid-cols-[28rem_1fr]">
-      <aside className="order-2 min-h-0 overflow-y-auto border-ink-100 bg-white p-4 md:order-1 md:border-r">
-        <h1 className="flex items-center gap-2 text-xl font-extrabold"><Store className="size-5 text-ember-500" />Itinérance</h1>
-        <p className="mt-1 text-sm text-ink-500">Où remplir les gourdes et acheter à manger le long d'un parcours : préparez vos étapes avant de partir.</p>
-        {!routes.length ? (
-          <div className="mt-4 rounded-xl border border-dashed border-ink-200 p-5 text-sm text-ink-600">Vous n'avez pas encore de parcours enregistré. <Link className="font-semibold text-pine-700 underline" href="/creer">Créez-en un</Link>, <Link className="font-semibold text-pine-700 underline" href="/fichiers">importez un GPX</Link> ou ajoutez un <Link className="font-semibold text-pine-700 underline" href="/itineraires">itinéraire de référence</Link> à votre bibliothèque.</div>
-        ) : (<>
-          <label className="mt-4 grid gap-1 text-sm font-medium">Parcours<select className={sel2} value={routeId} onChange={(e) => setRouteId(e.target.value)}>{routes.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
-          <div className="mt-4"><p className="mb-1.5 text-sm font-medium">Je cherche</p>
+    <div className="frost-panel grid overflow-hidden lg:h-[46rem] lg:grid-cols-[27rem_1fr]">
+      <aside aria-label="Recherche des lieux" className="order-2 max-h-[40rem] min-h-0 overflow-y-auto border-ink-100 p-4 lg:order-1 lg:max-h-none lg:border-r">
+        <p className="text-sm text-ink-600">Calculé sur le tracé de « {route.name} » : où remplir les gourdes et acheter à manger, avec la distance et le détour depuis le parcours.</p>
+        {route.coords.length < 2 ? <p className="mt-4 rounded-xl border border-dashed border-ink-200 p-5 text-sm text-ink-600">Ce parcours n&apos;a pas encore de tracé.</p> : (<>
+          <div className="mt-3"><p className="mb-1.5 text-sm font-medium">Je cherche</p>
             <div role="group" aria-label="Recherche rapide" className="flex flex-wrap gap-1.5">{PRESETS.map((p) => <button key={p.id} type="button" aria-pressed={presetId === p.id} onClick={() => { setKinds(p.kinds); setPlaces(null); }} className={clsx("rounded-full border px-3 py-1.5 text-sm font-medium transition", presetId === p.id ? "border-pine-600 bg-pine-600 text-white" : "border-ink-200 bg-white text-ink-700 hover:border-pine-400")}>{p.label}</button>)}
               <button type="button" aria-expanded={custom} onClick={() => setCustom((v) => !v)} className={clsx("inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-sm font-medium", !presetId ? "border-pine-600 bg-pine-50 text-pine-700" : "border-ink-200 text-ink-700")}><SlidersHorizontal className="size-3.5" />Personnaliser</button></div>
             {custom && <fieldset className="mt-2 grid gap-1.5 rounded-xl bg-ink-50 p-3"><legend className="sr-only">Catégories à rechercher</legend>{RESUPPLY_KINDS.map((k) => <label key={k} className="flex items-center gap-2 text-sm"><input type="checkbox" className="accent-[var(--color-pine-600)]" checked={kinds.includes(k)} onChange={() => { setKinds(toggle(kinds, k)); setPlaces(null); }} /><KindIcon kind={k} size={22} />{RESUPPLY[k].label}</label>)}</fieldset>}
@@ -211,7 +211,7 @@ export function ItinerancePage() {
             {profile.length > 1 && <div className="mt-3 rounded-xl border border-ink-100 p-1"><ElevationChart points={profile} markers={chartMarkers} onHover={setHover} height={130} /></div>}
 
             <div className="mt-3 flex flex-wrap items-center gap-2"><p className="mr-auto text-sm font-semibold">{visible.length} lieu(x) affiché(s)</p>
-              <Button size="sm" variant="secondary" disabled={!visible.length} onClick={() => addPoi(visible)} title="Ajoute les lieux affichés aux points d'intérêt du parcours (80 au plus)"><Plus className="size-4" />Tout ajouter au parcours</Button>
+              {editable && <Button size="sm" variant="secondary" disabled={!visible.length} onClick={() => addPoi(visible)} title="Ajoute les lieux affichés aux points d'intérêt du parcours (80 au plus)"><Plus className="size-4" />Tout ajouter au parcours</Button>}
               <Button size="sm" variant="secondary" disabled={!visible.length} onClick={() => download(`${safeName(route?.name ?? "parcours")}-ravitaillement.csv`, "﻿" + placesCsv(visible), "text/csv;charset=utf-8")}><Download className="size-4" />CSV</Button></div>
             {!visible.length && <p className="mt-3 rounded-lg bg-ink-50 px-3 py-2 text-sm text-ink-600">Aucun lieu ne correspond à ces filtres.</p>}
             <div className="mt-3 grid gap-2">{secs.map((s) => { const open = openSec === s.index; return (
@@ -231,17 +231,17 @@ export function ItinerancePage() {
                         {p.phone && <p className="mt-0.5 flex items-center gap-1 text-xs text-ink-600"><Phone className="size-3 shrink-0" /><a className="underline" href={`tel:${p.phone.replace(/[^\d+]/g, "")}`}>{p.phone}</a></p>}
                         {p.kind === "spring" && <p className="mt-0.5 text-xs text-warn">Source naturelle : eau non contrôlée, à filtrer ou traiter.</p>}
                         {p.kind === "water" && <p className="mt-0.5 text-xs text-ink-500">{p.drinkable === "yes" ? "Eau déclarée potable" : p.drinkable === "no" ? "Eau déclarée NON potable" : "Potabilité non renseignée"} · peut être coupée (hiver, sécheresse).</p>}
-                        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5"><Button size="sm" variant="secondary" className="!h-8 !px-3 !text-xs" disabled={done} onClick={() => addPoi([p])}>{done ? <><Check className="size-3.5" />Ajouté</> : <><Plus className="size-3.5" />Ajouter au parcours</>}</Button>
+                        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">{editable && <Button size="sm" variant="secondary" className="!h-8 !px-3 !text-xs" disabled={done} onClick={() => addPoi([p])}>{done ? <><Check className="size-3.5" />Ajouté</> : <><Plus className="size-3.5" />Ajouter au parcours</>}</Button>}
                           <a className="inline-flex items-center gap-1 text-xs font-medium text-pine-700 underline" href={`https://www.openstreetmap.org/directions?to=${p.lat},${p.lng}`} target="_blank" rel="noreferrer noopener">S'y rendre<ExternalLink className="size-3" /></a>
                           <a className="inline-flex items-center gap-1 text-xs font-medium text-ink-500 underline" href={p.osmUrl} target="_blank" rel="noreferrer noopener">Fiche OSM<ExternalLink className="size-3" /></a></div>
                       </div></div>
                   </li>); })}</ul> : <p className="px-3 py-2.5 text-xs text-ink-500">Aucun lieu sur ce tronçon : prévoyez l'autonomie nécessaire.</p>)}
               </section>); })}</div>
-            {route && <p className="mt-3 text-xs text-ink-500">Les lieux ajoutés apparaissent dans <Link className="font-semibold text-pine-700 underline" href={editorHref(route.id)}>l'éditeur du parcours</Link> et dans ses exports GPX. Détours estimés à vol d'oiseau. Données © contributeurs OpenStreetMap (ODbL).</p>}
+            {editable && <p className="mt-3 text-xs text-ink-500">Les lieux ajoutés apparaissent dans <Link className="font-semibold text-pine-700 underline" href={editorHref(route.id)}>l'éditeur du parcours</Link> et dans ses exports GPX. Détours estimés à vol d'oiseau. Données © contributeurs OpenStreetMap (ODbL).</p>}
           </section>)}
         </>)}
       </aside>
-      <MapFrame className="order-1 h-[46vh] min-h-[19rem] md:order-2 md:h-auto" banner={banner}>
+      <MapFrame className="order-1 h-[24rem] lg:order-2 lg:h-auto" banner={banner}>
         <div className="absolute inset-0"><div ref={el} className="size-full" role="region" aria-label="Carte des commerces et points d'eau" /></div>
         <LayerControl map={map} ready={ready} />
       </MapFrame>

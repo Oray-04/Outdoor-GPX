@@ -122,7 +122,13 @@ Bibliothèque : champ « Commune ou code postal » (suggestions, rayon réglable
 Astérisque rouge + légende « * Champ obligatoire » ; la validation correspond (espaces seuls refusés, message sous le champ, envoi bloqué). Dans l'édition d'un événement (enregistrement automatique), un champ obligatoire vidé n'écrase pas la dernière valeur valide.
 
 ### Navigation et périmètre
-Trois univers : **Parcours** (Explorer, Créer, Générer, Itinéraires, Itinérance, Bibliothèque), **Événements** (calendrier, espace organisateur), **Nutrition** (page « Bientôt disponible »). Plus aucune donnée de démonstration ni offre payante : tout est gratuit. Les tracés synthétiques ne subsistent que comme jeux d'essai (`tests/fixtures/`).
+Trois univers : **Parcours** (Explorer — avec les itinéraires de référence —, Créer, Générer, Bibliothèque — avec l'itinérance de chaque parcours), **Événements** (calendrier, espace organisateur), **Nutrition** (page « Bientôt disponible »). Plus aucune donnée de démonstration ni offre payante : tout est gratuit. Les tracés synthétiques ne subsistent que comme jeux d'essai (`tests/fixtures/`).
+
+### Identité visuelle « Frosted Touch »
+Verre dépoli doux : cartes, conteneurs, panneaux, barre de navigation et menus translucides (flou 12 px, rebord lumineux de 1 px, rayons de 16 à 22 px, ombres larges et diffuses) sur un fond de dégradés pastel (sauge, glacier, ivoire, cuivre) sous les courbes de niveau. Micro-interactions : légère élévation et rebord qui s'illumine au survol. Lisibilité : texte secondaire assombri (contraste ≥ 4,5:1), champs presque opaques, pas de second flou dans un panneau déjà flouté, ni derrière une carte ; panneaux opaques si le navigateur ne gère pas le flou ou si la transparence réduite est demandée. Tout est dans `globals.css` (aucune structure de page modifiée).
+
+### Navigation simplifiée
+Menu Parcours : Explorer, Créer, Générer, Bibliothèque. Menu Événements : la rubrique « Randonnée » est retirée.
 
 ### Ergonomie sur ordinateur : défilement et superpositions
 - **Éditeur** : la grille bornait mal sa hauteur, si bien que le panneau de droite (et le profil altimétrique sous la carte) étaient coupés en bas et ne défilaient pas. Ligne de grille bornée, panneau qui défile jusqu'au dernier bouton, profil visible et à pleine largeur.
@@ -154,7 +160,9 @@ Calculé à partir des courses, postes et bénévoles déjà saisis, d'après un
 ### Interface : tablette, états vides, cibles tactiles
 À partir de 768 px de large, la navigation complète est dans l'en-tête (plus de barre basse) et les pages « panneau + carte » (Générer, Itinéraires, Itinérance) s'affichent côte à côte. Barre basse opaque sur téléphone, états vides avec actions (bibliothèque, événements), pastilles et petits boutons d'au moins 40 px au doigt, titres équilibrés.
 
-### Itinérance — `/itinerance`
+### Itinérance — dans la fiche de chaque parcours (`/parcours/voir/?id=…#itinerance`)
+L'onglet « Itinérance » du menu a été retiré : l'outil se lance depuis la fiche d'un parcours (bouton « Itinérance ») ou depuis l'éditeur (onglet Fichiers), et calcule les lieux sur ce tracé. L'ancienne adresse `/itinerance` redirige vers la bibliothèque (ou vers la fiche si `?id=` est donné). Ajout des lieux comme POI réservé aux parcours enregistrés sur l'appareil.
+
 Commerces alimentaires, restauration et points d'eau à moins de 100 m – 5 km d'un parcours (OpenStreetMap via Overpass, 3 serveurs de secours) : recherches rapides (Essentiel, Eau seulement, Courses, Repas, Tout) ou catégories au choix ; épingles à pictogramme avec fenêtre d'information ; **autonomie** (plus long tronçon sans eau / sans courses) ; résultats regroupés par **étapes** de 5 à 50 km ; filtres (catégorie, nom ou village, « sans détour ») ; distance au tracé, position kilométrique, détour aller-retour à vol d'oiseau, adresse, horaires et téléphone déclarés ; repères sur le profil ; ajout d'un lieu ou de tous comme POI ; export CSV ; résultats gardés pour la session. Lieux « potentiellement disponibles », jamais garantis.
 
 ### Baguette magique à jauge, sections, nouveau départ — `/creer`
@@ -174,7 +182,9 @@ Visibilité Privé / Public par parcours. Un parcours public donne un **lien de 
 - **Plein écran** : l'espace de travail entier (carte + panneau d'outils) passe en plein écran, sans l'en-tête ni la barre du site.
 - **Supprimé** : suivi GPS et navigation (`/suivi`). Les activités déjà enregistrées restent visibles dans Mon espace.
 
-### Itinéraires de référence — `/itineraires`
+### Itinéraires de référence — onglet « Itinéraires » de l'Explorer (`/explorer/?itineraire=gr20`)
+L'onglet « Itinéraires » du menu a été retiré : liste, recherche, catégories, détail, profil, contrôle du tracé, GPX et ajout à « Mes parcours » sont dans l'Explorer, avec un interrupteur « Afficher les itinéraires sur la carte » (visibles aussi depuis les autres onglets). L'ancienne adresse `/itineraires/?id=…` redirige.
+
 GR/GRP, véloroutes, traversées VTT, cols : tracés OpenStreetMap (ODbL) intégrés avec source, licence, contrôle de validité, statistiques recalculées. Voir `docs/bibliotheque.md` (sources, anti-doublons, ajout d'un itinéraire).
 
 ### Fiches et profil — `/parcours`, `/parcours/[id]`

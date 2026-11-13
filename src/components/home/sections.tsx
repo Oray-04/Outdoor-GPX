@@ -30,7 +30,7 @@ export function Features() {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {features.map(({ icon: I, title, text, href }) => (
-        <Link key={title} href={href} className="group rounded-[var(--radius-card)] border border-ink-100 bg-paper p-6 transition hover:-translate-y-1 hover:border-pine-400 hover:shadow-card">
+        <Link key={title} href={href} className="frost-panel frost-hover group rounded-[var(--radius-card)] p-6 transition hover:-translate-y-1 hover:border-pine-400 hover:shadow-card">
           <span className="grid size-11 place-items-center rounded-xl bg-pine-100 text-pine-700 transition group-hover:bg-pine-600 group-hover:text-white"><I className="size-5" /></span>
           <h3 className="mt-4 text-lg font-semibold">{title}</h3>
           <p className="mt-1.5 text-sm leading-relaxed text-ink-500">{text}</p>

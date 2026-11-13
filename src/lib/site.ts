@@ -5,17 +5,14 @@ export interface NavItem { href: string; label: string; hint?: string }
 export interface NavGroup { id: string; label: string; href: string; match: string[]; items?: NavItem[] }
 export const NAV: NavGroup[] = [
   { id: "parcours", label: "Parcours", href: "/explorer", match: ["/explorer", "/creer", "/generer", "/itineraires", "/itinerance", "/parcours", "/fichiers", "/collections"], items: [
-    { href: "/explorer", label: "Explorer", hint: "Découvrir les parcours sur la carte" },
+    { href: "/explorer", label: "Explorer", hint: "Vos parcours, GR et grandes traversées sur la carte" },
     { href: "/creer", label: "Créer un parcours", hint: "Tracer, importer et modifier un GPX" },
     { href: "/generer", label: "Générer une boucle", hint: "Selon une distance et un dénivelé" },
-    { href: "/itineraires", label: "Itinéraires", hint: "GR, grandes traversées, véloroutes" },
-    { href: "/itinerance", label: "Itinérance", hint: "Commerces et points d'eau le long d'un parcours" },
-    { href: "/parcours", label: "Bibliothèque", hint: "Vos parcours enregistrés et partagés" },
+    { href: "/parcours", label: "Bibliothèque", hint: "Vos parcours, avec météo et itinérance" },
   ] },
   { id: "evenements", label: "Événements", href: "/evenements", match: ["/evenements", "/organisateurs", "/organisateur"], items: [
     { href: "/evenements", label: "Tous les événements", hint: "Calendrier et recherche" },
     { href: "/evenements/?sport=trail", label: "Trail et courses de montagne" },
-    { href: "/evenements/?sport=rando", label: "Randonnée" },
     { href: "/evenements/?sport=velo", label: "Cyclisme" },
     { href: "/organisateurs", label: "Organisation Trail", hint: "Préparer son trail, étape par étape" },
   ] },

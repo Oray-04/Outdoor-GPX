@@ -20,7 +20,8 @@ function ExplorerInner() {
   const lng = Number(sp.get("lng")), lat = Number(sp.get("lat"));
   const ok = sp.get("lng") && sp.get("lat") && Number.isFinite(lng) && Number.isFinite(lat) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
   const initial = useMemo(() => (ok ? { lng, lat } : undefined), [ok, lng, lat]);
-  return <Explorer initial={initial} />;
+  const ref = sp.get("itineraire"), initialRef = sp.has("itineraire") ? (ref && /^[\w-]{2,60}$/.test(ref) ? ref : "") : null;
+  return <Explorer initial={initial} initialRef={initialRef} />;
 }
 export const ExplorerRoute = () => <Wrap><ExplorerInner /></Wrap>;
 

@@ -22,7 +22,8 @@ import { SPORTS, DIFFICULTY_LABEL, difficultyOf, estimateMinutes, type Sport } f
 import { haversine, trackStats, fmtKm, fmtM, fmtDuration, bboxOf, cumulative } from "@/lib/geo";
 import { buildProfile, distanceAlong } from "@/lib/profile";
 import { FORMATS, parseAny, serialize, download, safeName, GpsFileError, MAX_BYTES, type GpsFormat } from "@/lib/formats";
-import { editorHref, withBase } from "@/lib/url";
+import { editorHref, routeHref, withBase } from "@/lib/url";
+import Link from "next/link";
 
 type Tab = "trace" | "props" | "poi" | "fichiers";
 interface Meta { name: string; description: string; sport: Sport; visibility: Visibility; terrain: string[]; region: string; country: string; layer: string; sourceUrl: string }
@@ -677,6 +678,8 @@ export function Editor({ routeId }: { routeId?: string }) {
           </>)}
 
           {tab === "fichiers" && (<>
+            <div className="rounded-xl border border-ink-100 p-3 text-sm"><p className="font-semibold">Itinérance</p><p className="mt-0.5 text-xs text-ink-500">Commerces, restauration et points d&apos;eau le long de ce tracé, depuis la fiche du parcours.</p>
+              {rid.current && !dirty ? <Link href={`${routeHref(rid.current)}#itinerance`} className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-pine-700 underline">Préparer l&apos;itinérance de ce parcours</Link> : <p className="mt-2 text-xs text-ember-600">{rid.current ? "Enregistrez vos modifications pour calculer l'itinérance sur le tracé à jour." : "Enregistrez d'abord le parcours."}</p>}</div>
             <input ref={fileInput} type="file" accept=".gpx,.kml,.geojson,.json,.tcx" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) importFile(f, (e.currentTarget.dataset.mode as "replace" | "merge") ?? "replace"); e.target.value = ""; }} />
             <div className="grid gap-2">
               <Button variant="secondary" onClick={() => { fileInput.current!.dataset.mode = "replace"; fileInput.current!.click(); }}><Upload className="size-4" />Importer un fichier (remplace)</Button>

@@ -1,12 +1,11 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { GeoJSONSource } from "maplibre-gl";
+import type { GeoJSONSource, Map as MLMap } from "maplibre-gl";
+import type { MutableRefObject } from "react";
 import { Search, Download, Pencil, Save, TriangleAlert, Loader2, Check, ExternalLink, ShieldCheck } from "lucide-react";
 import clsx from "clsx";
 import Link from "next/link";
-import { useMap } from "@/components/map/use-map";
-import { LayerControl } from "@/components/map/layer-control";
-import { MapFrame, StatBanner } from "@/components/map/map-frame";
+import type { ML } from "@/components/map/use-map";
 import { ElevationChart } from "@/components/route/elevation-chart";
 import { Button } from "@/components/ui/button";
 import { CATEGORIES, PRACTICE_LABEL, attributionText, entryIssues, loadCoords, loadIndex, norm, practiceSport, toSavedRoute, validateCoords, type LibCategory, type LibEntry } from "@/lib/library";
@@ -18,8 +17,11 @@ import { estimateMinutes } from "@/lib/sports";
 import { editorHref, routeHref, withBase } from "@/lib/url";
 import { uid, type Pt } from "@/lib/types";
 
-export function ReferenceLibrary() {
-  const { el, map, ml, ready } = useMap();
+/**
+ * Itinéraires de référence (GR, grandes traversées, véloroutes) affichés sur la carte de l'Explorer : liste, recherche, catégories,
+ * détail, profil, contrôle du tracé, GPX, ajout à « Mes parcours ». `visible` montre ou masque leurs repères sur la carte.
+ */
+export function ReferencePanel({ map, ml, ready, visible, setVisible, initialId, onSelect }: { map: MutableRefObject<MLMap | null>; ml: MutableRefObject<ML | null>; ready: boolean; visible: boolean; setVisible: (v: boolean) => void; initialId?: string | null; onSelect?: () => void }) {
   const [entries, setEntries] = useState<LibEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cat, setCat] = useState<LibCategory | "all">("all");
@@ -31,9 +33,10 @@ export function ReferenceLibrary() {
   const [hover, setHover] = useState<number | null>(null);
   const mine = routesRepo.useAll();
 
-  // lien direct : /itineraires/?id=gr20
-  useEffect(() => { const id = new URLSearchParams(location.search).get("id"); if (id && /^[\w-]{2,60}$/.test(id)) setSel(id); }, []);
-  useEffect(() => { loadIndex().then(setEntries).catch((e) => setError(e instanceof Error ? e.message : "Bibliothèque indisponible.")); }, []);
+  // lien direct : /explorer/?itineraire=gr20
+  useEffect(() => { if (initialId && /^[\w-]{2,60}$/.test(initialId)) setSel(initialId); }, [initialId]);
+  // index chargé à la première ouverture seulement
+  useEffect(() => { if (!visible || entries) return; loadIndex().then(setEntries).catch((e) => setError(e instanceof Error ? e.message : "Bibliothèque indisponible.")); }, [visible, entries]);
   const counts = useMemo(() => { const c: Record<string, number> = {}; for (const e of entries ?? []) c[e.category] = (c[e.category] ?? 0) + 1; return c; }, [entries]);
   const list = useMemo(() => {
     const n = norm(q);
@@ -48,6 +51,13 @@ export function ReferenceLibrary() {
     return () => { live = false; };
   }, [sel]);
 
+  const onSel = useRef(onSelect); onSel.current = onSelect;
+  // visibilité des itinéraires sur la carte
+  useEffect(() => {
+    const m = map.current; if (!m || !ready || !m.getSource("lib")) return;
+    for (const l of ["lib-pts", "lib-sel-casing", "lib-sel-line"]) if (m.getLayer(l)) m.setLayoutProperty(l, "visibility", visible ? "visible" : "none");
+    if (!visible) { hoverMk.current?.remove(); hoverMk.current = null; }
+  }, [visible, ready, map, coords]);
   const profile = useMemo(() => (coords ? buildProfile(coords) : []), [coords]);
   const stats = useMemo(() => (coords ? trackStats(coords, 3) : null), [coords]);
   const problems = useMemo(() => (coords && selected ? [...validateCoords(coords, { maxJumpM: 3000 }), ...entryIssues(selected)] : []), [coords, selected]);
@@ -61,7 +71,7 @@ export function ReferenceLibrary() {
     m.addLayer({ id: "lib-sel-casing", type: "line", source: "lib-sel", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#fff", "line-width": 8 } });
     m.addLayer({ id: "lib-sel-line", type: "line", source: "lib-sel", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#f0612b", "line-width": 4.5 } });
     m.addLayer({ id: "lib-pts", type: "circle", source: "lib", paint: { "circle-radius": 7, "circle-color": "#1e7a58", "circle-stroke-color": "#fff", "circle-stroke-width": 2 } });
-    m.on("click", "lib-pts", (e) => { const id = e.features?.[0]?.properties?.id; if (id) setSel(id as string); });
+    m.on("click", "lib-pts", (e) => { const id = e.features?.[0]?.properties?.id; if (id) { setSel(id as string); onSel.current?.(); } });
     m.on("mouseenter", "lib-pts", () => (m.getCanvas().style.cursor = "pointer"));
     m.on("mouseleave", "lib-pts", () => (m.getCanvas().style.cursor = ""));
   }, [ready, map]);
@@ -72,7 +82,7 @@ export function ReferenceLibrary() {
   useEffect(() => {
     const m = map.current; if (!m || !ready) return;
     (m.getSource("lib-sel") as GeoJSONSource | undefined)?.setData({ type: "FeatureCollection", features: coords ? [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: coords.map((c) => [c[0], c[1]]) } }] : [] });
-    if (coords && coords.length > 1) { const b = bboxOf(coords); m.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 50, maxZoom: 14 }); }
+    if (coords && coords.length > 1 && visible) { const b = bboxOf(coords); m.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 50, maxZoom: 14 }); }
   }, [coords, ready, map]);
   const hoverMk = useRef<import("maplibre-gl").Marker | null>(null);
   useEffect(() => {
@@ -92,12 +102,12 @@ export function ReferenceLibrary() {
   };
 
   const chip = (on: boolean) => clsx("rounded-full border px-3 py-1.5 text-sm font-medium transition", on ? "border-pine-600 bg-pine-600 text-white" : "border-ink-200 bg-white text-ink-700 hover:border-pine-400");
-  const banner = <StatBanner title={selected?.name ?? "Itinéraires de référence"} items={selected && stats ? [{ label: "Distance", value: fmtKm(stats.distanceM) }, { label: "D+", value: fmtM(stats.gainM) }, { label: "D−", value: fmtM(stats.lossM) }] : [{ label: "Itinéraires", value: String(list.length) }]} />;
 
   return (
-    <div data-workspace="scroll" className="grid min-h-[calc(100dvh-4rem)] md:h-[calc(100dvh-4rem)] md:grid-cols-[21rem_1fr] lg:grid-cols-[26rem_1fr]">
-      <aside className="order-2 min-h-0 overflow-y-auto border-ink-100 bg-white p-4 md:order-1 md:border-r">
-        <h1 className="text-xl font-extrabold">Itinéraires de référence</h1>
+    <div>
+        <label className="flex items-center justify-between gap-3 rounded-xl border border-ink-100 bg-ink-50/60 p-3 text-sm font-semibold"><span>Afficher les itinéraires sur la carte<span className="block text-xs font-normal text-ink-500">Repères de départ et tracé sélectionné, visibles aussi depuis les autres onglets.</span></span>
+          <input type="checkbox" role="switch" aria-label="Afficher les itinéraires de référence sur la carte" checked={visible} onChange={(e) => setVisible(e.target.checked)} className="size-5 shrink-0 accent-[var(--color-pine-600)]" /></label>
+        <h2 className="mt-4 font-display text-base font-bold">Itinéraires de référence</h2>
         <p className="mt-1 text-sm text-ink-500">GR, grandes traversées et véloroutes : tracés ouverts (OpenStreetMap, ODbL) avec distance, D+/D− et profil calculés. Sélectionnez un itinéraire pour le voir sur la carte, le télécharger ou l'utiliser dans l'éditeur.</p>
 
         <label className="relative mt-3 block"><span className="sr-only">Rechercher un itinéraire</span><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-400" /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="GR 20, ViaRhôna, Loire…" className="h-10 w-full rounded-lg border border-ink-200 bg-white pl-9 pr-3 text-sm" /></label>
@@ -111,7 +121,7 @@ export function ReferenceLibrary() {
         {!entries && !error && <p className="mt-4 flex items-center gap-2 text-sm text-ink-500"><Loader2 className="size-4 animate-spin" />Chargement…</p>}
         <ul className="mt-3 grid gap-2">
           {list.map((e) => (
-            <li key={e.id}><button type="button" aria-pressed={e.id === sel} onClick={() => setSel(e.id)} className={clsx("w-full rounded-xl border p-3 text-left transition", e.id === sel ? "border-pine-600 bg-pine-50" : "border-ink-100 hover:border-ink-200")}>
+            <li key={e.id}><button type="button" aria-pressed={e.id === sel} onClick={() => { setSel(e.id); if (!visible) setVisible(true); }} className={clsx("w-full rounded-xl border p-3 text-left transition", e.id === sel ? "border-pine-600 bg-pine-50" : "border-ink-100 hover:border-ink-200")}>
               <span className="block font-semibold leading-snug">{e.name}</span>
               <span className="mt-0.5 block text-xs text-ink-500">{PRACTICE_LABEL[e.practice] ?? e.practice} · {e.region}</span>
               <span className="mt-1.5 flex gap-4 text-sm"><span><b className="font-display">{fmtKm(e.distanceM)}</b></span><span><b className="font-display">{fmtM(e.gainM)}</b> D+</span><span><b className="font-display">{fmtM(e.lossM)}</b> D−</span></span>
@@ -121,7 +131,7 @@ export function ReferenceLibrary() {
         </ul>
 
         {selected && (
-          <section className="mt-5 grid gap-3 border-t border-ink-100 pt-4" aria-label="Détail de l'itinéraire">
+          <section className="mt-5 grid grid-cols-[minmax(0,1fr)] gap-3 border-t border-ink-100 pt-4" aria-label="Détail de l'itinéraire">
             <h2 className="font-display text-lg font-bold">{selected.name}</h2>
             <p className="text-sm text-ink-600">{selected.from && selected.to ? <>De <b>{selected.from}</b> à <b>{selected.to}</b> · </> : null}{selected.loop ? "Boucle" : "Itinéraire linéaire"} · {PRACTICE_LABEL[selected.practice] ?? selected.practice} · {selected.region}</p>
             <dl className="grid grid-cols-3 gap-2 text-sm">
@@ -149,11 +159,6 @@ export function ReferenceLibrary() {
             </div>
           </section>
         )}
-      </aside>
-      <MapFrame className="order-1 h-[52vh] min-h-[20rem] md:order-2 md:h-auto" banner={banner}>
-        <div className="absolute inset-0"><div ref={el} className="size-full" role="region" aria-label="Carte des itinéraires de référence" /></div>
-        <LayerControl map={map} ready={ready} />
-      </MapFrame>
     </div>
   );
 }

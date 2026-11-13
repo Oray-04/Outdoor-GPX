@@ -9,7 +9,7 @@ export default function Home() {
     <>
       <Hero />
       <SportChips />
-      <Section eyebrow="Grands itinéraires" title="Des traversées qui font rêver" action={{ href: "/itineraires", label: "Tous les itinéraires" }}><ReferenceHighlights /></Section>
+      <Section eyebrow="Grands itinéraires" title="Des traversées qui font rêver" action={{ href: "/explorer/?itineraire=", label: "Tous les itinéraires" }}><ReferenceHighlights /></Section>
       <Section tone="white" eyebrow="Près de chez vous" title="Vos parcours selon votre position"><NearYou /></Section>
       <Section eyebrow="Fonctionnalités" title="Des outils de terrain, dans le navigateur"><Features /></Section>
       <Section tone="white" eyebrow="Calendrier" title="Prochains événements" action={{ href: "/evenements", label: "Voir le calendrier" }}><UpcomingEvents /></Section>
