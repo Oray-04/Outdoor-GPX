@@ -124,6 +124,12 @@ Astérisque rouge + légende « * Champ obligatoire » ; la validation correspon
 ### Navigation et périmètre
 Trois univers : **Parcours** (Explorer, Créer, Générer, Itinéraires, Itinérance, Bibliothèque), **Événements** (calendrier, espace organisateur), **Nutrition** (page « Bientôt disponible »). Plus aucune donnée de démonstration ni offre payante : tout est gratuit. Les tracés synthétiques ne subsistent que comme jeux d'essai (`tests/fixtures/`).
 
+### Ergonomie sur ordinateur : défilement et superpositions
+- **Éditeur** : la grille bornait mal sa hauteur, si bien que le panneau de droite (et le profil altimétrique sous la carte) étaient coupés en bas et ne défilaient pas. Ligne de grille bornée, panneau qui défile jusqu'au dernier bouton, profil visible et à pleine largeur.
+- **Cartes intégrées dans une page** (fiche parcours, accueil, bibliothèque en carte, logistique, analyse, hors ligne) : la molette fait défiler la page ; **Ctrl/⌘ + molette** zoome (aide affichée), deux doigts sur mobile. En plein écran, et sur les espaces de travail (Explorer, Créer, Générer, Itinéraires, Itinérance), la molette zoome comme avant.
+- **Espaces de travail plein écran** : plus de pied de page caché sous l'application, donc plus de second défilement.
+- **Organisation Trail** : menu des six étapes en colonne latérale fixe sur ordinateur, liste de contrôle de chaque étape repliable.
+
 ### Organisation Trail : parcours guidé en six étapes — `/organisateurs`
 L'espace organisateur est un circuit : **1 Parcours → 2 Trail → 3 Analyse → 4 Documents → 5 Logistique → 6 Vérification finale**. Chaque étape ouvre la suivante (`src/lib/trail-flow.ts` : états, verrous et pourcentage déduits des données, jamais saisis) ; une étape verrouillée dit ce qui la débloque. Un événement préparé avant ce circuit (postes ou bénévoles déjà saisis) n'est jamais verrouillé.
 - **Deux clics** une fois les parcours enregistrés, la course associée et l'effectif donné : « Lancer l'analyse » (relevé du tracé en une requête : goudron, chemins, **traversées et passages sur route**, départements) puis « Tout générer » (règlement s'il n'existe pas, **postes proposés** : départ, arrivée, points d'intérêt du parcours repris, ravitaillements espacés, secours, barrière horaire au-delà du marathon, signaleurs aux routes détectées). Rien d'existant n'est écrasé ; relancer ne duplique rien.

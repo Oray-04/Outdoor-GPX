@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useImperativeHandle, useRef, forwardRef } from "react";
+import { MAP_LOCALE } from "@/components/map/use-map";
 import type { Map as MLMap } from "maplibre-gl";
 import { BASEMAPS } from "@/lib/basemaps";
 import { BASE } from "@/lib/url";
@@ -38,7 +39,7 @@ export const HeroMap = forwardRef<HeroMapHandle>(function HeroMap(_, ref) {
           layers: [{ id: "bg", type: "background", paint: { "background-color": "#dfe7e2" } }, { id: "base", type: "raster", source: "base", paint: { "raster-saturation": -0.3 } }],
         },
         center: [4.2, 45.6], zoom: 4.6, attributionControl: { compact: true },
-        cooperativeGestures: true,
+        cooperativeGestures: true, locale: MAP_LOCALE,
       });
       m.addControl(new ml.NavigationControl({ showCompass: false }), "top-right");
       map.current = m;

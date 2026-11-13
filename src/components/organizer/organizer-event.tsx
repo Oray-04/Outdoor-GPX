@@ -50,10 +50,10 @@ function Workspace({ ev }: { ev: EventModel }) {
   const [picked, setPicked] = useState<StepId | null>(null);
   const [sub, setSub] = useState<"postes" | "benevoles" | "passages">("postes");
   const active = picked ?? flow.current, step = flow.steps.find((s) => s.id === active)!;
-  const pick = (s: StepId) => { setPicked(s); requestAnimationFrame(() => document.getElementById("etapes")?.scrollIntoView({ behavior: "smooth", block: "start" })); };
+  const pick = (s: StepId) => { setPicked(s); requestAnimationFrame(() => { const t = document.getElementById("etapes"); if (t && t.getBoundingClientRect().top < 0) window.scrollTo({ top: window.scrollY + t.getBoundingClientRect().top - 80, behavior: "smooth" }); }); };
   const frame = (auto: string | undefined, children: React.ReactNode) => <StepFrame step={step} flow={flow} ev={ev} save={save} onPick={pick} auto={auto}>{children}</StepFrame>;
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
       <Link href="/organisateurs" className="inline-flex items-center gap-1.5 text-sm text-ink-500 hover:text-ink-900"><ArrowLeft className="size-4" />Organisation Trail</Link>
       <header className="mt-2 flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0"><h1 className="text-3xl sm:text-4xl">{ev.name}</h1><p className="mt-1 text-sm text-ink-600">{/^\d{4}-\d{2}-\d{2}$/.test(ev.date) ? new Date(`${ev.date}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : "Date à préciser"} · {ev.place || "Lieu à préciser"} · {ev.races.length} course(s)</p></div>
@@ -61,7 +61,9 @@ function Workspace({ ev }: { ev: EventModel }) {
           <Link href={eventHref(ev.id)} className="inline-flex h-10 items-center gap-1.5 rounded-full border border-ink-200 bg-white px-4 text-sm font-semibold hover:bg-ink-50"><Eye className="size-4" />Page publique</Link></div>
       </header>
       <Consistency ev={ev} save={save} />
-      <div id="etapes" className="mt-5 scroll-mt-20"><Stepper flow={flow} active={active} onPick={pick} /></div>
+      <div id="etapes" className="mt-5 scroll-mt-20 lg:grid lg:grid-cols-[15.5rem_minmax(0,1fr)] lg:items-start lg:gap-6">
+      <aside className="lg:sticky lg:top-20"><div className="lg:hidden"><Stepper flow={flow} active={active} onPick={pick} /></div><div className="hidden lg:block"><Stepper vertical flow={flow} active={active} onPick={pick} /><p className="mt-3 px-2 text-xs text-ink-500">Chaque étape ouvre la suivante. Vous pouvez revenir sur une étape terminée à tout moment.</p></div></aside>
+      <div className="min-w-0">
       {step.status === "locked" ? <LockedPanel step={step} flow={flow} onPick={pick} /> : (<>
         {active === "parcours" && frame(undefined, <StepParcours ev={ev} />)}
         {active === "trail" && frame("la distance, le dénivelé, les altitudes et la discipline de chaque course sont repris du parcours choisi.", <>
@@ -87,6 +89,7 @@ function Workspace({ ev }: { ev: EventModel }) {
         </>)}
         {active === "verification" && frame(undefined, <FinalCheck flow={flow} ev={ev} save={save} onPick={pick} />)}
       </>)}
+      </div></div>
     </div>
   );
 }

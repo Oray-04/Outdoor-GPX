@@ -112,6 +112,11 @@ input[type=range] { accent-color: var(--color-pine-600); }
 [data-workspace][data-fullscreen="true"] { position: fixed !important; inset: 0; z-index: 80; height: 100dvh !important; min-height: 0 !important; max-height: none; background: var(--color-paper); --bnav: 0px; overflow: hidden; }
 [data-workspace]:fullscreen { --bnav: 0px; background: var(--color-paper); overflow: hidden; }
 @media (min-width: 768px) { [data-workspace][data-fullscreen="true"], [data-workspace]:fullscreen { grid-template-rows: minmax(0, 1fr); } }
+/* Espaces de travail (carte + panneau) : ils occupent tout l'écran ; le pied de page n'est pas affiché dessous (sinon un second défilement apparaît sous l'application). */
+body:has(main [data-workspace]:not([data-workspace="scroll"])) .site-footer { display: none; }
+@media (min-width: 768px) { body:has(main [data-workspace="scroll"]) .site-footer { display: none; } }
+/* Écran d'aide des cartes intégrées dans une page : « Ctrl + molette pour zoomer » */
+.maplibregl-cooperative-gesture-screen { background: rgb(10 21 20 / 0.55) !important; font-family: var(--font-sans); font-size: 1rem !important; font-weight: 600; backdrop-filter: blur(2px); }
 /* pages « panneau + carte » empilés sur mobile : le panneau reste atteignable en faisant défiler */
 @media (max-width: 767px) { [data-workspace="scroll"][data-fullscreen="true"], [data-workspace="scroll"]:fullscreen { overflow-y: auto; } }
 

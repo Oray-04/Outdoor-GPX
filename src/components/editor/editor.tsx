@@ -513,7 +513,7 @@ export function Editor({ routeId }: { routeId?: string }) {
   const field = "w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm";
 
   return (
-    <div data-workspace className="relative h-[calc(100dvh-4rem-var(--bnav))] overflow-hidden lg:grid lg:min-h-[40rem] lg:grid-cols-[1fr_22rem]">
+    <div data-workspace className="relative h-[calc(100dvh-4rem-var(--bnav))] overflow-hidden lg:grid lg:min-h-[36rem] lg:grid-cols-[1fr_22rem] lg:grid-rows-[minmax(0,1fr)]">
       <div className="absolute inset-x-0 top-0 bottom-[8rem] flex flex-col lg:static lg:min-h-0">
         <MapFrame className="min-h-[18rem] flex-1" banner={<StatBanner title={meta.name || "Parcours en cours"} items={[{ label: "Distance", value: stats ? fmtKm(stats.distanceM) : "—" }, { label: "D+", value: stats ? fmtM(stats.gainM) : "—" }, { label: "D−", value: stats ? fmtM(stats.lossM) : "—" }, { label: "Alt. min", value: stats ? fmtM(stats.minEle) : "—" }, { label: "Alt. max", value: stats ? fmtM(stats.maxEle) : "—" }, { label: "Durée est.", value: stats ? fmtDuration(durationMin) : "—" }]} />}>
           <div className="absolute inset-0"><div ref={el} className="size-full" role="application" aria-label="Carte de l'éditeur : cliquez pour ajouter des points" /></div>

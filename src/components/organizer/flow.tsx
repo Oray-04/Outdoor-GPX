@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { Check, Lock, CircleDashed, ShieldCheck, Sparkles, Loader2, ArrowRight, ArrowLeft, Route as RouteIcon, Upload, Wand2, Compass, PenLine, TriangleAlert, CircleCheck, ListChecks, FileDown } from "lucide-react";
+import { ChevronDown, Check, Lock, CircleDashed, ShieldCheck, Sparkles, Loader2, ArrowRight, ArrowLeft, Route as RouteIcon, Upload, Wand2, Compass, PenLine, TriangleAlert, CircleCheck, ListChecks, FileDown } from "lucide-react";
 import clsx from "clsx";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { routesRepo } from "@/lib/repo";
@@ -25,7 +25,22 @@ const STATUS: Record<FlowStep["status"], { label: string; cls: string }> = {
 };
 
 /** Fil des six étapes : numéro, état, avancement. Une étape verrouillée dit ce qui la débloque. */
-export function Stepper({ flow, active, onPick }: { flow: Flow; active: StepId; onPick: (s: StepId) => void }) {
+export function Stepper({ flow, active, onPick, vertical = false }: { flow: Flow; active: StepId; onPick: (s: StepId) => void; vertical?: boolean }) {
+  if (vertical) return (
+    <nav aria-label="Étapes de l'organisation" className="rounded-2xl bg-white p-2 shadow-card ring-1 ring-ink-100">
+      <ol className="grid gap-0.5">
+        {flow.steps.map((s, i) => { const on = s.id === active, locked = s.status === "locked"; return (
+          <li key={s.id} className="relative">
+            {i < flow.steps.length - 1 && <span aria-hidden="true" className={clsx("absolute left-[1.45rem] top-10 h-[calc(100%-1.75rem)] w-0.5 rounded-full", s.status === "done" ? "bg-pine-500" : "bg-ink-100")} />}
+            <button type="button" onClick={() => onPick(s.id)} aria-current={on ? "step" : undefined} title={locked ? s.lockedWhy : undefined} data-step={s.id} data-status={s.status}
+              className={clsx("relative flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition", on ? "bg-ink-950 text-white shadow-lift" : locked ? "text-ink-400 hover:bg-ink-50" : "text-ink-800 hover:bg-ink-50")}>
+              <span className={clsx("grid size-7 shrink-0 place-items-center rounded-full font-display text-xs font-bold", s.status === "done" ? "bg-pine-600 text-white" : on ? "bg-brass-400 text-ink-950" : locked ? "bg-ink-100 text-ink-400" : s.status === "progress" ? "bg-ember-500 text-white" : "bg-ink-100 text-ink-700")}>{s.status === "done" ? <Check className="size-4" /> : locked ? <Lock className="size-3.5" /> : s.n}</span>
+              <span className="min-w-0"><span className="block truncate text-sm font-semibold">{s.title}</span><span className={clsx("block text-[11px] font-medium", on ? "text-white/70" : "text-ink-500")}>{locked ? "Verrouillé" : s.id === "verification" ? `${flow.todo.length + flow.toValidate.length} point(s) ouvert(s)` : `${s.done}/${s.total} · ${STATUS[s.status].label}`}</span></span>
+            </button>
+          </li>); })}
+      </ol>
+    </nav>
+  );
   return (
     <nav aria-label="Étapes de l'organisation" className="rounded-2xl bg-white p-2 shadow-card ring-1 ring-ink-100">
       <ol className="flex gap-1 overflow-x-auto lg:grid lg:grid-cols-6">
@@ -64,14 +79,17 @@ export function StepFrame({ step, flow, ev, save, onPick, auto, children }: { st
   const i = flow.steps.findIndex((s) => s.id === step.id), prev = flow.steps[i - 1], next = flow.steps[i + 1];
   const open = step.items.filter((x) => x.state === "todo"), vals = step.items.filter((x) => x.validateId);
   return (
-    <section aria-labelledby="step-title" className="mt-5">
+    <section aria-labelledby="step-title" className="mt-5 lg:mt-0">
       <header className="rounded-2xl bg-white p-5 shadow-card ring-1 ring-ink-100">
         <p className="eyebrow">Étape {step.n} sur 6</p>
         <div className="mt-1 flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><h2 id="step-title" className="text-2xl">{step.title}</h2><p className="mt-1 max-w-2xl text-sm text-ink-600">{step.goal}</p></div>
           <span className={clsx("rounded-full px-3 py-1 text-xs font-semibold", STATUS[step.status].cls)}>{STATUS[step.status].label}</span></div>
         {auto && <p className="mt-3 flex gap-2 rounded-xl bg-brass-100/70 px-3 py-2 text-sm text-ink-800"><Sparkles className="mt-0.5 size-4 shrink-0 text-brass-600" /><span><b>Automatique :</b> {auto}</span></p>}
-        {step.id !== "verification" && step.items.length > 0 && (
-          <ul className="mt-3 grid gap-1.5 sm:grid-cols-2" aria-label="Avancement de l'étape">{step.items.filter((x) => !x.validateId).map((x) => <li key={x.id} className="flex gap-2 text-sm"><ItemIcon state={x.state} /><span className={clsx(x.state === "done" && "text-ink-500")}>{x.label}{x.hint && x.state !== "done" && <span className="block text-xs text-ink-500">{x.hint}</span>}</span></li>)}</ul>)}
+        {step.id !== "verification" && step.items.length > 0 && (() => { const list = step.items.filter((x) => !x.validateId), left = list.filter((x) => x.state === "todo"); return (
+          <details className="group mt-3" open={left.length > 0}>
+            <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-ink-700"><ChevronDown className="size-4 text-ink-400 transition group-open:rotate-180" />{left.length ? `${left.length} point(s) à traiter dans cette étape` : "Tout est fait dans cette étape"}<span className="font-normal text-ink-500">· {list.length - left.length}/{list.length}</span></summary>
+            <ul className="mt-2 grid gap-1.5 sm:grid-cols-2" aria-label="Avancement de l'étape">{list.map((x) => <li key={x.id} className="flex gap-2 text-sm"><ItemIcon state={x.state} /><span className={clsx(x.state === "done" && "text-ink-500")}>{x.label}{x.hint && x.state !== "done" && <span className="block text-xs text-ink-500">{x.hint}</span>}</span></li>)}</ul>
+          </details>); })()}
       </header>
       <div className="mt-5 grid gap-5">{children}</div>
       {vals.length > 0 && step.id !== "verification" && <div className="mt-5 rounded-2xl bg-white p-5 shadow-card ring-1 ring-ink-100"><h3 className="flex items-center gap-2 text-base font-bold"><ShieldCheck className="size-5 text-glacier-600" />Votre validation</h3><p className="text-sm text-ink-500">Ces décisions vous engagent : le site les prépare mais ne les prend pas à votre place.</p><div className="mt-3 grid gap-2 md:grid-cols-2">{vals.map((v) => <ValidateBox key={v.id} item={v} ev={ev} save={save} />)}</div></div>}
@@ -184,5 +202,5 @@ export function FinalCheck({ flow, ev, save, onPick }: { flow: Flow; ev: EventMo
 
 export function LockedPanel({ step, onPick, flow }: { step: FlowStep; flow: Flow; onPick: (s: StepId) => void }) {
   const cur = flow.steps.find((s) => s.id === flow.current)!;
-  return <div className="mt-5 rounded-2xl border border-dashed border-ink-300 bg-white/70 p-8 text-center"><span className="mx-auto grid size-12 place-items-center rounded-full bg-ink-100 text-ink-500"><Lock className="size-5" /></span><h2 className="mt-3 text-xl">Étape {step.n} — {step.title}</h2><p className="mx-auto mt-1 max-w-md text-sm text-ink-600">{step.goal}</p><p className="mx-auto mt-3 max-w-md rounded-xl bg-warn/10 px-3 py-2 text-sm font-medium text-ink-800">Pour l&apos;ouvrir : {step.lockedWhy}</p><div className="mt-4 flex justify-center"><ButtonLink href="#" onClick={(e) => { e.preventDefault(); onPick(cur.id); }}>Aller à l&apos;étape {cur.n} — {cur.short}<ArrowRight className="size-4" /></ButtonLink></div></div>;
+  return <div className="mt-5 rounded-2xl border border-dashed lg:mt-0 border-ink-300 bg-white/70 p-8 text-center"><span className="mx-auto grid size-12 place-items-center rounded-full bg-ink-100 text-ink-500"><Lock className="size-5" /></span><h2 className="mt-3 text-xl">Étape {step.n} — {step.title}</h2><p className="mx-auto mt-1 max-w-md text-sm text-ink-600">{step.goal}</p><p className="mx-auto mt-3 max-w-md rounded-xl bg-warn/10 px-3 py-2 text-sm font-medium text-ink-800">Pour l&apos;ouvrir : {step.lockedWhy}</p><div className="mt-4 flex justify-center"><ButtonLink href="#" onClick={(e) => { e.preventDefault(); onPick(cur.id); }}>Aller à l&apos;étape {cur.n} — {cur.short}<ArrowRight className="size-4" /></ButtonLink></div></div>;
 }

@@ -20,7 +20,7 @@ export function Sheet({ state, onState, header, children, className, label = "Pa
     <aside data-s={state} aria-label={label}
       className={clsx("absolute inset-x-0 bottom-0 z-30 flex flex-col rounded-t-2xl bg-white shadow-[0_-10px_30px_rgba(13,27,23,0.18)] transition-[height] duration-300 ease-out",
         "h-[8rem] data-[s=half]:h-[52%] data-[s=full]:h-[calc(100%-0.75rem)]",
-        "lg:static lg:z-auto lg:!h-auto lg:shrink-0 lg:rounded-none lg:border-ink-100 lg:shadow-none", side === "left" ? "lg:w-[23rem] lg:border-r" : "lg:w-[22rem] lg:border-l", className)}>
+        "lg:static lg:z-auto lg:!h-auto lg:min-h-0 lg:shrink-0 lg:rounded-none lg:border-ink-100 lg:shadow-none", side === "left" ? "lg:w-[23rem] lg:border-r" : "lg:w-[22rem] lg:border-l", className)}>
       <div className="shrink-0 touch-pan-x lg:touch-auto"
         onTouchStart={(e) => { y0.current = e.touches[0].clientY; }}
         onTouchEnd={(e) => { if (y0.current == null) return; const dy = y0.current - e.changedTouches[0].clientY; y0.current = null; if (Math.abs(dy) > 36) step(dy > 0 ? 1 : -1); }}>

@@ -32,7 +32,7 @@ export const ElevationChart = forwardRef<SVGSVGElement, Props>(function Elevatio
     const ro = new ResizeObserver(() => setW(Math.max(280, el.clientWidth)));
     ro.observe(el); setW(Math.max(280, el.clientWidth));
     return () => ro.disconnect();
-  }, []);
+  }, [points.length >= 2]); // le graphique n'existe qu'à partir de 2 points : on mesure sa largeur dès qu'il apparaît
 
   const geo = useMemo(() => {
     if (points.length < 2) return null;
