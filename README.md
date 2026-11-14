@@ -124,6 +124,15 @@ Astérisque rouge + légende « * Champ obligatoire » ; la validation correspon
 ### Navigation et périmètre
 Trois univers : **Parcours** (Explorer — avec les itinéraires de référence —, Créer, Générer, Bibliothèque — avec l'itinérance de chaque parcours), **Événements** (calendrier, espace organisateur), **Nutrition** (page « Bientôt disponible »). Plus aucune donnée de démonstration ni offre payante : tout est gratuit. Les tracés synthétiques ne subsistent que comme jeux d'essai (`tests/fixtures/`).
 
+### Planificateur nutritionnel — `/nutrition`
+Outil de planification pour la route, le trail et l'ultra (la page d'attente « bientôt disponible » est remplacée).
+- **Parcours en 5 étapes** : profil (poids, niveau, expérience, tolérance digestive, habitudes), course (type, distance, D+, durée — estimable —, intensité, heure de départ, ravitaillements ; import possible d'un parcours enregistré avec ses points de ravitaillement), météo (température, humidité, ciel, sudation), préférences (produits, objectifs, caféine, test de sudation, sodium de la sueur), plan.
+- **Moteur indépendant de l'interface** (`src/lib/nutrition/`) : `constants.ts` (tous les seuils et coefficients, réglables), `carbs.ts`, `hydration.ts`, `sodium.ts`, `caffeine.ts`, `plan.ts` (plan de course), `engine.ts` (validation et calcul complet), `products.ts`, `references.ts` (références, recommandations établies et hypothèses), `pdf.ts`, `storage.ts`.
+- **Garde-fous** : 90 g/h seulement avec intestin entraîné + bonne tolérance + niveau confirmé ; eau jamais au niveau des pertes (65 % par défaut, 300–800 ml/h, < 90 % des pertes) ; sodium plafonné ; caféine prudente par défaut, alertes au-delà de 3 mg/kg par prise, 400 mg/jour, 6 mg/kg ; caféine résiduelle au coucher ; fiabilité affichée (mesuré / estimé).
+- **Catalogue personnel** de produits : valeurs saisies depuis l'emballage, aucune valeur pré-remplie ; le plan donne le nombre exact par prise, par tronçon et au total, et signale les stocks insuffisants et la capacité de liquide dépassée.
+- Résultats : 4 indicateurs, graphiques cumulés (objectif / prévu), courbe de caféine, timeline, planning chronologique, tronçons, produits ; plans enregistrés sur l'appareil ; fiche PDF.
+- Tests : `tests/nutrition.test.ts` (formules et cas limites).
+
 ### Météo du parcours : activable
 Sur la fiche d'un parcours, la section « Météo et vent le long du parcours » a un interrupteur. Désactivée par défaut : aucune requête au service météo et aucune flèche de vent sur la carte. Activée, elle affiche prévisions à l'heure de passage, créneaux de départ et vent sur la carte ; le choix est mémorisé sur l'appareil pour toutes les fiches (`crete:meteo`).
 
