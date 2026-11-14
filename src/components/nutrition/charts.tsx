@@ -44,8 +44,8 @@ export function CaffeineChart({ r, startTime }: { r: NutritionResult; startTime:
         <rect x={x(0)} y={M.t} width={Math.max(0, x(dur) - x(0))} height={H - M.t - M.b} fill="#12624b" opacity="0.06" />
         <text x={x(0) + 4} y={M.t + 9} fontSize="8.5" fill="#12624b">Course</text>
         {marks.map((t) => <text key={t} x={x(t)} y={H - 8} fontSize="9" textAnchor="middle" fill="#5f7069">{hh(t)}</text>)}
-        <path d={`${d}L${x(t1)},${y(0)}L${x(t0)},${y(0)}Z`} fill="#7a4bd1" opacity="0.12" /><path d={d} fill="none" stroke="#7a4bd1" strokeWidth="2.5" />
-        {c.doses.map((k) => <g key={k.id}><line x1={x(k.atMin)} x2={x(k.atMin)} y1={M.t} y2={H - M.b} stroke="#7a4bd1" strokeDasharray="2 3" /><text x={x(k.atMin) + 3} y={H - M.b - 4} fontSize="8.5" fill="#7a4bd1">{k.mg} mg</text></g>)}
+        <path d={`${d}L${x(t1)},${y(0)}L${x(t0)},${y(0)}Z`} fill="#a67c2e" opacity="0.12" /><path d={d} fill="none" stroke="#a67c2e" strokeWidth="2.5" />
+        {c.doses.map((k) => <g key={k.id}><line x1={x(k.atMin)} x2={x(k.atMin)} y1={M.t} y2={H - M.b} stroke="#a67c2e" strokeDasharray="2 3" /><text x={x(k.atMin) + 3} y={H - M.b - 4} fontSize="8.5" fill="#a67c2e">{k.mg} mg</text></g>)}
       </svg>
       <figcaption className="mt-1 text-xs text-ink-500">Quantité estimée dans l'organisme (mg), demi-vie de {c.halfLifeH} h. Pic ≈ {c.peakMg} mg · {c.atFinishMg} mg à l&apos;arrivée{c.atBedMg != null ? ` · ${c.atBedMg} mg au coucher` : ""}.</figcaption>
     </figure>

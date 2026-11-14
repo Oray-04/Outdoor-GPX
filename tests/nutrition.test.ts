@@ -204,3 +204,22 @@ describe("cas limites de bout en bout", () => {
   });
   it("froid : sudation plancher, apport jamais supérieur aux pertes", () => { const r = computeNutrition(mk(240, -15)); expect(r.hydration.sweatLh).toBeGreaterThanOrEqual(0.25); expect(r.hydration.mlh).toBeLessThan(r.hydration.sweatLh * 1000); });
 });
+
+import { gapOf, shortfalls } from "../src/lib/nutrition/plan";
+describe("objectifs non atteints", () => {
+  it("écart et statut", () => {
+    expect(gapOf("carbsG", 60, 40)).toMatchObject({ gap: 20, pct: 67, status: "short" });
+    expect(gapOf("carbsG", 60, 20)).toMatchObject({ gap: 40, status: "missing" });
+    expect(gapOf("carbsG", 60, 55)).toMatchObject({ status: "ok" }); // dans la tolérance de 10 %
+    expect(gapOf("carbsG", 30, 24)).toMatchObject({ status: "ok" }); // 6 g : moins d'une demi-portion
+    expect(gapOf("sodiumMg", 1000, 1500)).toMatchObject({ status: "over", gap: 0 });
+    expect(gapOf("carbsG", 0, 0)).toMatchObject({ status: "ok", pct: 100 });
+  });
+  it("plan sans produit glucidique : manque total signalé ; prise par prise, retard cumulé", () => {
+    const p = buildPlan({ durationMin: 180, distanceKm: 30, startTime: "08:00", intervalMin: 30, carbs: { gph: 60, ramp: [1] }, waterMlH: 500, sodiumMgH: 400, caffeineDoses: [], aid: [], products: [P({ id: "g", name: "Gel", carbsG: 25 })], productIds: [], drinkId: null, carryMl: null, refillAtAid: true });
+    const s = shortfalls(p); expect(s.any).toBe(true); expect(s.totals.carbsG).toMatchObject({ target: 180, got: 0, status: "missing" }); expect(s.totals.waterMl.status).toBe("ok");
+    expect(s.slots.every((x) => x.carbsG.behind)).toBe(true); expect(s.segments[0].sodiumMg.status).toBe("missing");
+    const q = buildPlan({ durationMin: 180, distanceKm: 30, startTime: "08:00", intervalMin: 30, carbs: { gph: 60, ramp: [1] }, waterMlH: 500, sodiumMgH: 0, caffeineDoses: [], aid: [], products: [P({ id: "g", name: "Gel", carbsG: 25 })], productIds: ["g"], drinkId: null, carryMl: null, refillAtAid: true });
+    const t = shortfalls(q); expect(t.totals.carbsG.status).toBe("ok"); expect(t.slots.filter((x) => x.carbsG.behind)).toHaveLength(0); expect(t.any).toBe(false);
+  });
+});

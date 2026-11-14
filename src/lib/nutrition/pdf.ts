@@ -1,6 +1,8 @@
 import type { NutritionResult } from "./engine";
 import type { PlanInput } from "./types";
 import { CATEGORY_SHORT } from "./products";
+import { shortfalls } from "./plan";
+import { gapFixes } from "./gaps";
 import { DISCLAIMER, ESTABLISHED, ASSUMPTIONS } from "./references";
 import { LEVEL_LABEL, TOLERANCE_LABEL, HABIT_LABEL, INTENSITY_LABEL, RACE_LABEL, SWEAT_LABEL, SKY_LABEL, fmtDur, fmtL } from "./labels";
 
@@ -32,16 +34,29 @@ export async function nutritionPdf(i: PlanInput, r: NutritionResult): Promise<Bl
   line(`Sueur : ${r.hydration.sweatLh} L/h (${r.hydration.reliability === "mesuree" ? "mesuré" : `estimé, fourchette ${r.hydration.sweatRange[0]}–${r.hydration.sweatRange[1]} L/h`}). Boire ${r.hydration.mlh} ml/h (${r.hydration.replacePct} % des pertes), soit ${fmtL(r.hydration.totalMl)}. Perte de masse prévue ≈ ${r.hydration.lossPct} %.`);
   line(`Sodium : pertes ≈ ${r.sodium.lossMgH} mg/h (sueur à ${r.sodium.sweatMgL} mg/L, ${r.sodium.reliability === "mesuree" ? "mesurée" : "estimée"}) ; apport visé ${r.sodium.mgh} mg/h, soit ${r.sodium.totalMg} mg.`);
   line(r.caffeine.totalMg ? `Caféine : ${r.caffeine.doses.map((d) => `${d.mg} mg à ${d.atMin < 0 ? `${-d.atMin} min avant le départ` : `${fmtDur(d.atMin)} de course`}`).join(", ")} ; pic estimé ${r.caffeine.peakMg} mg, ${r.caffeine.atFinishMg} mg à l'arrivée${r.caffeine.atBedMg != null ? `, ${r.caffeine.atBedMg} mg au coucher` : ""} (demi-vie ${r.caffeine.halfLifeH} h).` : "Caféine : aucune.");
+  // objectifs non atteints
+  const sf = shortfalls(r.plan), fixes = gapFixes(i, sf.totals);
+  if (fixes.length) {
+    y += 2; room(10 + fixes.length * 10); doc.setFillColor(253, 226, 222); doc.setDrawColor(192, 54, 44);
+    const top = y - 4; let yy = y + 2; doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(192, 54, 44); doc.text("OBJECTIFS NON ATTEINTS", L + 3, yy); yy += 5;
+    doc.setFontSize(9); const blocks = fixes.map((f) => [pdfSafe(`${f.title} : ${f.got} ${f.unit} prévus pour ${f.target} ${f.unit} — MANQUE ${f.gap} ${f.unit}`), ...doc.splitTextToSize(pdfSafe(f.how), W - 6)]);
+    const h = blocks.reduce((a, b) => a + b.length * 4.2 + 1, 0) + 9; doc.rect(L, top, W, h, "FD");
+    for (const b of blocks) { doc.setFont("helvetica", "bold"); doc.setTextColor(192, 54, 44); doc.text(b[0], L + 3, yy); yy += 4.2; doc.setFont("helvetica", "normal"); doc.setTextColor(40); doc.text(b.slice(1), L + 3, yy); yy += (b.length - 1) * 4.2 + 1; }
+    doc.setTextColor(0); y = top + h + 4;
+  }
   // planning
   h1("Planning chronologique");
   const cols = [L, L + 22, L + 36, L + 51, L + 65, L + 83, L + 99];
   const head = () => { doc.setFont("helvetica", "bold"); doc.setFontSize(8); ["Heure", "Km", "Gluc. (g)", "Eau (ml)", "Na (mg)", "Caféine", "Produits"].forEach((t, k) => doc.text(t, cols[k], y)); doc.setFont("helvetica", "normal"); y += 1.5; doc.setDrawColor(200); doc.line(L, y, L + W, y); y += 4; };
   head();
+  const run = r.plan.slots.filter((x) => x.kind === "course");
   for (const s of r.plan.slots) {
     const prod = [...s.items.map((it) => `${it.qty} × ${it.name}`), ...(s.drinkMl ? [`${Math.round(s.drinkMl)} ml de boisson`] : []), ...(s.plainWaterMl ? [`${Math.round(s.plainWaterMl)} ml d'eau`] : []), ...(s.caffeineOtherMg ? [`${s.caffeineOtherMg} mg de caféine (café, comprimé…)`] : [])].join(", ") + (s.aid ? ` — ${s.aid}` : "");
     const ls = doc.splitTextToSize(pdfSafe(prod || "-"), W - 99);
     if (y + ls.length * 3.6 > 285) { doc.addPage(); y = 14; head(); }
-    doc.setFontSize(8); doc.text(s.clock, cols[0], y); doc.text(s.km != null ? String(s.km) : "—", cols[1], y); doc.text(String(Math.round(s.got.carbsG)), cols[2], y); doc.text(String(Math.round(s.got.waterMl)), cols[3], y); doc.text(String(Math.round(s.got.sodiumMg)), cols[4], y); doc.text(s.target.caffeineMg ? `${s.target.caffeineMg} mg` : "", cols[5], y); doc.text(ls, cols[6], y);
+    doc.setFontSize(8); doc.text(s.clock, cols[0], y); doc.text(s.km != null ? String(s.km) : "-", cols[1], y);
+    const k = run.indexOf(s), fl = k >= 0 ? sf.slots[k] : null;
+    ([["carbsG", 2], ["waterMl", 3], ["sodiumMg", 4]] as const).forEach(([m, c]) => { const bad = fl?.[m].behind; if (bad) { doc.setTextColor(192, 54, 44); doc.setFont("helvetica", "bold"); } doc.text(`${Math.round(s.got[m])}${bad ? ` (-${fl![m].behindBy})` : ""}`, cols[c], y); doc.setTextColor(0); doc.setFont("helvetica", "normal"); }); doc.text(s.target.caffeineMg ? `${s.target.caffeineMg} mg` : "", cols[5], y); doc.text(ls, cols[6], y);
     y += Math.max(4.2, ls.length * 3.6);
   }
   // tronçons et produits

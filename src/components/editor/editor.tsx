@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Marker, GeoJSONSource } from "maplibre-gl";
-import { Undo2, Redo2, Route, Route as RouteIcon, MousePointer2, ArrowLeftRight, Repeat, Trash2, Copy, Scissors, Flag, Upload, Download, MapPin, Loader2, Check, AlertTriangle, Plus, Merge, LocateFixed, Wand2, Save as SaveIcon, Bike, MountainSnow, Zap, Footprints } from "lucide-react";
+import { Eye, EyeOff, X, Undo2, Redo2, Route, Route as RouteIcon, MousePointer2, ArrowLeftRight, Repeat, Trash2, Copy, Scissors, Flag, Upload, Download, MapPin, Loader2, Check, AlertTriangle, Plus, Merge, LocateFixed, Wand2, Save as SaveIcon, Bike, MountainSnow, Zap, Footprints } from "lucide-react";
 import clsx from "clsx";
 import { useMap } from "@/components/map/use-map";
 import { LayerControl } from "@/components/map/layer-control";
@@ -509,6 +509,25 @@ export function Editor({ routeId }: { routeId?: string }) {
   const exportAs = (f: GpsFormat) => { if (coords.length < 2) return; download(`${safeName(meta.name || "parcours")}.${FORMATS[f].ext}`, serialize(f, { name: meta.name || "Parcours", description: meta.description, coords, pois: st.pois }), FORMATS[f].mime); };
   const locate = () => navigator.geolocation?.getCurrentPosition((p) => map.current?.flyTo({ center: [p.coords.longitude, p.coords.latitude], zoom: 14 }), () => setMsg({ kind: "warn", text: "Position indisponible ou refusée." }));
   const others = routesRepo.useAll().filter((r) => r.id !== id);
+  // ── Calque de référence : un autre parcours affiché en arrière-plan pour le recalquer (jamais modifié) ──
+  const [refId, setRefIdState] = useState<string | null>(null);
+  const [refShown, setRefShown] = useState(true);
+  useEffect(() => { try { const v = sessionStorage.getItem("crete:editor-ref"); if (v) setRefIdState(v); } catch { /* facultatif */ } }, []);
+  const setRefId = (v: string | null) => { setRefIdState(v); setRefShown(true); try { if (v) sessionStorage.setItem("crete:editor-ref", v); else sessionStorage.removeItem("crete:editor-ref"); } catch { /* facultatif */ } };
+  const refRoute = refId ? others.find((r) => r.id === refId) ?? null : null;
+  useEffect(() => {
+    const m = map.current; if (!m || !ready) return;
+    if (!m.getSource("ref")) {
+      m.addSource("ref", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      const before = m.getLayer("track-casing") ? "track-casing" : undefined;
+      m.addLayer({ id: "ref-halo", type: "line", source: "ref", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#ffffff", "line-width": 11, "line-opacity": 0.45 } }, before);
+      m.addLayer({ id: "ref-line", type: "line", source: "ref", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#1f7594", "line-width": 6, "line-opacity": 0.5 } }, before);
+      m.addLayer({ id: "ref-axis", type: "line", source: "ref", layout: { "line-cap": "butt", "line-join": "round" }, paint: { "line-color": "#0c3f52", "line-width": 1.2, "line-opacity": 0.75, "line-dasharray": [3, 3] } }, before);
+    }
+    (m.getSource("ref") as GeoJSONSource).setData({ type: "FeatureCollection", features: refRoute && refRoute.coords.length > 1 ? [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: refRoute.coords.map((c) => [c[0], c[1]]) } }] : [] });
+    for (const l of ["ref-halo", "ref-line", "ref-axis"]) m.setLayoutProperty(l, "visibility", refShown ? "visible" : "none");
+  }, [refRoute?.id, refRoute?.coords.length, refShown, ready, map]); // eslint-disable-line react-hooks/exhaustive-deps
+  const fitRef = () => { if (!refRoute || refRoute.coords.length < 2) return; const b = bboxOf(refRoute.coords); map.current?.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 70, maxZoom: 15 }); };
 
   const tb = "grid size-10 place-items-center lg:size-9 rounded-lg text-ink-700 hover:bg-ink-100 disabled:opacity-35 disabled:hover:bg-transparent";
   const field = "w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm";
@@ -532,6 +551,11 @@ export function Editor({ routeId }: { routeId?: string }) {
             <button className={tb} onClick={reset} aria-label="Nouveau parcours" title="Nouveau / effacer"><Trash2 className="size-4" /></button>
           </div>
           <LayerControl map={map} ready={ready} />
+          {refRoute && <div role="group" aria-label="Calque de référence" className="glass absolute left-3 top-[4.25rem] z-10 flex max-w-[calc(100%-4.75rem)] items-center gap-1.5 rounded-2xl py-1 pl-2.5 pr-1 text-xs">
+            <span className="inline-block h-1.5 w-5 shrink-0 rounded-full bg-[#1f7594]/60" aria-hidden="true" /><span className="min-w-0 truncate font-semibold">Référence : {refRoute.name}</span>
+            <button type="button" onClick={() => setRefShown((v) => !v)} aria-pressed={!refShown} aria-label={refShown ? "Masquer le calque de référence" : "Afficher le calque de référence"} title={refShown ? "Masquer" : "Afficher"} className="grid size-7 shrink-0 place-items-center rounded-lg hover:bg-ink-100">{refShown ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}</button>
+            <button type="button" onClick={() => setRefId(null)} aria-label="Retirer le calque de référence" title="Retirer" className="grid size-7 shrink-0 place-items-center rounded-lg hover:bg-ink-100"><X className="size-3.5" /></button>
+          </div>}
           <div className="pointer-events-none absolute bottom-8 left-3 flex flex-col gap-1.5">
             {busy && <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/95 px-2.5 py-1 text-xs shadow"><Loader2 className="size-3.5 animate-spin" />Calcul du tracé…</span>}
             {cutMode && <span className="rounded-lg bg-ember-500 px-2.5 py-1 text-xs font-semibold text-white shadow">Découpe : cliquez sur le tracé aux endroits de coupe (Échap pour quitter)</span>}
@@ -580,6 +604,14 @@ export function Editor({ routeId }: { routeId?: string }) {
         </div>}>
         <div className="grid gap-4 p-4">
           {tab === "trace" && (<>
+            <div className="rounded-xl border border-ink-100 p-3" aria-labelledby="ref-title">
+              <p id="ref-title" className="mb-1.5 text-xs font-bold uppercase tracking-wider text-ink-400">Calque de référence</p>
+              {others.length ? <>
+                <select aria-label="Parcours à afficher en arrière-plan" className={field} value={refId ?? ""} onChange={(e) => { setRefId(e.target.value || null); if (e.target.value) setTimeout(() => { const r = others.find((x) => x.id === e.target.value); if (r && r.coords.length > 1 && !stRef.current.waypoints.length) { const b = bboxOf(r.coords); map.current?.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 70, maxZoom: 15 }); } }, 0); }}><option value="">Aucun</option>{others.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select>
+                {refRoute ? <div className="mt-2 flex flex-wrap gap-2"><Button size="sm" variant="secondary" className="!h-8 !px-3 !text-xs" onClick={() => setRefShown((v) => !v)}>{refShown ? <><EyeOff className="size-3.5" />Masquer</> : <><Eye className="size-3.5" />Afficher</>}</Button><Button size="sm" variant="secondary" className="!h-8 !px-3 !text-xs" onClick={fitRef}>Centrer</Button><Button size="sm" variant="ghost" className="!h-8 !px-3 !text-xs" onClick={() => setRefId(null)}><X className="size-3.5" />Retirer</Button></div> : null}
+                <p className="mt-1.5 text-xs text-ink-500">Affiché en bleu transparent sous votre tracé pour le recalquer ; il n&apos;est jamais modifié. Pour suivre exactement sa ligne, passez en mode « Libre ».</p>
+              </> : <p className="text-xs text-ink-500">Enregistrez d&apos;abord un autre parcours pour pouvoir l&apos;afficher en arrière-plan.</p>}
+            </div>
             <div>
               <div role="group" aria-label="Type de sport" className="grid grid-cols-4 gap-1 rounded-xl bg-ink-100 p-1">
                 {([["velo", "Vélo de route", Bike], ["vtt", "VTT", MountainSnow], ["trail", "Trail", Zap], ["rando", "Randonnée", Footprints]] as const).map(([k, l, I]) => (

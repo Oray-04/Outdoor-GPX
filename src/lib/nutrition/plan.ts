@@ -159,3 +159,33 @@ export function buildPlan(i: PlanBuildInput): PlanResult {
   if (drink && drink.caffeineMg > 0) notices.push({ level: "warn", text: `La boisson « ${drink.name} » contient de la caféine : elle s'ajoute aux prises prévues.` });
   return { points, slots, segments, totals, shortages, notices };
 }
+
+// ── Objectifs non atteints : comparaison prévu / objectif, au total, par tronçon et prise par prise ──
+export type Metric = "carbsG" | "waterMl" | "sodiumMg";
+export const METRICS: Metric[] = ["carbsG", "waterMl", "sodiumMg"];
+export interface Gap { metric: Metric; target: number; got: number; gap: number; pct: number; status: "ok" | "short" | "missing" | "over" }
+/** Écart toléré avant de signaler un manque : 10 % de l'objectif, et au moins ces quantités (arrondi des portions). */
+export const GAP_TOLERANCE = { ratio: 0.9, minAbs: { carbsG: 8, waterMl: 60, sodiumMg: 80 } as Record<Metric, number>, overRatio: 1.3 };
+export function gapOf(metric: Metric, target: number, got: number, slack = 0): Gap {
+  const gap = Math.max(0, target - got), pct = target > 0 ? Math.round((got / target) * 100) : 100;
+  let status: Gap["status"] = "ok";
+  if (target > 0 && got < target * GAP_TOLERANCE.ratio && gap > Math.max(GAP_TOLERANCE.minAbs[metric], slack)) status = pct < 60 ? "missing" : "short";
+  else if (target > 0 && got > target * GAP_TOLERANCE.overRatio && got - target > GAP_TOLERANCE.minAbs[metric]) status = "over";
+  return { metric, target: Math.round(target), got: Math.round(got), gap: Math.round(gap), pct, status };
+}
+/**
+ * Manques du plan. Prise par prise, on compare les cumuls (et non chaque prise seule) : une portion arrondie à la prise suivante
+ * n'est pas un manque, un retard qui s'accumule en est un.
+ */
+export function shortfalls(p: PlanResult) {
+  const run = p.slots.filter((s) => s.kind === "course");
+  const totals = Object.fromEntries(METRICS.map((m) => [m, gapOf(m, p.totals.target[m], p.totals.got[m])])) as Record<Metric, Gap>;
+  const cum = { carbsG: [0, 0], waterMl: [0, 0], sodiumMg: [0, 0] } as Record<Metric, [number, number]>;
+  // une portion entière peut être reportée à la prise suivante : tolérance de 60 % de la plus grosse portion utilisée
+  const per = (m: "carbsG" | "sodiumMg") => Math.max(0, ...p.totals.items.map((it) => (it.qty ? it[m] / it.qty : 0)));
+  const slack: Record<Metric, number> = { carbsG: per("carbsG") * 0.6, waterMl: 0, sodiumMg: per("sodiumMg") * 0.6 };
+  const slots = run.map((s) => Object.fromEntries(METRICS.map((m) => { cum[m][0] += s.target[m]; cum[m][1] += s.got[m]; const g = gapOf(m, cum[m][0], cum[m][1], slack[m]); return [m, { behind: g.status === "short" || g.status === "missing", behindBy: g.gap }]; })) as Record<Metric, { behind: boolean; behindBy: number }>);
+  const segments = p.segments.map((g) => Object.fromEntries(METRICS.map((m) => [m, gapOf(m, g.target[m], g.got[m])])) as Record<Metric, Gap>);
+  const any = METRICS.some((m) => totals[m].status === "short" || totals[m].status === "missing");
+  return { totals, slots, segments, any };
+}

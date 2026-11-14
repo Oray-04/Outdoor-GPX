@@ -124,6 +124,9 @@ Astérisque rouge + légende « * Champ obligatoire » ; la validation correspon
 ### Navigation et périmètre
 Trois univers : **Parcours** (Explorer — avec les itinéraires de référence —, Créer, Générer, Bibliothèque — avec l'itinérance de chaque parcours), **Événements** (calendrier, espace organisateur), **Nutrition** (page « Bientôt disponible »). Plus aucune donnée de démonstration ni offre payante : tout est gratuit. Les tracés synthétiques ne subsistent que comme jeux d'essai (`tests/fixtures/`).
 
+### Éditeur : calque de référence
+Onglet Tracé > « Calque de référence » : un autre parcours enregistré s'affiche en arrière-plan (bleu transparent, axe pointillé, sous le tracé en cours) pour le recalquer, idéalement en mode « Libre ». Bandeau sur la carte pour le masquer ou le retirer ; « Centrer » cadre la carte dessus. Le parcours de référence n'est jamais modifié ; le choix est gardé pendant la session.
+
 ### Planificateur nutritionnel — `/nutrition`
 Outil de planification pour la route, le trail et l'ultra (la page d'attente « bientôt disponible » est remplacée).
 - **Parcours en 5 étapes** : profil (poids, niveau, expérience, tolérance digestive, habitudes), course (type, distance, D+, durée — estimable —, intensité, heure de départ, ravitaillements ; import possible d'un parcours enregistré avec ses points de ravitaillement), météo (température, humidité, ciel, sudation), préférences (produits, objectifs, caféine, test de sudation, sodium de la sueur), plan.
@@ -131,6 +134,9 @@ Outil de planification pour la route, le trail et l'ultra (la page d'attente « 
 - **Garde-fous** : 90 g/h seulement avec intestin entraîné + bonne tolérance + niveau confirmé ; eau jamais au niveau des pertes (65 % par défaut, 300–800 ml/h, < 90 % des pertes) ; sodium plafonné ; caféine prudente par défaut, alertes au-delà de 3 mg/kg par prise, 400 mg/jour, 6 mg/kg ; caféine résiduelle au coucher ; fiabilité affichée (mesuré / estimé).
 - **Catalogue personnel** de produits : valeurs saisies depuis l'emballage, aucune valeur pré-remplie ; le plan donne le nombre exact par prise, par tronçon et au total, et signale les stocks insuffisants et la capacité de liquide dépassée.
 - Résultats : 4 indicateurs, graphiques cumulés (objectif / prévu), courbe de caféine, timeline, planning chronologique, tronçons, produits ; plans enregistrés sur l'appareil ; fiche PDF.
+- **Course d'un événement** (étape 2) : sélection directe d'une course de l'Organisation Trail dont le parcours est enregistré ; parcours, distance, dénivelé, heure de départ et ravitaillements (postes ravitaillement et point d'eau) sont repris.
+- **Objectifs non atteints** (`shortfalls`, `gaps.ts`) : indicateurs bordés de rouge avec « Manque X », bloc « à corriger » avec une piste concrète (nombre de produits à ajouter), cellules du planning en rouge là où le retard cumulé dépasse la tolérance (10 % et une demi-portion), tronçons et fiche PDF signalés.
+- Palette : caféine en laiton doré (plus de violet), glucides cuivre, eau bleu glacier, sodium vert sapin ; rouge réservé aux manques et alertes.
 - Tests : `tests/nutrition.test.ts` (formules et cas limites).
 
 ### Météo du parcours : activable

@@ -1,9 +1,9 @@
 "use client";
 import { useMemo, useState } from "react";
-import { Plus, Trash2, Route as RouteIcon, Wand2, FlaskConical, Info } from "lucide-react";
+import { Plus, Trash2, Route as RouteIcon, Wand2, FlaskConical, Info, CalendarDays } from "lucide-react";
 import clsx from "clsx";
 import { Button } from "@/components/ui/button";
-import { routesRepo } from "@/lib/repo";
+import { eventsRepo, routesRepo } from "@/lib/repo";
 import { trackStats } from "@/lib/geo";
 import { positionOnTrack } from "@/lib/events";
 import { suggestDurationMin, type FieldError } from "@/lib/nutrition/engine";
@@ -59,19 +59,32 @@ export function StepProfile({ v, set, errors }: { v: V; set: SetV; errors: Field
 
 export function StepRace({ v, set, errors }: { v: V; set: SetV; errors: FieldError[] }) {
   const r = v.race, up = (p: Partial<V["race"]>) => set((x) => ({ ...x, race: { ...x.race, ...p } }));
-  const routes = routesRepo.useAll();
+  const routes = routesRepo.useAll(), events = eventsRepo.useAll();
+  // courses d'événements dont le parcours est enregistré sur l'appareil
+  const eventRaces = events.flatMap((ev) => ev.races.filter((rc) => rc.routeId && routes.some((x) => x.id === rc.routeId)).map((rc) => ({ ev, rc })));
+  /** Reprend la course d'un événement : parcours lié, distance, dénivelé, heure de départ et ravitaillements placés dans l'organisation. */
+  const importEventRace = (key: string) => {
+    const hit = eventRaces.find(({ ev, rc }) => `${ev.id}:${rc.id}` === key);
+    if (!hit) { up({ eventRace: undefined }); return; }
+    const { ev, rc } = hit, rt = routes.find((x) => x.id === rc.routeId)!, s = trackStats(rt.coords, 3), km = Math.round(s.distanceM / 100) / 10;
+    const posts = ev.posts.filter((p) => p.raceId === rc.id && (p.kind === "ravito" || p.kind === "eau") && p.km > 0 && p.km < km).sort((a, b) => a.km - b.km);
+    const aid = posts.length ? posts.map((p) => ({ id: uid(), name: p.name || (p.kind === "eau" ? "Point d'eau" : "Ravitaillement"), km: Math.round(p.km * 10) / 10, etaMin: null, water: true, food: p.kind === "ravito" })) : aidFromRoute(rt);
+    set((x) => ({ ...x, race: { ...x.race, eventRace: { eventId: ev.id, raceId: rc.id }, routeId: rt.id, name: `${ev.name} — ${rc.label}`, distanceKm: km, gainM: Math.round(s.gainM), startTime: /^\d{1,2}:\d{2}$/.test(rc.startTime) ? rc.startTime : x.race.startTime, type: km > 80 ? "ultra" : rc.sport === "course" ? "route" : "trail" }, aid: aid.length ? aid : x.aid }));
+  };
+  const aidFromRoute = (rt: (typeof routes)[number]) => rt.pois.filter((p) => p.type === "ravito" || p.type === "eau").map((p) => ({ id: uid(), name: p.name || (p.type === "eau" ? "Point d'eau" : "Ravitaillement"), km: Math.round(positionOnTrack(rt.coords, p.lng, p.lat).km * 10) / 10, etaMin: null, water: true, food: p.type === "ravito" })).sort((a, b) => (a.km ?? 0) - (b.km ?? 0));
   const suggestion = suggestDurationMin(r.type, r.distanceKm, r.gainM, v.athlete.level);
   /** Reprend distance, dénivelé et points de ravitaillement d'un parcours enregistré (aucune ressaisie). */
   const importRoute = (id: string) => {
-    const rt = routes.find((x) => x.id === id); if (!rt) { up({ routeId: undefined }); return; }
+    const rt = routes.find((x) => x.id === id); if (!rt) { up({ routeId: undefined, eventRace: undefined }); return; }
     const s = trackStats(rt.coords, 3), km = Math.round(s.distanceM / 100) / 10;
-    const aid = rt.pois.filter((p) => p.type === "ravito" || p.type === "eau").map((p) => ({ id: uid(), name: p.name || (p.type === "eau" ? "Point d'eau" : "Ravitaillement"), km: Math.round(positionOnTrack(rt.coords, p.lng, p.lat).km * 10) / 10, etaMin: null, water: true, food: p.type === "ravito" })).sort((a, b) => (a.km ?? 0) - (b.km ?? 0));
-    set((x) => ({ ...x, race: { ...x.race, routeId: id, name: x.race.name || rt.name, distanceKm: km, gainM: Math.round(s.gainM), type: km > 80 ? "ultra" : rt.sport === "course" ? "route" : "trail" }, aid: aid.length ? aid : x.aid }));
+    const aid = aidFromRoute(rt);
+    set((x) => ({ ...x, race: { ...x.race, eventRace: undefined, routeId: id, name: x.race.name || rt.name, distanceKm: km, gainM: Math.round(s.gainM), type: km > 80 ? "ultra" : rt.sport === "course" ? "route" : "trail" }, aid: aid.length ? aid : x.aid }));
   };
   const upAid = (id: string, p: Partial<V["aid"][number]>) => set((x) => ({ ...x, aid: x.aid.map((a) => (a.id === id ? { ...a, ...p } : a)) }));
   return (<>
     <Card title="Caractéristiques de la course">
-      {routes.length > 0 && <label className="grid gap-1 text-sm font-medium"><span className="flex items-center gap-1.5"><RouteIcon className="size-4 text-pine-600" />Partir d&apos;un de mes parcours (facultatif)</span><select className={inp} value={r.routeId ?? ""} onChange={(e) => importRoute(e.target.value)}><option value="">— Saisie manuelle —</option>{routes.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select><span className="text-xs font-normal text-ink-500">Distance, dénivelé et ravitaillements (points d&apos;intérêt du parcours) sont repris automatiquement.</span></label>}
+      {eventRaces.length > 0 && <label className="grid gap-1 text-sm font-medium"><span className="flex items-center gap-1.5"><CalendarDays className="size-4 text-ember-600" />Course d&apos;un de mes événements (facultatif)</span><select className={inp} value={r.eventRace ? `${r.eventRace.eventId}:${r.eventRace.raceId}` : ""} onChange={(e) => importEventRace(e.target.value)}><option value="">— Aucune —</option>{events.filter((ev) => eventRaces.some((x) => x.ev.id === ev.id)).map((ev) => <optgroup key={ev.id} label={`${ev.name}${ev.date ? ` · ${ev.date}` : ""}`}>{eventRaces.filter((x) => x.ev.id === ev.id).map(({ rc }) => <option key={rc.id} value={`${ev.id}:${rc.id}`}>{rc.label} — {String(rc.distanceKm).replace(".", ",")} km, {rc.gainM} m D+</option>)}</optgroup>)}</select><span className="text-xs font-normal text-ink-500">Parcours, distance, dénivelé, heure de départ et ravitaillements de l&apos;organisation sont repris automatiquement.</span></label>}
+      {routes.length > 0 && <label className="grid gap-1 text-sm font-medium"><span className="flex items-center gap-1.5"><RouteIcon className="size-4 text-pine-600" />{eventRaces.length ? "Ou partir d'un de mes parcours" : "Partir d'un de mes parcours (facultatif)"}</span><select className={inp} value={r.eventRace ? "" : r.routeId ?? ""} onChange={(e) => importRoute(e.target.value)}><option value="">— Saisie manuelle —</option>{routes.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select><span className="text-xs font-normal text-ink-500">Distance, dénivelé et ravitaillements (points d&apos;intérêt du parcours) sont repris automatiquement.</span></label>}
       <div className="grid gap-4 sm:grid-cols-2"><label className="grid gap-1 text-sm font-medium">Nom de la course (facultatif)<input className={inp} value={r.name} maxLength={80} onChange={(e) => up({ name: e.target.value })} /></label><Choice label="Type de course" value={r.type} options={RACE_LABEL} onChange={(x) => up({ type: x })} /></div>
       <div className="grid gap-4 sm:grid-cols-3"><Num label="Distance" unit="km" value={r.distanceKm} onChange={(n) => up({ distanceKm: n })} error={err(errors, "distanceKm")} /><Num label="Dénivelé positif" unit="m" value={r.gainM} onChange={(n) => up({ gainM: n })} error={err(errors, "gainM")} /><label className="grid gap-1 text-sm font-medium">Heure de départ<input type="time" className={inp} value={r.startTime} onChange={(e) => up({ startTime: e.target.value })} />{err(errors, "startTime") && <span role="alert" className="text-xs text-danger">{err(errors, "startTime")}</span>}</label></div>
       <div className="grid items-end gap-4 sm:grid-cols-[1fr_auto]">

@@ -12,7 +12,7 @@ export type Sensitivity = "faible" | "normale" | "elevee";
 export type ProductCategory = "gel" | "boisson" | "barre" | "pate" | "sel" | "autre";
 
 export interface Athlete { weightKg: number | null; level: Level; experienceYears: number | null; tolerance: Tolerance; habit: CarbHabit }
-export interface Race { type: RaceType; name: string; distanceKm: number | null; gainM: number | null; durationMin: number | null; intensity: Intensity; startTime: string; routeId?: string }
+export interface Race { type: RaceType; name: string; distanceKm: number | null; gainM: number | null; durationMin: number | null; intensity: Intensity; startTime: string; routeId?: string; /** course d'un événement dont on a repris le parcours */ eventRace?: { eventId: string; raceId: string } }
 export interface Weather { tempC: number | null; humidityPct: number | null; sky: Sky; sweat: SweatProfile }
 /** Test de sudation : pesée avant/après une sortie représentative. */
 export interface SweatTest { preKg: number | null; postKg: number | null; fluidL: number | null; urineL: number | null; durationMin: number | null }
