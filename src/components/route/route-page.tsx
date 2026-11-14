@@ -46,6 +46,7 @@ export function RoutePage({ id }: { id: string }) {
   const reviews = reviewsRepo.useAll().filter((r) => r.routeId === id);
   const chartRef = useRef<SVGSVGElement>(null);
   const [hover, setHover] = useState<number | null>(null);
+  const [zone, setZone] = useState<{ fromM: number; toM: number } | null>(null);
   const [wx, setWx] = useState<MapOverlay | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [rating, setRating] = useState(0);
@@ -127,12 +128,12 @@ export function RoutePage({ id }: { id: string }) {
         <Stat l="Alt. min" v={fmtM(s.minEle)} /><Stat l="Alt. max" v={fmtM(s.maxEle)} /><Stat l="Durée est." v={fmtDuration(route.durationMin)} /><Stat l="Terrain" v={route.terrain.length ? route.terrain.join(", ") : "—"} />
       </dl>
 
-      <div className="mt-6"><RouteMap coords={route.coords} pois={route.pois} activeIndex={hover} onTrackHover={setHover} className="h-[26rem]" title={route.name} overlay={wx} /></div>
+      <div className="mt-6"><RouteMap coords={route.coords} pois={route.pois} activeIndex={hover} onTrackHover={setHover} className="h-[26rem]" title={route.name} overlay={wx} selection={zone} /></div>
 
       <section className="mt-6 rounded-2xl bg-white p-4 ring-1 ring-ink-100" aria-label="Profil altimétrique">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-bold">Profil altimétrique</h2>
           <div className="flex gap-2"><Button size="sm" variant="secondary" onClick={() => exportChart("png")}><ImageDown className="size-4" />Image</Button><Button size="sm" variant="secondary" onClick={() => exportChart("pdf")}><FileText className="size-4" />PDF</Button></div></div>
-        <ElevationChart ref={chartRef} points={profile} markers={markers} onHover={setHover} height={260} />
+        <ElevationChart ref={chartRef} points={profile} markers={markers} onHover={setHover} height={260} coords={route.coords} selection={zone} onSelect={setZone} />
         <p className="mt-1 text-xs text-ink-400">Survolez le profil ou la trace pour voir la position correspondante. Pente calculée sur environ 100 m.</p>
       </section>
 

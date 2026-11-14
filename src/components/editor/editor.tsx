@@ -19,7 +19,7 @@ import { setEnginePref, useEnginePref } from "@/lib/map-prefs";
 import { routesRepo, useLayers, useTerrains } from "@/lib/repo";
 import { POI_TYPES, normalizePois, uid, type LL, type Poi, type PoiType, type Pt, type SavedRoute, type Visibility } from "@/lib/types";
 import { SPORTS, DIFFICULTY_LABEL, difficultyOf, estimateMinutes, type Sport } from "@/lib/sports";
-import { haversine, trackStats, fmtKm, fmtM, fmtDuration, bboxOf, cumulative } from "@/lib/geo";
+import { haversine, trackStats, rangeStats, fmtKm, fmtM, fmtDuration, bboxOf, cumulative } from "@/lib/geo";
 import { buildProfile, distanceAlong } from "@/lib/profile";
 import { FORMATS, parseAny, serialize, download, safeName, GpsFileError, MAX_BYTES, type GpsFormat } from "@/lib/formats";
 import { editorHref, routeHref, withBase } from "@/lib/url";
@@ -93,7 +93,7 @@ export function Editor({ routeId }: { routeId?: string }) {
     createdAt.current = r.createdAt; sourceKind.current = r.source; fileName.current = r.fileName;
     setMeta({ name: r.name, description: r.description, sport: r.sport, visibility: r.visibility, terrain: r.terrain, region: r.region, country: r.country, layer: r.layer === "fkt" || !r.layer ? "mine" : r.layer, sourceUrl: r.sourceUrl ?? "" });
     setHist([{ waypoints: r.waypoints, segs: r.segs, pois: normalizePois(r.pois) }]); setHi(0);
-    seedElevations(r.coords); setCoords(r.coords); setElev("ok"); setLoaded(true);
+    setCoords(r.coords); // altitudes enregistrées affichées telles quelles ; après une modification, tout le tracé est réinterrogé (pas de mélange GPS / IGN) setElev("ok"); setLoaded(true);
   }, [routeId]);
 
   const track = useMemo(() => E.trackLL(st), [st]);
@@ -445,7 +445,11 @@ export function Editor({ routeId }: { routeId?: string }) {
   const [sectName, setSectName] = useState("");
   sectModeRef.current = sectMode;
   const sectCoords = useMemo(() => (sect.a != null && sect.b != null && coords.length > 1 ? E.sliceTrack(coords, cum, sect.a, sect.b) : []), [sect, coords, cum]);
-  const sectStats = useMemo(() => (sectCoords.length > 1 ? trackStats(sectCoords, 3) : null), [sectCoords]);
+  // même calcul que la zone du profil (lissage sur tout le tracé) : chiffres identiques partout
+  const sectStats = useMemo(() => (sectCoords.length > 1 && sect.a != null && sect.b != null ? rangeStats(coords, Math.min(sect.a, sect.b), Math.max(sect.a, sect.b)) : null), [sectCoords, sect, coords]);
+  const zone = sect.a != null && sect.b != null && sect.a !== sect.b ? { fromM: Math.min(sect.a, sect.b), toM: Math.max(sect.a, sect.b) } : null;
+  const onZone = (z: { fromM: number; toM: number } | null) => setSect(z ? { a: z.fromM, b: z.toM } : { a: null, b: null });
+  const zoneActions = <button type="button" onClick={() => { setTab("trace"); setSheet((x) => (x === "peek" ? "half" : x)); setTimeout(() => document.getElementById("sect-tool")?.scrollIntoView({ behavior: "smooth", block: "center" }), 50); }} className="rounded-lg bg-white/70 px-2 py-1 text-xs font-semibold text-pine-700 hover:bg-white">Extraire cette section…</button>;
   const sectProfile = useMemo(() => buildProfile(sectCoords), [sectCoords]);
   const sectMarks = useRef<Marker[]>([]);
   useEffect(() => { setSect({ a: null, b: null }); }, [hi]); // le tracé a changé : les points de coupe ne sont plus valables
@@ -581,7 +585,7 @@ export function Editor({ routeId }: { routeId?: string }) {
             <span className="font-semibold text-ink-700">Profil altimétrique</span>
             <span aria-live="polite">{elev === "loading" ? "Altitudes en cours de calcul…" : elev === "error" ? "Altitudes IGN indisponibles : profil à plat" : "Altitudes IGN (RGE ALTI)"}</span>
           </div>
-          <ElevationChart ref={chartRef} points={profile} markers={chartMarkers} onHover={setHoverIdx} height={170} />
+          <ElevationChart ref={chartRef} points={profile} markers={chartMarkers} onHover={setHoverIdx} height={170} coords={coords} selection={zone} onSelect={onZone} selectionActions={zoneActions} />
         </div>
       </div>
 
@@ -602,7 +606,7 @@ export function Editor({ routeId }: { routeId?: string }) {
             ))}
           </div>
         </div>}>
-        <div className="grid gap-4 p-4">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 p-4">
           {tab === "trace" && (<>
             <div className="rounded-xl border border-ink-100 p-3" aria-labelledby="ref-title">
               <p id="ref-title" className="mb-1.5 text-xs font-bold uppercase tracking-wider text-ink-400">Calque de référence</p>
@@ -619,7 +623,7 @@ export function Editor({ routeId }: { routeId?: string }) {
               </div>
               <p className="mt-1.5 text-xs text-ink-500">{SPORTS[meta.sport].label} : le tracé privilégie les <b>{PROFILE_HINT[routeProfile]}</b>. S'applique aux prochains tronçons tracés{st.segs.length ? " ; les tronçons existants ne changent pas" : ""}.</p>
             </div>
-            <div className="lg:hidden"><ElevationChart points={profile} markers={chartMarkers} onHover={setHoverIdx} height={150} /></div>
+            <div className="lg:hidden"><ElevationChart points={profile} markers={chartMarkers} onHover={setHoverIdx} height={150} coords={coords} selection={zone} onSelect={onZone} /></div>
             <dl className="grid grid-cols-2 gap-3">
               {[["Distance", stats ? fmtKm(stats.distanceM) : "—"], ["Durée estimée", stats ? fmtDuration(durationMin) : "—"], ["D+", stats ? fmtM(stats.gainM) : "—"], ["D−", stats ? fmtM(stats.lossM) : "—"], ["Altitude min", stats ? fmtM(stats.minEle) : "—"], ["Altitude max", stats ? fmtM(stats.maxEle) : "—"]].map(([l, v]) => (
                 <div key={l} className="rounded-xl bg-ink-50 p-3"><dt className="text-[11px] font-medium uppercase tracking-wide text-ink-400">{l}</dt><dd className="font-display text-lg font-bold">{v}</dd></div>
@@ -656,7 +660,7 @@ export function Editor({ routeId }: { routeId?: string }) {
                 </div>
               ) : <><Button size="sm" variant={closed ? "secondary" : "brand"} className="mb-2" disabled={!canClose} onClick={closeRoute}><Repeat className="size-4" />{closed ? "Parcours en boucle" : "Clôturer le parcours"}</Button><p className="text-sm text-ink-500">{st.waypoints.length} point(s). Cliquez sur un marqueur pour le sélectionner, glissez-le pour le déplacer, cliquez sur le tracé pour insérer un point.</p></>}
             </div>
-            <div className="rounded-xl border border-ink-100 p-3">
+            <div id="sect-tool" className="rounded-xl border border-ink-100 p-3">
               <p className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-400">Extraire une section (étape)</p>
               <p className="text-xs text-ink-500">Placez un point A puis un point B directement sur le tracé : la portion comprise entre les deux devient une trace à part, exportable. Géométrie et altitudes d'origine conservées ; le parcours n'est pas modifié.</p>
               <div className="mt-2 flex flex-wrap items-center gap-2">

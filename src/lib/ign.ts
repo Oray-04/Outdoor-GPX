@@ -1,5 +1,5 @@
 import type { LL, Pt } from "./types";
-import { haversine, thin } from "./geo";
+import { haversine, resampleLine, thin } from "./geo";
 
 const BASE = "https://data.geopf.fr";
 const elevCache = new Map<string, number>();
@@ -94,33 +94,29 @@ export async function fetchElevations(pts: LL[], signal?: AbortSignal): Promise<
   };
   await Promise.all(Array.from({ length: Math.min(2, batches.length) }, worker));
   if (batches.length) lastElevationSource = fallback ? "open-meteo" : "ign";
-  let prev = 0;
-  return pts.map((p) => {
-    const v = elevCache.get(keyOf(p));
-    if (v === undefined || v < -1000) return prev; // donnée absente : on garde la valeur précédente
-    prev = v; return v;
-  });
+  return fillGaps(pts.map((p) => elevCache.get(keyOf(p))));
 }
 
-/** Associe une altitude à chaque point d'une trace (un point tous les ~25 m interrogé puis interpolé). */
-export async function addElevation(line: LL[], signal?: AbortSignal, stepM = 25): Promise<Pt[]> {
-  if (!line.length) return [];
-  const sample = thin(line, stepM);
-  const ele = await fetchElevations(sample, signal);
-  // interpolation sur la distance cumulée
-  const out: Pt[] = [];
-  let si = 0, acc = 0;
-  const sampleD: number[] = [0];
-  for (let i = 1; i < sample.length; i++) sampleD.push(sampleD[i - 1] + haversine(sample[i - 1], sample[i]));
-  for (let i = 0; i < line.length; i++) {
-    if (i > 0) acc += haversine(line[i - 1], line[i]);
-    while (si < sample.length - 2 && sampleD[si + 1] < acc) si++;
-    const a = sampleD[si], b = sampleD[si + 1] ?? a;
-    const t = b > a ? Math.min(1, Math.max(0, (acc - a) / (b - a))) : 0;
-    const e = sample.length === 1 ? ele[0] : ele[si] + (ele[si + 1] - ele[si]) * t;
-    out.push([line[i][0], line[i][1], Math.round(e * 10) / 10]);
+/** Altitudes manquantes (hors couverture, valeur « sans donnée » < −1000) : interpolées entre les voisines valides, jamais remplacées par 0. */
+export function fillGaps(vals: (number | undefined)[]): number[] {
+  const ok = vals.map((v) => v !== undefined && Number.isFinite(v) && v > -1000);
+  const firstOk = ok.indexOf(true); if (firstOk < 0) throw new ElevationError("server");
+  const out = vals.map((v) => v as number); let prevI = -1;
+  for (let i = 0; i < out.length; i++) {
+    if (ok[i]) { if (prevI < i - 1) for (let k = prevI + 1; k < i; k++) out[k] = prevI < 0 ? out[i] : out[prevI] + ((out[i] - out[prevI]) * (k - prevI)) / (i - prevI); prevI = i; }
   }
+  for (let k = prevI + 1; k < out.length; k++) out[k] = out[prevI];
   return out;
+}
+
+/** Trace avec altitudes : un point tous les 20 m environ le long du tracé (au plus 3 000, sommets d'origine conservés), chacun avec son altitude IGN. */
+export async function addElevation(line: LL[], signal?: AbortSignal, stepM = 20): Promise<Pt[]> {
+  if (!line.length) return [];
+  let len = 0; for (let i = 1; i < line.length; i++) len += haversine(line[i - 1], line[i]);
+  const sample = resampleLine(line, Math.max(stepM, len / 3000));
+  const ele = await fetchElevations(sample, signal);
+  // la trace renvoyée contient les points échantillonnés (sommets d'origine compris) : le profil et le dénivelé voient tout le relief
+  return sample.map((p, i) => [p[0], p[1], Math.round(ele[i] * 10) / 10] as Pt);
 }
 
 const routeCache = new Map<string, LL[]>();

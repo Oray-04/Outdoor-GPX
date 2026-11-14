@@ -125,9 +125,21 @@ async function elevations(pts) {
   return { ele: out, missing };
 }
 
+/** Mêmes règles que le site (src/lib/geo.ts : trackStats) : altitudes lissées sur 40 m, puis seuil de 3 m. */
 function stats(c) {
-  let d = 0, gain = 0, loss = 0, min = Infinity, max = -Infinity, ref = c[0][2];
-  for (let i = 0; i < c.length; i++) { if (i) d += hav(c[i - 1], c[i]); min = Math.min(min, c[i][2]); max = Math.max(max, c[i][2]); const x = c[i][2] - ref; if (Math.abs(x) >= 3) { x > 0 ? (gain += x) : (loss -= x); ref = c[i][2]; } }
+  let d = 0, gain = 0, loss = 0, min = Infinity, max = -Infinity;
+  const cum = [0];
+  for (let i = 0; i < c.length; i++) { if (i) { d += hav(c[i - 1], c[i]); cum.push(d); } min = Math.min(min, c[i][2]); max = Math.max(max, c[i][2]); }
+  const sm = [], total = cum[cum.length - 1];
+  for (let i = 0; i < c.length; i++) {
+    const half = Math.min(20, cum[i], total - cum[i]); let a = i, b = i;
+    while (a > 0 && cum[i] - cum[a - 1] <= half + 1e-9) a--; while (b < c.length - 1 && cum[b + 1] - cum[i] <= half + 1e-9) b++;
+    while (a < i && b > i && Math.abs((cum[i] - cum[a]) - (cum[b] - cum[i])) > Math.max(1, half * 0.5)) { if (cum[i] - cum[a] > cum[b] - cum[i]) a++; else b--; }
+    let sum = 0; for (let k = a; k <= b; k++) sum += c[k][2]; sm.push(sum / (b - a + 1));
+  }
+  let ref = sm[0];
+  for (let i = 1; i < sm.length; i++) { const x = sm[i] - ref; if (Math.abs(x) >= 3) { x > 0 ? (gain += x) : (loss -= x); ref = sm[i]; } }
+  const last = sm[sm.length - 1] - ref; if (last > 0) gain += last; else loss -= last;
   return { distanceM: Math.round(d), gainM: Math.round(gain), lossM: Math.round(loss), minEle: min, maxEle: max };
 }
 

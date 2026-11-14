@@ -21,23 +21,77 @@ export interface TrackStats {
   maxEle: number;
 }
 
-/** Statistiques d'une trace. Le seuil de 1 m évite de cumuler le bruit d'altitude. */
-export function trackStats(coords: LngLatEle[], threshold = 1): TrackStats {
-  let distanceM = 0, gainM = 0, lossM = 0;
-  let minEle = Infinity, maxEle = -Infinity;
-  let ref = coords[0]?.[2] ?? 0;
-  for (let i = 0; i < coords.length; i++) {
-    const ele = coords[i][2];
-    minEle = Math.min(minEle, ele);
-    maxEle = Math.max(maxEle, ele);
-    if (i > 0) distanceM += haversine(coords[i - 1], coords[i]);
-    const d = ele - ref;
-    if (Math.abs(d) >= threshold) {
-      if (d > 0) gainM += d; else lossM -= d;
-      ref = ele;
-    }
+/**
+ * Réglages du calcul de dénivelé, communs à tout le site.
+ * Les altitudes (modèle de terrain IGN au mètre, ou GPS d'un fichier importé) comportent un bruit de quelques mètres : un sentier à
+ * flanc de pente « voit » la pente latérale, un GPS oscille. On lisse donc les altitudes sur une fenêtre glissante en distance,
+ * puis on ne cumule une montée ou une descente qu'au-delà d'un seuil (hystérésis).
+ */
+export const ELEVATION = { smoothWindowM: 40, thresholdM: 3 };
+
+/** Altitudes lissées par moyenne glissante sur `windowM` mètres de distance (centrée). */
+export function smoothedElevations(coords: readonly LngLatEle[], windowM = ELEVATION.smoothWindowM): number[] {
+  const n = coords.length; if (n < 3 || windowM <= 0) return coords.map((c) => c[2]);
+  const cum = new Array<number>(n); cum[0] = 0;
+  for (let i = 1; i < n; i++) cum[i] = cum[i - 1] + haversine(coords[i - 1], coords[i]);
+  // fenêtre centrée et symétrique, resserrée près des extrémités : le départ et l'arrivée gardent leur altitude, sans biais sur une pente
+  const out = new Array<number>(n), total = cum[n - 1];
+  for (let i = 0; i < n; i++) {
+    const half = Math.min(windowM / 2, cum[i], total - cum[i]);
+    let a = i, b = i; while (a > 0 && cum[i] - cum[a - 1] <= half + 1e-9) a--; while (b < n - 1 && cum[b + 1] - cum[i] <= half + 1e-9) b++;
+    // symétrie : autant de distance de chaque côté
+    while (a < i && b > i && Math.abs((cum[i] - cum[a]) - (cum[b] - cum[i])) > Math.max(1, half * 0.5)) { if (cum[i] - cum[a] > cum[b] - cum[i]) a++; else b--; }
+    let sum = 0; for (let k = a; k <= b; k++) sum += coords[k][2];
+    out[i] = sum / (b - a + 1);
   }
+  return out;
+}
+
+/** D+ et D− entre deux indices d'une série d'altitudes (déjà lissées), avec seuil d'hystérésis. */
+export function gainLoss(ele: readonly number[], from = 0, to = ele.length - 1, threshold = ELEVATION.thresholdM) {
+  let gainM = 0, lossM = 0, ref = ele[from] ?? 0;
+  for (let i = from + 1; i <= to; i++) {
+    const d = ele[i] - ref;
+    if (Math.abs(d) >= threshold) { if (d > 0) gainM += d; else lossM -= d; ref = ele[i]; }
+  }
+  // la fin de la portion compte même si le dernier écart est sous le seuil
+  const last = (ele[to] ?? ref) - ref;
+  if (last > 0) gainM += last; else lossM -= last;
+  return { gainM, lossM };
+}
+
+/** Statistiques d'une trace : distance, D+ et D− (altitudes lissées puis seuil), altitudes min et max (valeurs mesurées). */
+export function trackStats(coords: LngLatEle[], threshold = ELEVATION.thresholdM): TrackStats {
+  let distanceM = 0, minEle = Infinity, maxEle = -Infinity;
+  for (let i = 0; i < coords.length; i++) {
+    minEle = Math.min(minEle, coords[i][2]); maxEle = Math.max(maxEle, coords[i][2]);
+    if (i > 0) distanceM += haversine(coords[i - 1], coords[i]);
+  }
+  const { gainM, lossM } = coords.length > 1 ? gainLoss(smoothedElevations(coords), 0, coords.length - 1, threshold) : { gainM: 0, lossM: 0 };
   return { distanceM, gainM, lossM, minEle, maxEle };
+}
+
+/** Statistiques d'une portion [fromM, toM] (m depuis le départ) : même calcul que pour la trace entière, sur les altitudes lissées de toute la trace. */
+export function rangeStats(coords: LngLatEle[], fromM: number, toM: number) {
+  const a = Math.min(fromM, toM), b = Math.max(fromM, toM), ele = smoothedElevations(coords);
+  const cum = [0]; for (let i = 1; i < coords.length; i++) cum.push(cum[i - 1] + haversine(coords[i - 1], coords[i]));
+  let i0 = cum.findIndex((d) => d >= a); if (i0 < 0) i0 = coords.length - 1;
+  let i1 = cum.length - 1; while (i1 > i0 && cum[i1] > b) i1--;
+  const { gainM, lossM } = i1 > i0 ? gainLoss(ele, i0, i1) : { gainM: 0, lossM: 0 };
+  let minEle = Infinity, maxEle = -Infinity; for (let k = i0; k <= i1; k++) { minEle = Math.min(minEle, coords[k][2]); maxEle = Math.max(maxEle, coords[k][2]); }
+  return { fromM: a, toM: b, distanceM: b - a, gainM, lossM, minEle, maxEle, i0, i1 };
+}
+
+/** Points tous les `stepM` mètres le long de la ligne (sommets d'origine conservés) : aucun relief n'est « sauté » sur un long segment droit. */
+export function resampleLine<T extends readonly number[]>(line: T[], stepM: number): [number, number][] {
+  if (line.length < 2) return line.map((p) => [p[0], p[1]] as [number, number]);
+  const out: [number, number][] = [[line[0][0], line[0][1]]];
+  for (let i = 1; i < line.length; i++) {
+    const a = line[i - 1], b = line[i], d = haversine(a, b), n = Math.floor(d / stepM);
+    for (let k = 1; k <= n; k++) { const f = (k * stepM) / d; if (f < 1 - 1e-9) out.push([a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f]); }
+    out.push([b[0], b[1]]);
+  }
+  return out;
 }
 
 export const fmtKm = (m: number) => `${(m / 1000).toFixed(m >= 100000 ? 0 : 1).replace(".", ",")} km`;

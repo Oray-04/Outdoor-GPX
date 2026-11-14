@@ -142,6 +142,8 @@ input[type=range] { accent-color: var(--color-pine-600); }
 .frost-panel { border-radius: var(--radius-2xl); }
 /* panneaux latéraux des espaces de travail (à côté ou au-dessus de la carte) : plus opaques pour la lecture */
 aside.bg-white, aside[aria-label].bg-white { background: var(--frost-bg-strong) !important; backdrop-filter: var(--frost-blur); -webkit-backdrop-filter: var(--frost-blur); border-color: rgb(255 255 255 / 0.7); }
+/* feuille du bas (mobile) posée sur une carte : quasi opaque pour que les contrôles de la carte ne transparaissent pas sous le texte */
+@media (max-width: 1023.98px) { aside.absolute.bottom-0.bg-white { background: rgb(255 255 255 / 0.97) !important; } }
 /* un panneau qui contient une carte (WebGL) : pas de flou d'arrière-plan, la carte est opaque et le flou serait recalculé à chaque image */
 :is(.frost-panel, .rounded-2xl.bg-white, .rounded-xl.bg-white.ring-1, .bg-white.shadow-card, aside.bg-white):has(.maplibregl-map) { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgb(255 255 255 / 0.9) !important; }
 /* verre dans le verre : pas de second flou (coût d'affichage), simple voile */

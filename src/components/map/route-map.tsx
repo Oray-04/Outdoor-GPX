@@ -3,7 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, Play, Square } from "lucide-react";
 import type { GeoJSONSource, Marker } from "maplibre-gl";
 import { useMap } from "./use-map";
-import { bboxOf, haversine, trackStats, fmtKm, fmtM } from "@/lib/geo";
+import { bboxOf, cumulative, haversine, trackStats, fmtKm, fmtM } from "@/lib/geo";
+import { sliceTrack } from "@/lib/editor-core";
 import { MapFrame, StatBanner } from "./map-frame";
 import { LayerControl } from "./layer-control";
 import { type Poi, type Pt } from "@/lib/types";
@@ -13,7 +14,7 @@ import { routeMarkerEl } from "@/lib/route-markers";
 /** Carte en lecture seule : trace, départ/arrivée, POI, position active (survol du profil). */
 export interface MapOverlay { segments: { from: number; to: number; color: string }[]; arrows: { lng: number; lat: number; toDeg: number; label: string; color: string; title: string }[] }
 
-export function RouteMap({ coords, pois = [], activeIndex, className = "h-80", onTrackHover, title, overlay }: { coords: Pt[]; pois?: Poi[]; activeIndex?: number | null; className?: string; onTrackHover?: (i: number | null) => void; title?: string; overlay?: MapOverlay | null }) {
+export function RouteMap({ coords, pois = [], activeIndex, className = "h-80", onTrackHover, title, overlay, selection }: { coords: Pt[]; pois?: Poi[]; activeIndex?: number | null; className?: string; onTrackHover?: (i: number | null) => void; title?: string; overlay?: MapOverlay | null; /** zone sélectionnée sur le profil (m depuis le départ), surlignée sur la carte */ selection?: { fromM: number; toM: number } | null }) {
   const arrowMarks = useRef<Marker[]>([]);
   const st = useMemo(() => (coords.length > 1 ? trackStats(coords, 3) : null), [coords]);
   const { el, map, ml, ready } = useMap();
@@ -75,6 +76,21 @@ export function RouteMap({ coords, pois = [], activeIndex, className = "h-80", o
       arrowMarks.current.push(new lib.Marker({ element: d }).setLngLat([a.lng, a.lat]).addTo(m));
     }
   }, [overlay, coords, ready, map, ml]);
+
+  // Zone sélectionnée sur le profil : portion surlignée + recadrage
+  const cum = useMemo(() => cumulative(coords), [coords]);
+  useEffect(() => {
+    const m = map.current; if (!m || !ready || !m.getSource("t")) return;
+    if (!m.getSource("zone")) {
+      m.addSource("zone", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      m.addLayer({ id: "zone-casing", type: "line", source: "zone", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#fff", "line-width": 11 } });
+      m.addLayer({ id: "zone-line", type: "line", source: "zone", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#8f6f33", "line-width": 6.5 } });
+    }
+    const part = selection && coords.length > 1 && selection.toM > selection.fromM ? sliceTrack(coords, cum, selection.fromM, selection.toM) : [];
+    (m.getSource("zone") as GeoJSONSource).setData({ type: "FeatureCollection", features: part.length > 1 ? [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: part.map((c) => [c[0], c[1]]) } }] : [] });
+    if (part.length > 1) { const b = bboxOf(part), vb = m.getBounds(); if (!(vb.contains([b[0], b[1]]) && vb.contains([b[2], b[3]]))) m.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 60, maxZoom: 15, duration: 400 }); }
+  }, [selection?.fromM, selection?.toM, coords, cum, ready, map]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   useEffect(() => {
     const m = map.current, lib = ml.current; if (!m || !lib || !ready) return;

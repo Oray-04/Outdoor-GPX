@@ -206,7 +206,7 @@ L'onglet « Itinéraires » du menu a été retiré : liste, recherche, catégor
 GR/GRP, véloroutes, traversées VTT, cols : tracés OpenStreetMap (ODbL) intégrés avec source, licence, contrôle de validité, statistiques recalculées. Voir `docs/bibliotheque.md` (sources, anti-doublons, ajout d'un itinéraire).
 
 ### Fiches et profil — `/parcours`, `/parcours/[id]`
-Filtres (discipline, pays, région, distance, D+, difficulté, durée, terrain, boucle, catalogue), vue liste et vue carte. Fiche : statistiques, carte, profil altimétrique avec pente, km, points de passage, POI ; **survol du profil ↔ position sur la carte** ; export du profil en PNG et PDF ; favoris, notes, commentaires, signalement d'erreur, photos, téléchargement multi-formats.
+Filtres (discipline, pays, région, distance, D+, difficulté, durée, terrain, boucle, catalogue), vue liste et vue carte. Fiche : statistiques, carte, profil altimétrique avec pente, km, points de passage, POI ; **survol du profil ↔ position sur la carte** ; **zone du profil** : clic gauche maintenu et glisser sur le profil pour sélectionner une portion — elle est surlignée sur la carte (recadrée si besoin) et le bandeau affiche le km de début et de fin, la distance, le D+, le D− et les altitudes min–max de la zone (un simple clic ou « Effacer la zone » la retire). Dans l'éditeur, la zone devient la section A–B (points A et B sur la carte) et peut être extraite en un clic ; export du profil en PNG et PDF ; favoris, notes, commentaires, signalement d'erreur, photos, téléchargement multi-formats.
 La « difficulté » est une estimation (km + D+/100), les durées sont indicatives.
 
 ### Événements, collections, organisateurs — `/evenements`, `/organisateurs`, `/collections`
@@ -234,3 +234,13 @@ Position temps réel, enregistrement (filtre de précision), guidage sur parcour
 
 ## Services externes utilisés
 Géoplateforme IGN (`data.geopf.fr`) : tuiles, altimétrie, itinéraire piéton, géocodage, BD TOPO (WFS). API Carto IGN (cadastre). OpenStreetMap : tuiles de repli, Nominatim, Overpass ; serveur Valhalla de FOSSGIS (tracé). Open-Meteo (météo). Waymarked Trails. Thunderforest (clé personnelle). OpenTopoMap. Voir `/licences`.
+
+### Calcul du dénivelé (révision)
+
+Un même calcul partout (fiche, éditeur, générateur, zone du profil, bibliothèque) : `trackStats` / `rangeStats` dans `src/lib/geo.ts`.
+
+- **Échantillonnage** : les altitudes sont demandées tous les ~20 m le long du tracé (`resampleLine`, 3 000 points max) — et plus seulement aux sommets du tracé. Avant, un tronçon droit (mode « Libre ») qui traversait une vallée n'était mesuré qu'à ses deux bouts : la vallée disparaissait du profil et du D+.
+- **Altitudes manquantes** : interpolées entre les voisines valides (`fillGaps`) au lieu d'être remplacées par 0 m, qui créait de faux sauts de plusieurs centaines de mètres.
+- **Pas de mélange** : après une modification dans l'éditeur, tout le tracé est réinterrogé sur le même modèle (IGN RGE ALTI) — plus de mélange entre altitudes GPS d'un fichier importé et altitudes IGN.
+- **Bruit** : lissage centré sur 40 m puis seuil d'hystérésis de 3 m ; le reste en fin de trace est compté. Un bruit de ±4 m ne gonfle plus le D+, une vraie bosse de 30 m est comptée.
+- Mesures réelles (IGN) : Chamonix → Montenvers 810/13 m → 809/15 m (stable) ; Annecy → Semnoz 1 253 → 1 247 m ; ligne droite « Libre » Planpraz → Montenvers 0 m D+ / 513 m D− → **830 m D+ / 1 323 m D−** (la vallée de Chamonix est enfin vue).
