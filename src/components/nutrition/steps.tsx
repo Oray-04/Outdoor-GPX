@@ -5,7 +5,7 @@ import clsx from "clsx";
 import { Button } from "@/components/ui/button";
 import { eventsRepo, routesRepo } from "@/lib/repo";
 import { trackStats } from "@/lib/geo";
-import { positionOnTrack } from "@/lib/events";
+import { positionOnTrack, postsOfRace } from "@/lib/events";
 import { suggestDurationMin, type FieldError } from "@/lib/nutrition/engine";
 import { measuredSweatRate } from "@/lib/nutrition/hydration";
 import { computeCaffeine } from "@/lib/nutrition/caffeine";
@@ -67,7 +67,7 @@ export function StepRace({ v, set, errors }: { v: V; set: SetV; errors: FieldErr
     const hit = eventRaces.find(({ ev, rc }) => `${ev.id}:${rc.id}` === key);
     if (!hit) { up({ eventRace: undefined }); return; }
     const { ev, rc } = hit, rt = routes.find((x) => x.id === rc.routeId)!, s = trackStats(rt.coords, 3), km = Math.round(s.distanceM / 100) / 10;
-    const posts = ev.posts.filter((p) => p.raceId === rc.id && (p.kind === "ravito" || p.kind === "eau") && p.km > 0 && p.km < km).sort((a, b) => a.km - b.km);
+    const posts = postsOfRace(ev.posts, rc.id).filter((p) => (p.kind === "ravito" || p.kind === "eau") && p.km > 0 && p.km < km).sort((a, b) => a.km - b.km);
     const aid = posts.length ? posts.map((p) => ({ id: uid(), name: p.name || (p.kind === "eau" ? "Point d'eau" : "Ravitaillement"), km: Math.round(p.km * 10) / 10, etaMin: null, water: true, food: p.kind === "ravito" })) : aidFromRoute(rt);
     set((x) => ({ ...x, race: { ...x.race, eventRace: { eventId: ev.id, raceId: rc.id }, routeId: rt.id, name: `${ev.name} — ${rc.label}`, distanceKm: km, gainM: Math.round(s.gainM), startTime: /^\d{1,2}:\d{2}$/.test(rc.startTime) ? rc.startTime : x.race.startTime, type: km > 80 ? "ultra" : rc.sport === "course" ? "route" : "trail" }, aid: aid.length ? aid : x.aid }));
   };

@@ -1,5 +1,5 @@
 import type { EventModel } from "./events";
-import { volunteersAt } from "./events";
+import { postsOfRace, volunteersAt } from "./events";
 import { adminFile, classify, timeline, type Prep } from "./race-prep";
 
 /**
@@ -43,7 +43,7 @@ export function trailFlow(ev: EventModel, routeIds: string[], today: string): Fl
   const file = adminFile(ev, prep), fileOk = file.filter((f) => f.ok).length;
   const late = isDate(ev.date) ? timeline(ev.date, !!prep.multiDept).filter((t) => t.due && t.due < today && t.due < ev.date && !(prep.done ?? []).includes(`t:${t.id}`)).length : 0;
   const pavedBad = linked.filter((r) => { const p = prep.paved?.[r.id]; return p != null && !classify(r.distanceKm, p).pavedOk; });
-  const ultraNoCut = linked.filter((r) => classify(r.distanceKm).id === "ultra" && !ev.posts.some((p) => p.raceId === r.id && p.cutoffH != null));
+  const ultraNoCut = linked.filter((r) => classify(r.distanceKm).id === "ultra" && !postsOfRace(ev.posts, r.id).some((p) => p.cutoffH != null));
 
   const items: Record<StepId, FlowItem[]> = {
     parcours: [item("parcours", "p:route", "Au moins un parcours enregistré", routeIds.length > 0 || linked.length > 0, "Créez un parcours dans l'éditeur ou importez un fichier GPX.")],

@@ -261,7 +261,7 @@ Une seule saisie : les points d'intérêt du parcours (`route.pois`) sont la sou
 
 - Étape 3 du parcours guidé, juste après Parcours et Votre trail (avant Analyse et Documents) ; l'étape affiche un résumé par course et ouvre la page `/organisateurs/logistique/?id=…`.
 - Grande carte, palette de types, compteur de chaque équipement, liste des postes (bénévoles, barrière, consignes), onglets Bénévoles et Temps de passage, export PDF.
-- **Plein écran** : bouton dans la barre d'outils, tous les outils restent disponibles (placement, liste, propositions, PDF) ; « Quitter le plein écran » toujours visible, ou Échap. Sur mobile, palette sur une ligne défilante et liste repliable.
+- **Zoom de la carte** : plus de mode « Plein écran » (ambigu). À la souris, la molette zoome et dézoome dès que le curseur est sur la carte, sans clic préalable et sans faire défiler la page ; hors de la carte, la molette fait défiler la page. Glisser : déplacer ; clic droit + glisser : tourner et incliner ; boussole : revenir au nord. Sur écran tactile (téléphone, tablette), un doigt fait défiler la page, deux doigts déplacent et zooment la carte (`data-workspace="touch"`, détection `pointer: coarse`).
 
 ### Boussole « Nord »
 
@@ -272,3 +272,15 @@ Sur toutes les cartes : dès que la carte est tournée ou inclinée, une boussol
 - Mon espace → Mes parcours : bouton crayon sur chaque carte, saisie en place (Entrée pour valider, Échap pour annuler). Également dans Fichiers et dans l'éditeur (Infos).
 - Seul le nom change (`renameRoute`) : tracé, altitudes, statistiques et POI intacts ; courses, collections, bibliothèque et logistique lisent le parcours par son identifiant, le nouveau nom s'affiche partout.
 - Correction : depuis la révision du dénivelé, l'éditeur ne marquait plus un parcours chargé comme « prêt » (instruction neutralisée par un commentaire) — aucune modification, nom compris, ne pouvait être enregistrée.
+
+### POI communs à plusieurs parcours
+
+Un ravitaillement, un poste de secours, un contrôle… utilisés par plusieurs courses (A, B, C) ne sont créés et gérés qu'une fois.
+
+- Dans la logistique, sur chaque poste : **« Commun à plusieurs parcours »**, puis cocher les parcours concernés (deux courses sur le même parcours n'en font qu'un).
+- Le même POI (même identifiant, marqué `common`) figure dans chaque parcours coché : il s'affiche sur leurs cartes, fiches et dans l'éditeur (badge « Commun »).
+- **Un seul poste** dans l'événement (`post.shared` : autres courses et kilomètre sur chacune) : une seule équipe de bénévoles, un seul effectif, une seule barrière. Il apparaît dans la liste, la carte (pastille « ×2 », « ×3 »…), les temps de passage et la nutrition de chaque course, avec son kilomètre propre (« Commun : Course A (km 5,4) · Course B (km 12,1) »).
+- Toute modification (nom, type, position), depuis la logistique ou l'éditeur d'un des parcours, est reportée sur tous (`propagateCommon` à l'enregistrement).
+- Décocher un parcours retire le POI de ce seul parcours ; le poste et ses bénévoles restent sur les autres. Supprimer le poste le retire de tous les parcours (après confirmation qui les liste).
+- Anciens postes en double (deux courses sur le même parcours, un poste chacune) : fusionnés en un seul poste commun, bénévoles reportés, effectif le plus grand conservé.
+- Une copie de parcours (« Dupliquer », découpe) reçoit de nouveaux identifiants de POI : elle n'est pas liée à l'original.

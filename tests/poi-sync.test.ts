@@ -89,3 +89,54 @@ describe("éditeur ouvert pendant que la logistique modifie le parcours", () => 
     expect(mergePois([a], [a], [])).toHaveLength(0);
   });
 });
+
+import { postsOfRace, passageTable, postLabel } from "../src/lib/events";
+describe("POI communs à plusieurs parcours : une seule fiche, un seul poste", () => {
+  // parcours B : même départ, part vers l'est (le POI commun est au km 0,8 de A et sur B aussi)
+  const coordsB: Pt[] = Array.from({ length: 6 }, (_, i) => [6 + i * 0.01, 45 + (i ? 0.007 : 0), 1000] as Pt);
+  const raceB: Race = { ...race, id: "r2", label: "Trail court", routeId: "rtB" };
+  const shared = poi("ps", "ravito", 0, "Ravito commun");
+  const ev2 = (posts: Post[] = [], volunteers: EventModel["volunteers"] = []): EventModel => ({ ...evOf(posts, volunteers), races: [race, raceB] });
+  const both = (aPois: Poi[], bPois: Poi[]) => [route(aPois), { id: "rtB", coords: coordsB, pois: bPois }];
+  it("un même POI sur deux parcours → un seul poste, visible dans les deux courses avec son kilomètre", () => {
+    const s1 = { ...shared, lat: 45.007 };
+    const { ev } = syncEvent(ev2(), both([s1], [s1]));
+    const ps = ev.posts.filter((p) => p.poiId === "ps");
+    expect(ps).toHaveLength(1); expect(ps[0].raceId).toBe("r1"); expect(ps[0].shared?.map((x) => x.raceId)).toEqual(["r2"]);
+    expect(postsOfRace(ev.posts, "r2").some((p) => p.id === ps[0].id)).toBe(true);
+    expect(postLabel(ev, ps[0])).toMatch(/Trail 11 km \+ Trail court/);
+    expect(syncEvent(ev, both([s1], [s1])).ev).toBe(ev); // idempotent
+    const rows = passageTable(raceB, ev.posts, coordsB, [1]); expect(rows.some((r) => r.post.id === ps[0].id)).toBe(true);
+  });
+  it("retirer un parcours de l'association garde le POI (et son équipe) sur les autres", () => {
+    const s1 = { ...shared, lat: 45.007 };
+    const e1 = syncEvent(ev2(), both([s1], [s1])).ev, id = e1.posts.find((p) => p.poiId === "ps")!.id;
+    const e1v = { ...e1, volunteers: [{ id: "v", name: "Ana", phone: "", postId: id, from: "", to: "", instructions: "" }] };
+    const e2 = syncEvent(e1v, both([s1], [])).ev, p2 = e2.posts.find((p) => p.poiId === "ps")!;
+    expect(p2.shared).toBeUndefined(); expect(p2.id).toBe(id); expect(e2.volunteers[0].postId).toBe(id);
+    // retirer la course principale : le poste passe sur l'autre course, même identifiant, même bénévole
+    const e3 = syncEvent(e1v, both([], [s1])).ev, p3 = e3.posts.find((p) => p.poiId === "ps")!;
+    expect(p3.raceId).toBe("r2"); expect(p3.id).toBe(id); expect(e3.volunteers[0].postId).toBe(id);
+  });
+  it("anciens postes en double (deux courses sur le même parcours) → fusionnés, bénévoles reportés, effectif le plus grand", () => {
+    const sameRoute = { ...raceB, routeId: "rt" };
+    const old: Post[] = [
+      { id: "r1~p1", raceId: "r1", kind: "ravito", name: "R", km: 5, staffNeeded: 3, note: "", poiId: "p1" },
+      { id: "r2~p1", raceId: "r2", kind: "ravito", name: "R", km: 5, staffNeeded: 6, note: "", poiId: "p1" },
+    ];
+    const e = syncEvent({ ...evOf(old, [{ id: "v", name: "Léo", phone: "", postId: "r2~p1", from: "", to: "", instructions: "" }]), races: [race, sameRoute] }, [route([poi("p1", "ravito", 5)])]).ev;
+    const ps = e.posts.filter((p) => p.poiId === "p1"); expect(ps).toHaveLength(1);
+    expect(ps[0]).toMatchObject({ id: "r1~p1", staffNeeded: 6 }); expect(e.volunteers[0].postId).toBe("r1~p1");
+  });
+});
+
+import { propagateCommon } from "../src/lib/poi-sync";
+describe("POI commun modifié dans un parcours → reporté dans les autres", () => {
+  it("nom et position recopiés ; POI non commun ou retiré : rien n'est propagé", () => {
+    const c = { ...poi("c", "ravito", 3, "Ravito commun"), common: true }, solo = poi("s", "eau", 4);
+    const A = { id: "A", pois: [{ ...c, name: "Ravito du col", lat: 45.031 }, solo] }, B = { id: "B", pois: [c] }, C = { id: "C", pois: [poi("x", "vue", 1)] };
+    const out = propagateCommon(A, [A, B, C]);
+    expect(out.map((r) => r.id)).toEqual(["B"]); expect(out[0].pois[0]).toMatchObject({ name: "Ravito du col", lat: 45.031, common: true });
+    expect(propagateCommon({ id: "A", pois: [solo] }, [A, B])).toEqual([]); // A a retiré le POI commun : B le garde tel quel
+  });
+});

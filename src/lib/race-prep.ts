@@ -1,5 +1,5 @@
 import type { EventModel, Post, Race } from "./events";
-import { clockAt } from "./events";
+import { clockAt, postsOfRace } from "./events";
 import { estimateMinutes } from "./sports";
 import type { LL } from "./types";
 
@@ -139,7 +139,7 @@ export function raceDay(race: Race): DaySchedule {
 // ───────────────────────── Contrôles sur la logistique saisie ─────────────────────────
 export interface Check { level: "ok" | "warn" | "info"; text: string }
 export function logisticsChecks(ev: EventModel, race: Race, cls: Classification): Check[] {
-  const posts = ev.posts.filter((p) => p.raceId === race.id), out: Check[] = [];
+  const posts = postsOfRace(ev.posts, race.id), out: Check[] = [];
   const of = (k: Post["kind"]) => posts.filter((p) => p.kind === k);
   const staffed = (p: Post) => ev.volunteers.filter((v) => v.postId === p.id).length;
   const sig = of("signaleur"), short = sig.filter((p) => staffed(p) < Math.max(1, p.staffNeeded));

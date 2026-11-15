@@ -1,7 +1,7 @@
 "use client";
 import { useStore, readStore, writeStore } from "./store";
 import type { SavedRoute } from "./types";
-import { syncEvent } from "./poi-sync";
+import { propagateCommon, syncEvent } from "./poi-sync";
 
 /** Dépôts de données. Tous les accès passent ici. */
 const EMPTY: never[] = [];
@@ -55,7 +55,12 @@ const baseRoutes = listKey<SavedRoute>("routes");
 /** Parcours : chaque enregistrement réaligne la logistique des événements qui l'utilisent (POI partagés, départ / arrivée). */
 export const routesRepo = {
   ...baseRoutes,
-  upsert: (r: SavedRoute) => { const res = baseRoutes.upsert(r); if (res.ok) syncEventsWithRoutes(r.id); return res; },
+  upsert: (r: SavedRoute) => {
+    const res = baseRoutes.upsert(r); if (!res.ok) return res;
+    // POI communs à plusieurs parcours : la modification est reportée dans chacun
+    const others = propagateCommon(r, baseRoutes.getAll()); for (const o of others) baseRoutes.upsert({ ...o, updatedAt: Date.now() });
+    syncEventsWithRoutes(others.length ? undefined : r.id); return res;
+  },
 };
 let syncing = false;
 /**

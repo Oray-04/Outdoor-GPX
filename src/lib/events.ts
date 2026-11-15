@@ -34,7 +34,20 @@ export function raceOutOfSync(r: Race, coords: Pt[]): boolean {
 export interface Post { id: string; raceId: string; kind: PostKind; name: string; km: number; lng?: number; lat?: number; /** heures après le départ */ cutoffH?: number; staffNeeded: number; note: string; /** proposé automatiquement, pas encore vérifié par l'organisateur */ auto?: boolean;
   /** point d'intérêt du parcours lié : position, type et nom viennent de lui (une seule saisie, partagée avec le parcours) */ poiId?: string;
   /** départ / arrivée déplacé à la main : n'est plus recalé sur les extrémités du parcours */ pinned?: boolean;
-  /** distance au tracé (m) quand le poste est placé à l'écart (parking, secours sur accès véhicule…) */ offTrackM?: number }
+  /** distance au tracé (m) quand le poste est placé à l'écart (parking, secours sur accès véhicule…) */ offTrackM?: number;
+  /** POI commun à plusieurs parcours : autres courses où ce même poste figure (un seul poste, une seule équipe), avec son kilomètre sur chacune */ shared?: PostShare[] }
+export interface PostShare { raceId: string; km: number; offTrackM?: number }
+/** Courses où figure un poste (la sienne, puis celles qui le partagent). */
+export const postRaceIds = (p: Post) => [p.raceId, ...(p.shared ?? []).map((s) => s.raceId)];
+/** Postes d'une course, y compris les postes communs à plusieurs parcours (même identifiant, kilomètre de cette course). */
+export function postsOfRace(posts: Post[], raceId: string): Post[] {
+  const out: Post[] = [];
+  for (const p of posts) {
+    if (p.raceId === raceId) out.push(p);
+    else { const s = p.shared?.find((x) => x.raceId === raceId); if (s) out.push({ ...p, km: s.km, offTrackM: s.offTrackM }); }
+  }
+  return out;
+}
 export interface Volunteer { id: string; name: string; phone: string; postId: string; from: string; to: string; instructions: string }
 export type Role = "admin" | "logistique" | "benevoles" | "lecture";
 export interface Member { id: string; name: string; email: string; role: Role }
@@ -65,14 +78,16 @@ export function postNumbers(ev: Pick<EventModel, "races" | "posts">): Map<string
   const out = new Map<string, { n: number; race: Race | undefined }>();
   for (const raceId of [...new Set(ev.posts.map((p) => p.raceId))]) {
     const race = ev.races.find((r) => r.id === raceId);
-    ev.posts.map((p, i) => ({ p, i })).filter((x) => x.p.raceId === raceId).sort((a, b) => a.p.km - b.p.km || a.i - b.i).forEach((x, k) => out.set(x.p.id, { n: k + 1, race }));
+    // numéro dans la course du poste (un poste commun garde le numéro de sa première course)
+    postsOfRace(ev.posts, raceId).map((p, i) => ({ p, i })).sort((a, b) => a.p.km - b.p.km || a.i - b.i).forEach((x, k) => { if (x.p.raceId === raceId) out.set(x.p.id, { n: k + 1, race }); });
   }
   return out;
 }
 /** Libellé d'un poste, identique sur la carte et sur les fiches : « Poste 3 — Ravitaillement 1 (km 12,4) ». */
 export function postLabel(ev: Pick<EventModel, "races" | "posts">, p: Post, withRace = ev.races.length > 1): string {
   const x = postNumbers(ev).get(p.id);
-  return `Poste ${x?.n ?? "?"} — ${p.name || POST_KINDS[p.kind].label} (km ${String(+p.km.toFixed(1)).replace(".", ",")})${withRace && x?.race ? ` · ${x.race.label}` : ""}`;
+  const common = (p.shared ?? []).map((s) => ev.races.find((r) => r.id === s.raceId)?.label).filter(Boolean);
+  return `Poste ${x?.n ?? "?"} — ${p.name || POST_KINDS[p.kind].label} (km ${String(+p.km.toFixed(1)).replace(".", ",")})${withRace && x?.race ? ` · ${x.race.label}${common.length ? ` + ${common.join(", ")}` : ""}` : ""}`;
 }
 export const volunteersAt = (ev: Pick<EventModel, "volunteers">, postId: string) => ev.volunteers.filter((v) => v.postId === postId);
 const normName = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
@@ -134,7 +149,7 @@ export function passageTable(race: Race, posts: Post[], coords: Pt[] | null, fin
       return Math.min(1, e[i] / total);
     };
   } else frac = (p) => Math.min(1, p.km / (race.distanceKm || 1));
-  return posts.filter((p) => p.raceId === race.id).sort((a, b) => a.km - b.km).map((post) => {
+  return postsOfRace(posts, race.id).sort((a, b) => a.km - b.km).map((post) => {
     const f = frac(post);
     const times = finishHours.map((h) => { const m = h * 60 * f; return { elapsedMin: m, clock: clockAt(race.startTime, m) }; });
     return { post, km: post.km, times, late: times.map((t) => post.cutoffH != null && t.elapsedMin > post.cutoffH * 60) };

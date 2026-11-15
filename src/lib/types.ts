@@ -20,7 +20,7 @@ export const POI_TYPES: Record<PoiType, { label: string; letter: string; color: 
  */
 export const normalizePois = (pois: Poi[] | undefined): Poi[] => (pois ?? []).map((p) => (p.type in POI_TYPES ? p : { ...p, type: (p.type as string) === "depart" ? "parking" : "vue" }));
 
-export interface Poi { id: string; type: PoiType; name: string; lng: number; lat: number }
+export interface Poi { id: string; type: PoiType; name: string; lng: number; lat: number; /** commun à plusieurs parcours : le même point (même identifiant) figure dans chacun ; toute modification est reportée sur tous */ common?: boolean }
 export interface Waypoint { lng: number; lat: number; /** segment précédent tracé sur chemins (true) ou en ligne droite */ auto: boolean }
 
 export type Visibility = "prive" | "public";

@@ -3,7 +3,7 @@ import { Field, RequiredLegend, filled } from "@/components/ui/field";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { GeoJSONSource, Marker, Popup } from "maplibre-gl";
-import { ArrowLeft, Plus, Trash2, FileDown, Printer, Users, X, UserPlus, Sparkles, Check, Flag, FlagTriangleRight, Maximize2, Minimize2, MapPinned, ArrowRight } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, FileDown, Printer, Users, X, UserPlus, Sparkles, Check, Flag, FlagTriangleRight, MapPinned, ArrowRight } from "lucide-react";
 import clsx from "clsx";
 import { useMap } from "@/components/map/use-map";
 import { LayerControl } from "@/components/map/layer-control";
@@ -12,8 +12,8 @@ import { poiPinSvg } from "@/lib/poi-icons";
 import { routeMarkerSvg } from "@/lib/route-markers";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { eventsRepo, routesRepo, syncEventsWithRoutes } from "@/lib/repo";
-import { POST_KINDS, passageTable, raceFactsFromRoute, raceOutOfSync, POST_ICON, POST_COLOR, postNumbers, postLabel, volunteersAt, assignVolunteer, addVolunteerAt, cleanAssignments, type EventModel, type Post, type PostKind, type Volunteer } from "@/lib/events";
-import { KIND_TO_POI, STAFF_DEFAULT, isEndpoint, placeOn, poiPostId, proposeShared } from "@/lib/poi-sync";
+import { POST_KINDS, passageTable, raceFactsFromRoute, raceOutOfSync, POST_ICON, POST_COLOR, postNumbers, postLabel, volunteersAt, assignVolunteer, addVolunteerAt, cleanAssignments, postsOfRace, postRaceIds, type EventModel, type Post, type PostKind, type Volunteer } from "@/lib/events";
+import { KIND_TO_POI, STAFF_DEFAULT, isEndpoint, placeOn, poiPostId, proposeShared, routesWithPoi } from "@/lib/poi-sync";
 import { estimateMinutes } from "@/lib/sports";
 import { bboxOf } from "@/lib/geo";
 import { download, safeName } from "@/lib/formats";
@@ -61,7 +61,7 @@ function postMarkerEl(kind: PostKind, n: number, staff: string, short: boolean, 
   return b;
 }
 
-export function Logistics({ ev, save, full, setFull }: P & { full: boolean; setFull: (v: boolean) => void }) {
+export function Logistics({ ev, save }: P) {
   const routes = routesRepo.useAll();
   const [raceId, setRaceId] = useState(ev.races[0]?.id ?? "");
   const race = ev.races.find((r) => r.id === raceId) ?? ev.races[0];
@@ -70,18 +70,43 @@ export function Logistics({ ev, save, full, setFull }: P & { full: boolean; setF
   const palette = (Object.keys(POST_KINDS) as PostKind[]).filter((k) => !hasRoute || !isEndpoint(k));
   const [kind, setKind] = useState<PostKind>("ravito");
   const [msg, setMsg] = useState<string | null>(null);
-  const posts = useMemo(() => ev.posts.filter((p) => p.raceId === race?.id).sort((a, b) => a.km - b.km), [ev.posts, race]);
+  const posts = useMemo(() => (race ? postsOfRace(ev.posts, race.id) : []).sort((a, b) => a.km - b.km), [ev.posts, race]); // y compris les postes communs à plusieurs parcours
   const { el, map, ml, ready } = useMap({ preserveBuffer: true });
   const marks = useRef<Marker[]>([]); const popup = useRef<Popup | null>(null);
   const [sel, setSel] = useState<string | null>(null); const [newName, setNewName] = useState<Record<string, string>>({});
   const [draft, setDraft] = useState<Record<string, string>>({});
-  const [listOpen, setListOpen] = useState(false);
   const clickRef = useRef<(lng: number, lat: number) => void>(() => {});
   const moveRef = useRef<(p: Post, lng: number, lat: number) => void>(() => {});
 
   const routeNow = () => (race?.routeId ? routesRepo.get(race.routeId) : undefined); // lecture fraîche avant chaque écriture
   /** Écrit les POI du parcours : la logistique de tous les événements qui l'utilisent est réalignée aussitôt (POI partagés). */
-  const writePois = (fn: (pois: Poi[]) => Poi[]) => { const rt = routeNow(); if (!rt) return false; const r = routesRepo.upsert({ ...rt, pois: fn(rt.pois ?? []), updatedAt: Date.now() }); if (!r.ok) setMsg(r.error ?? "Enregistrement impossible."); return r.ok; };
+  const writeRoute = (routeId: string | undefined, fn: (pois: Poi[]) => Poi[]) => { const rt = routeId ? routesRepo.get(routeId) : undefined; if (!rt) return false; const r = routesRepo.upsert({ ...rt, pois: fn(rt.pois ?? []), updatedAt: Date.now() }); if (!r.ok) setMsg(r.error ?? "Enregistrement impossible."); return r.ok; };
+  const writePois = (fn: (pois: Poi[]) => Poi[]) => writeRoute(race?.routeId, fn);
+  // parcours distincts de l'événement (deux courses sur le même parcours n'en font qu'un)
+  const eventRoutes = useMemo(() => { const m = new Map<string, { routeId: string; name: string; races: string[] }>(); for (const r of ev.races) { const rt = r.routeId ? routes.find((x) => x.id === r.routeId) : undefined; if (!rt || rt.coords.length < 2) continue; const cur = m.get(rt.id) ?? { routeId: rt.id, name: rt.name, races: [] }; cur.races.push(r.label); m.set(rt.id, cur); } return [...m.values()]; }, [ev.races, routes]);
+  /** POI commun : ajoute ou retire ce point d'un autre parcours (même fiche, même poste, même équipe). */
+  const setOnRoute = (p: Post, routeId: string, on: boolean) => {
+    const src = routes.find((r) => r.pois.some((q) => q.id === p.poiId)), poi = src?.pois.find((q) => q.id === p.poiId); if (!poi) return;
+    const holders = routesWithPoi(routes, p.poiId!);
+    if (on) {
+      for (const h of holders) if (!h.pois.find((q) => q.id === poi.id)?.common) writeRoute(h.id, (ps) => ps.map((q) => (q.id === poi.id ? { ...q, common: true } : q)));
+      writeRoute(routeId, (ps) => (ps.some((q) => q.id === poi.id) ? ps : [...ps, { ...poi, common: true }]));
+      setMsg(`« ${poi.name} » est maintenant commun au parcours « ${routes.find((r) => r.id === routeId)?.name} » : un seul poste, une seule équipe.`);
+    } else {
+      if (holders.length <= 1) return;
+      writeRoute(routeId, (ps) => ps.filter((q) => q.id !== poi.id));
+      if (holders.length === 2) { const last = holders.find((h) => h.id !== routeId)!; writeRoute(last.id, (ps) => ps.map((q) => (q.id === poi.id ? { id: q.id, type: q.type, name: q.name, lng: q.lng, lat: q.lat } : q))); }
+      setMsg(`« ${poi.name} » retiré du parcours « ${routes.find((r) => r.id === routeId)?.name} » ; il reste sur les autres parcours.`);
+    }
+  };
+  const setCommon = (p: Post, on: boolean) => {
+    const holders = routesWithPoi(routes, p.poiId!);
+    if (on) { for (const h of holders) writeRoute(h.id, (ps) => ps.map((q) => (q.id === p.poiId ? { ...q, common: true } : q))); return; }
+    const keep = race?.routeId && holders.some((h) => h.id === race.routeId) ? race.routeId : holders[0]?.id;
+    if (holders.length > 1 && !window.confirm(`Ne plus partager « ${p.name} » ?\n\nIl sera retiré de ${holders.length - 1} autre(s) parcours et restera seulement sur « ${routes.find((r) => r.id === keep)?.name} ».`)) return;
+    for (const h of holders) if (h.id !== keep) writeRoute(h.id, (ps) => ps.filter((q) => q.id !== p.poiId));
+    writeRoute(keep, (ps) => ps.map((q) => (q.id === p.poiId ? { id: q.id, type: q.type, name: q.name, lng: q.lng, lat: q.lat } : q)));
+  };
   const upd = (id: string, patch: Partial<Post>) => save((e) => ({ ...e, posts: e.posts.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
 
   clickRef.current = (lng, lat) => {
@@ -124,8 +149,9 @@ export function Logistics({ ev, save, full, setFull }: P & { full: boolean; setF
   const remove = (p: Post) => {
     const vols = volunteersAt(ev, p.id), rt = routeNow();
     if (p.poiId && rt) {
-      if (!window.confirm(`Supprimer « ${p.name} » ?\n\nCe point est partagé : il sera aussi retiré du parcours « ${rt.name} »${vols.length ? `, et ${vols.length} bénévole(s) seront remis à « non affecté » (fiches conservées)` : ""}.`)) return;
-      writePois((pois) => pois.filter((q) => q.id !== p.poiId));
+      const holders = routesWithPoi(routesRepo.getAll(), p.poiId);
+      if (!window.confirm(`Supprimer « ${p.name} » ?\n\nCe point est partagé avec ${holders.length > 1 ? `les parcours ${holders.map((h) => `« ${h.name} »`).join(", ")}` : `le parcours « ${rt.name} »`} : il en sera retiré${vols.length ? `, et ${vols.length} bénévole(s) seront remis à « non affecté » (fiches conservées)` : ""}.${holders.length > 1 ? "\n\nPour le retirer d'un seul parcours, décochez ce parcours dans « Commun à plusieurs parcours »." : ""}`)) return;
+      for (const h of holders) writeRoute(h.id, (pois) => pois.filter((q) => q.id !== p.poiId));
     } else save((e) => ({ ...e, posts: e.posts.filter((x) => x.id !== p.id), volunteers: e.volunteers.map((v) => (v.postId === p.id ? { ...v, postId: "" } : v)) }));
     if (sel === p.id) setSel(null);
   };
@@ -155,8 +181,9 @@ export function Logistics({ ev, save, full, setFull }: P & { full: boolean; setF
     posts.forEach((p, i) => {
       if (p.lng == null || p.lat == null) return;
       const vols = volunteersAt(ev, p.id), need = Math.max(0, p.staffNeeded), short = vols.length < need;
-      const b = postMarkerEl(p.kind, i + 1, `${vols.length}/${need}`, short, sel === p.id, !!p.auto, `Poste ${i + 1} — ${p.name} (km ${p.km})${p.offTrackM ? `, à ${p.offTrackM} m du tracé` : ""} : ${vols.length ? vols.map((v) => v.name).join(", ") : "aucun bénévole"}${p.auto ? " — proposé, à vérifier" : ""}. Glisser pour déplacer.`);
-      b.addEventListener("click", (e) => { e.stopPropagation(); setSel(p.id); setListOpen(true); setTimeout(() => document.getElementById(`post-${p.id}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }), 50); });
+      const b = postMarkerEl(p.kind, i + 1, `${vols.length}/${need}`, short, sel === p.id, !!p.auto, `Poste ${i + 1} — ${p.name} (km ${p.km})${p.offTrackM ? `, à ${p.offTrackM} m du tracé` : ""} : ${vols.length ? vols.map((v) => v.name).join(", ") : "aucun bénévole"}${p.auto ? " — proposé, à vérifier" : ""}${postRaceIds(ev.posts.find((x) => x.id === p.id) ?? p).length > 1 ? " — commun à plusieurs parcours" : ""}. Glisser pour déplacer.`);
+      if (postRaceIds(ev.posts.find((x) => x.id === p.id) ?? p).length > 1) { const ring = document.createElement("span"); ring.className = "absolute -bottom-1.5 -right-2 rounded-full border border-white bg-glacier-600 px-1 text-[9px] font-bold leading-[0.95rem] text-white shadow"; ring.textContent = `×${postRaceIds(ev.posts.find((x) => x.id === p.id) ?? p).length}`; ring.title = "Commun à plusieurs parcours"; b.append(ring); }
+      b.addEventListener("click", (e) => { e.stopPropagation(); setSel(p.id); setTimeout(() => document.getElementById(`post-${p.id}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }), 50); });
       const mk = new lib.Marker({ element: b, anchor: "bottom", draggable: true }).setLngLat([p.lng, p.lat]).addTo(m);
       mk.on("dragend", () => { const ll = mk.getLngLat(); moveRef.current(p, ll.lng, ll.lat); });
       marks.current.push(mk);
@@ -174,14 +201,6 @@ export function Logistics({ ev, save, full, setFull }: P & { full: boolean; setF
     popup.current = new lib.Popup({ closeButton: true, closeOnClick: false, offset: 40 }).setLngLat([p.lng, p.lat]).setDOMContent(box).addTo(m);
     popup.current.on("close", () => setSel((x) => (x === p.id ? null : x)));
   }, [sel, posts, ev.volunteers, ready, map, ml]); // eslint-disable-line react-hooks/exhaustive-deps
-  // plein écran : Échap pour sortir, page figée derrière
-  useEffect(() => {
-    if (!full) return;
-    const k = (e: KeyboardEvent) => { if (e.key === "Escape" && !(e.target as HTMLElement)?.closest?.("input,textarea,select")) setFull(false); };
-    const prev = document.body.style.overflow; document.body.style.overflow = "hidden"; window.addEventListener("keydown", k);
-    return () => { document.body.style.overflow = prev; window.removeEventListener("keydown", k); };
-  }, [full, setFull]);
-
   const autoN = posts.filter((p) => p.auto).length;
   const propose = () => {
     const rt = routeNow(); if (!race || !rt) return;
@@ -214,11 +233,11 @@ export function Logistics({ ev, save, full, setFull }: P & { full: boolean; setF
       {hasRoute && <Button size="sm" onClick={propose} data-action="proposer"><Sparkles className="size-4" />{posts.some((p) => !isEndpoint(p.kind)) ? "Compléter avec les postes proposés" : "Proposer les postes automatiquement"}</Button>}
       {autoN > 0 && <Button size="sm" variant="secondary" onClick={() => save((e) => ({ ...e, posts: e.posts.map((p) => (p.raceId === race?.id ? { ...p, auto: undefined } : p)) }))}><Check className="size-4" />Confirmer les {autoN} postes proposés</Button>}
       <Button size="sm" variant="secondary" onClick={exportMap} disabled={!posts.length}><FileDown className="size-4" />Carte en PDF</Button>
-      {!full && <Button size="sm" variant="secondary" onClick={() => window.print()}><Printer className="size-4" />Imprimer</Button>}
+      <Button size="sm" variant="secondary" onClick={() => window.print()}><Printer className="size-4" />Imprimer</Button>
     </div>
   );
   const list = (
-    <ul className={clsx("grid content-start gap-2.5 overflow-y-auto p-0.5", full ? "min-h-0" : "max-h-[40rem]")} aria-label="Postes de la course">
+    <ul className="grid max-h-[44rem] content-start gap-2.5 overflow-y-auto p-0.5" aria-label="Postes de la course">
       {posts.map((p, i) => { const linked = !!p.poiId && hasRoute, endpoint = isEndpoint(p.kind) && hasRoute; return (
         <li key={p.id} id={`post-${p.id}`} aria-label={`Poste ${i + 1} — ${p.name}`} className={clsx("rounded-2xl bg-white p-3 shadow-card ring-1", sel === p.id ? "ring-2 ring-pine-600" : "ring-ink-100")}>
           <div className="flex items-center gap-2"><button type="button" onClick={() => focus(p)} title="Voir sur la carte" aria-label={`Voir le poste ${i + 1} sur la carte`} className="relative shrink-0"><PostIcon kind={p.kind} size={30} /><span className="absolute -left-1.5 -top-1.5 grid min-w-[1.1rem] place-items-center rounded-full border border-white bg-ink-950 px-1 text-[10px] font-bold leading-4 text-white">{i + 1}</span></button>
@@ -230,6 +249,14 @@ export function Logistics({ ev, save, full, setFull }: P & { full: boolean; setF
             {linked && <span className="rounded-full bg-pine-50 px-2 py-0.5 font-semibold text-pine-700" title="Nom, type et position partagés avec les points d'intérêt du parcours : une seule saisie">Partagé avec le parcours</span>}
             {endpoint && <span className="rounded-full bg-ink-50 px-2 py-0.5 font-semibold text-ink-600">{p.pinned ? "Déplacé à la main" : "Extrémité du parcours"}</span>}
             {p.auto && <><span className="rounded-full bg-brass-100 px-2 py-0.5 font-semibold text-brass-600">Proposé — à vérifier</span><button type="button" className="font-semibold text-pine-700 underline" onClick={() => upd(p.id, { auto: undefined })}>Confirmer</button></>}</p>
+          {(() => { const full = ev.posts.find((x) => x.id === p.id) ?? p, on = postRaceIds(full); if (on.length < 2) return null; return (
+            <p className="mt-1 pl-10 text-xs font-medium text-glacier-600" data-common-races>Commun : {on.map((rid) => { const r = ev.races.find((x) => x.id === rid), km = rid === full.raceId ? full.km : full.shared?.find((x) => x.raceId === rid)?.km; return `${r?.label ?? "?"} (km ${km != null ? km.toFixed(1).replace(".", ",") : "?"})`; }).join(" · ")}</p>); })()}
+          {linked && eventRoutes.length > 1 && (() => { const holders = routesWithPoi(routes, p.poiId!), isCommon = holders.length > 1 || !!holders[0]?.pois.find((q) => q.id === p.poiId)?.common; return (
+            <div className="mt-2 rounded-xl bg-ink-50 p-2 text-xs">
+              <label className="flex items-center gap-2 font-semibold"><input type="checkbox" className="size-4 accent-[var(--color-pine-600)]" checked={isCommon} onChange={(e) => setCommon(p, e.target.checked)} data-action="commun" />Commun à plusieurs parcours</label>
+              {isCommon && <div className="mt-1.5 grid gap-1 pl-6" role="group" aria-label={`Parcours où figure « ${p.name} »`}>{eventRoutes.map((er) => { const has = holders.some((h) => h.id === er.routeId), only = has && holders.length === 1; return (
+                <label key={er.routeId} className={clsx("flex items-center gap-2", only && "text-ink-500")} title={only ? "Dernier parcours de ce point : supprimez le poste pour le retirer" : undefined}><input type="checkbox" className="size-4 accent-[var(--color-pine-600)]" checked={has} disabled={only} onChange={(e) => setOnRoute(p, er.routeId, e.target.checked)} data-route={er.routeId} />{er.races.join(", ")} <span className="text-ink-500">· {er.name}</span></label>); })}</div>}
+            </div>); })()}
           <div className="mt-2 grid grid-cols-3 gap-2 text-xs">{hasRoute ? <span className="grid content-start gap-0.5"><span>Km</span><span className="flex h-8 items-center rounded bg-ink-50 px-1.5 font-semibold" title="Calculé sur le parcours">{p.km.toFixed(2).replace(".", ",")}</span></span> : <label>Km<input type="number" step="0.1" className="h-8 w-full rounded border border-ink-200 px-1" value={p.km} onChange={(e) => upd(p.id, { km: +e.target.value || 0 })} /></label>}
             <label>Barrière (h)<input type="number" step="0.25" min={0} className="h-8 w-full rounded border border-ink-200 px-1" value={p.cutoffH ?? ""} onChange={(e) => upd(p.id, { cutoffH: e.target.value === "" ? undefined : +e.target.value })} /></label>
             <label>Bénévoles<input type="number" min={0} className="h-8 w-full rounded border border-ink-200 px-1" value={p.staffNeeded} onChange={(e) => upd(p.id, { staffNeeded: +e.target.value || 0 })} /></label></div>
@@ -251,21 +278,18 @@ export function Logistics({ ev, save, full, setFull }: P & { full: boolean; setF
   );
   const hint = msg ?? (hasRoute ? `Choisissez un type puis cliquez sur la carte : près du tracé, le poste s'aimante sur la trace ; plus loin (parking, secours sur accès véhicule…), il reste où vous cliquez. Glissez un marqueur pour l'ajuster. Chaque poste est aussi un point d'intérêt du parcours « ${route!.name} » : une seule saisie, visible des deux côtés.` : "Liez un parcours à cette course pour placer les postes sur le tracé et les partager avec lui.");
   return (
-    <div data-fullscreen={full ? "true" : undefined} className={clsx(full ? "fixed inset-0 z-[80] flex flex-col gap-2 bg-paper p-2 sm:p-3" : "grid grid-cols-[minmax(0,1fr)] gap-3")}>
-      <div className={clsx("flex flex-wrap items-start gap-2", full && "rounded-2xl bg-white/90 p-2 shadow-card ring-1 ring-ink-100")}>
-        <div className="min-w-0 flex-1">{tools}</div>
-        <Button size="sm" variant={full ? "primary" : "secondary"} onClick={() => setFull(!full)} aria-label={full ? "Quitter le plein écran" : "Passer la carte en plein écran"} data-action="plein-ecran" className="shrink-0">{full ? <><Minimize2 className="size-4" />Quitter le plein écran</> : <><Maximize2 className="size-4" />Plein écran</>}</Button>
-      </div>
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
+      {tools}
       {counts.length > 0 && <ul aria-label="Équipements et postes sur la carte" className="flex flex-wrap gap-1.5 text-xs">{counts.map(([k, n]) => <li key={k} className="inline-flex items-center gap-1 rounded-full bg-white py-0.5 pl-0.5 pr-2.5 font-semibold text-ink-700 ring-1 ring-ink-100"><PostIcon kind={k} size={18} />{POST_KINDS[k].label} · {n}</li>)}</ul>}
-      <div className={clsx("grid grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-[minmax(0,1fr)_24rem]", full && "min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] lg:grid-rows-1")}>
-        <div className={clsx("flex min-h-0 flex-col", full && "min-h-[50vh]")}>
-          <div className={clsx("relative overflow-hidden rounded-2xl shadow-card ring-1 ring-ink-100", full ? "min-h-0 flex-1" : "h-[min(70vh,38rem)] min-h-[24rem]")}><div className="absolute inset-0"><div ref={el} className="size-full" role="application" aria-label="Carte logistique : cliquez pour placer un poste, glissez un poste pour le déplacer" /></div><LayerControl map={map} ready={ready} />
-          </div>
-          <p className={clsx("mt-2 text-xs text-ink-500", full && "line-clamp-2 lg:line-clamp-none")} aria-live="polite">{hint}</p>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-[minmax(0,1fr)_24rem]">
+        <div className="min-w-0">
+          {/* carte de travail : la molette zoome directement (sans clic) ; sur écran tactile, deux doigts pour la déplacer, la page reste défilable */}
+          <div data-workspace="touch" className="relative h-[min(72vh,44rem)] min-h-[22rem] overflow-hidden rounded-2xl shadow-card ring-1 ring-ink-100"><div className="absolute inset-0"><div ref={el} className="size-full" role="application" aria-label="Carte logistique : molette pour zoomer, cliquez pour placer un poste, glissez un poste pour le déplacer" /></div><LayerControl map={map} ready={ready} /></div>
+          <p className="mt-1.5 text-[11px] text-ink-500"><span className="hidden [@media(pointer:fine)]:inline">Molette : zoomer · glisser : déplacer · clic droit + glisser : tourner et incliner · boussole : revenir au nord.</span><span className="[@media(pointer:fine)]:hidden">Deux doigts : déplacer et zoomer · pincer-tourner : orienter · boussole : revenir au nord.</span></p>
+          <p className="mt-1 text-xs text-ink-500" aria-live="polite">{hint}</p>
           <div className="mt-2">{actions}</div>
         </div>
-        {full ? <div className={clsx("min-h-0 flex-col lg:flex", listOpen ? "flex max-h-[45vh] lg:max-h-none" : "hidden")}>{list}</div> : list}
-        {full && <button type="button" onClick={() => setListOpen((v) => !v)} className="rounded-full bg-white px-4 py-2 text-sm font-semibold shadow-card ring-1 ring-ink-100 lg:hidden" aria-expanded={listOpen}>{listOpen ? "Masquer la liste" : `Liste des postes (${posts.length})`}</button>}
+        {list}
       </div>
     </div>
   );
@@ -333,9 +357,9 @@ export function LogisticsSummary({ ev }: { ev: EventModel }) {
   return (
     <div className="rounded-2xl bg-ink-950 p-5 text-white shadow-lift">
       <div className="flex flex-wrap items-center justify-between gap-4"><div className="min-w-0"><p className="eyebrow !text-brass-400">Page dédiée</p><h3 className="mt-1 text-xl font-bold">Préparation logistique</h3>
-        <p className="mt-1 max-w-xl text-sm text-white/70">Grande carte, plein écran, placement au clic, déplacement par glisser-déposer, bénévoles et temps de passage. Les points d&apos;intérêt des parcours y apparaissent d&apos;eux-mêmes ; ce que vous y ajoutez est repris dans les parcours.</p></div>
+        <p className="mt-1 max-w-xl text-sm text-white/70">Grande carte (molette pour zoomer), placement au clic, déplacement par glisser-déposer, bénévoles et temps de passage. Les points d&apos;intérêt des parcours y apparaissent d&apos;eux-mêmes ; ce que vous y ajoutez est repris dans les parcours.</p></div>
         <ButtonLink href={logisticsHref(ev.id)} size="lg" data-action="ouvrir-logistique"><MapPinned className="size-5" />Ouvrir la logistique<ArrowRight className="size-4" /></ButtonLink></div>
-      <ul className="mt-4 grid gap-2 sm:grid-cols-2">{ev.races.map((r) => { const ps = ev.posts.filter((p) => p.raceId === r.id), rt = routes.find((x) => x.id === r.routeId), need = ps.reduce((s, p) => s + p.staffNeeded, 0), got = ps.reduce((s, p) => s + Math.min(p.staffNeeded, volunteersAt(ev, p.id).length), 0), auto = ps.filter((p) => p.auto).length; return (
+      <ul className="mt-4 grid gap-2 sm:grid-cols-2">{ev.races.map((r) => { const ps = postsOfRace(ev.posts, r.id), rt = routes.find((x) => x.id === r.routeId), need = ps.reduce((s, p) => s + p.staffNeeded, 0), got = ps.reduce((s, p) => s + Math.min(p.staffNeeded, volunteersAt(ev, p.id).length), 0), auto = ps.filter((p) => p.auto).length; return (
         <li key={r.id} className="rounded-xl bg-white/10 p-3 text-sm"><p className="font-semibold">{r.label}{rt ? <span className="font-normal text-white/60"> · {rt.name}</span> : <span className="text-warn"> · sans parcours</span>}</p>
           <p className="mt-1 flex flex-wrap gap-1.5">{(Object.keys(POST_KINDS) as PostKind[]).map((k) => [k, ps.filter((p) => p.kind === k).length] as const).filter(([, n]) => n).map(([k, n]) => <span key={k} className="inline-flex items-center gap-1 rounded-full bg-white/90 py-0.5 pl-0.5 pr-2 text-xs font-semibold text-ink-800"><PostIcon kind={k} size={16} />{n}</span>)}</p>
           <p className="mt-1 text-xs text-white/70">{ps.length} poste(s) · bénévoles {got}/{need}{auto ? ` · ${auto} proposé(s) à vérifier` : ""}</p></li>); })}</ul>
@@ -347,7 +371,6 @@ export function LogisticsSummary({ ev }: { ev: EventModel }) {
 export function LogisticsPage({ id }: { id: string }) {
   const ev = eventsRepo.useAll().find((e) => e.id === id);
   const [sub, setSub] = useState<"postes" | "benevoles" | "passages">("postes");
-  const [full, setFull] = useState(false);
   if (!ev) return <div className="mx-auto max-w-xl px-4 py-24 text-center"><h1 className="text-3xl font-bold">Événement introuvable</h1><p className="mt-2 text-ink-600">Les événements sont enregistrés sur cet appareil.</p><Link href="/organisateurs" className="mt-6 inline-block font-semibold text-pine-700 underline">Retour</Link></div>;
   const save = (fn: (e: EventModel) => EventModel) => { eventsRepo.upsert(fn(eventsRepo.get(ev.id) ?? ev)); };
   return (
@@ -358,7 +381,7 @@ export function LogisticsPage({ id }: { id: string }) {
         <p className="mt-1 max-w-3xl text-sm text-ink-600">Départ et arrivée sont pris aux extrémités de chaque parcours ; les points d&apos;intérêt du parcours (ravitaillements, eau, secours, parkings, passages…) sont repris d&apos;eux-mêmes. Ajoutez, déplacez ou supprimez : le parcours est mis à jour en même temps.</p></div>
         <Tabs label="Logistique" value={sub} onChange={setSub} items={[["postes", `Carte et postes (${ev.posts.length})`], ["benevoles", `Bénévoles (${ev.volunteers.length})`], ["passages", "Temps de passage"]]} /></header>
       <div className="mt-4">
-        {sub === "postes" && <Logistics ev={ev} save={save} full={full} setFull={setFull} />}
+        {sub === "postes" && <Logistics ev={ev} save={save} />}
         {sub === "benevoles" && <Volunteers ev={ev} save={save} />}
         {sub === "passages" && <Passages ev={ev} />}
       </div>

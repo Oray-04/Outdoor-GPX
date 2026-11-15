@@ -17,13 +17,17 @@ export const MAP_LOCALE = {
  * Une carte posée au milieu d'une page qui défile ne doit pas « avaler » la molette : sinon impossible de descendre dans la page.
  * Carte intégrée → la molette fait défiler la page (Ctrl/⌘ + molette pour zoomer, deux doigts sur mobile).
  * Carte d'un espace de travail plein écran, ou carte passée en plein écran → gestes normaux.
+ * Carte de travail (`data-workspace="touch"`, ex. logistique) → molette directe à la souris, deux doigts sur écran tactile.
  */
 export function isEmbeddedMap(e: HTMLElement | null): boolean {
   if (!e || typeof window === "undefined") return false;
   if (e.closest('[data-fullscreen="true"], .fixed.inset-0') || (document.fullscreenElement && document.fullscreenElement.contains(e))) return false;
   const w = e.closest("[data-workspace]");
   if (!w) return true;
-  return w.getAttribute("data-workspace") === "scroll" && window.innerWidth < 768;
+  const kind = w.getAttribute("data-workspace");
+  // carte de travail dans une page qui défile : molette directe à la souris ; sur écran tactile (téléphone, tablette), deux doigts pour la déplacer afin que la page reste défilable au doigt
+  if (kind === "touch") return window.matchMedia?.("(pointer: coarse)").matches ?? false;
+  return kind === "scroll" && window.innerWidth < 768;
 }
 export function syncCooperative(m: { cooperativeGestures: { enable(): void; disable(): void; isEnabled(): boolean } }, e: HTMLElement | null) {
   const want = isEmbeddedMap(e); if (want !== m.cooperativeGestures.isEnabled()) { if (want) m.cooperativeGestures.enable(); else m.cooperativeGestures.disable(); }

@@ -408,7 +408,7 @@ export function Editor({ routeId }: { routeId?: string }) {
   async function saveSibling(state: E.EState, name: string): Promise<string> {
     const pts = await addElevation(E.trackLL(state));
     const nid = uid();
-    routesRepo.upsert({ id: nid, name, description: meta.description, sport: meta.sport, segs: state.segs, waypoints: state.waypoints, coords: pts, pois: state.pois, terrain: meta.terrain, visibility: meta.visibility, region: meta.region, country: meta.country, layer: meta.layer, source: "creation", createdAt: Date.now(), updatedAt: Date.now() });
+    routesRepo.upsert({ id: nid, name, description: meta.description, sport: meta.sport, segs: state.segs, waypoints: state.waypoints, coords: pts, pois: state.pois.map((q) => ({ id: uid(), type: q.type, name: q.name, lng: q.lng, lat: q.lat })), terrain: meta.terrain, visibility: meta.visibility, region: meta.region, country: meta.country, layer: meta.layer, source: "creation", createdAt: Date.now(), updatedAt: Date.now() });
     return nid;
   }
   const align = async () => {
@@ -729,6 +729,7 @@ export function Editor({ routeId }: { routeId?: string }) {
             <ul className="grid gap-2">{st.pois.map((p) => (
               <li key={p.id} className={clsx("flex items-center gap-2 rounded-lg border p-2", selPoi === p.id ? "border-pine-600 bg-pine-50" : "border-ink-100")}>
                 <PoiIcon type={p.type} size={28} />
+                {p.common && <span className="shrink-0 rounded-full bg-glacier-100 px-1.5 py-0.5 text-[10px] font-semibold text-glacier-600" title="Point commun à plusieurs parcours : toute modification enregistrée ici est reportée sur les autres ; le supprimer ici le retire seulement de ce parcours">Commun</span>}
                 <input aria-label="Nom du point" className="min-w-0 flex-1 rounded border border-transparent px-1 py-0.5 text-sm hover:border-ink-200" value={p.name} onChange={(e) => commit({ ...st, pois: st.pois.map((x) => (x.id === p.id ? { ...x, name: e.target.value } : x)) })} />
                 <button aria-label="Supprimer le point" className="grid size-7 place-items-center rounded hover:bg-ink-100" onClick={() => commit({ ...st, pois: st.pois.filter((x) => x.id !== p.id) })}><Trash2 className="size-4" /></button>
               </li>))}
