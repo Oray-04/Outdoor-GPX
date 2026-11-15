@@ -6,7 +6,7 @@ import clsx from "clsx";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RouteMap } from "@/components/map/route-map";
-import { routesRepo, useLayers } from "@/lib/repo";
+import { routesRepo, renameRoute, useLayers } from "@/lib/repo";
 import { fromSaved } from "@/lib/route-model";
 import { FORMATS, parseAny, serialize, download, safeName, GpsFileError, MAX_BYTES, type GpsFormat, type ParsedFile } from "@/lib/formats";
 import * as E from "@/lib/editor-core";
@@ -79,7 +79,7 @@ export function FilesManager() {
       if (res.ok) { setPicked([]); setMergeName(""); setMsg(`« ${name} » créé (${rs.length} parcours fusionnés). Les originaux sont conservés.`); } else setMsg(res.error ?? "Fusion impossible.");
     } catch { setMsg("Fusion impossible pour le moment."); } finally { setMerging(false); }
   };
-  const rename = (id: string) => { const r = routesRepo.get(id); if (!r) return; const n = prompt("Nouveau nom", r.name); if (n?.trim()) routesRepo.upsert({ ...r, name: n.trim(), updatedAt: Date.now() }); };
+  const rename = (id: string) => { const r = routesRepo.get(id); if (!r) return; const n = prompt("Nouveau nom", r.name); if (n?.trim()) renameRoute(id, n); };
   const del = (id: string) => { const r = routesRepo.get(id); if (r && confirm(`Supprimer « ${r.name} » de cet appareil ?`)) routesRepo.remove(id); };
 
   return (

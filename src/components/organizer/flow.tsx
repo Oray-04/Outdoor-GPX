@@ -4,16 +4,17 @@ import Link from "next/link";
 import { ChevronDown, Check, Lock, CircleDashed, ShieldCheck, Sparkles, Loader2, ArrowRight, ArrowLeft, Route as RouteIcon, Upload, Wand2, Compass, PenLine, TriangleAlert, CircleCheck, ListChecks, FileDown } from "lucide-react";
 import clsx from "clsx";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { routesRepo } from "@/lib/repo";
+import { eventsRepo, routesRepo } from "@/lib/repo";
+import { proposeShared } from "@/lib/poi-sync";
 import { routeSurvey, profileForSport } from "@/lib/routing";
-import { proposePosts, type EventModel } from "@/lib/events";
+import { type EventModel, type Post } from "@/lib/events";
 import { departmentsAlong, rulesDraft, PREP_NOTICE, prepReport, type Prep } from "@/lib/race-prep";
 import { trailFlow, type Flow, type FlowItem, type FlowStep, type StepId } from "@/lib/trail-flow";
 import { trackStats, fmtKm, fmtM } from "@/lib/geo";
 import { download, safeName } from "@/lib/formats";
 import { prepPdf } from "@/lib/pdf";
 import { editorHref } from "@/lib/url";
-import { uid, type LL } from "@/lib/types";
+import { uid, type LL, type Poi } from "@/lib/types";
 
 export type Save = (fn: (e: EventModel) => EventModel) => void;
 export const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
@@ -158,23 +159,23 @@ export function DocumentsRunner({ ev, save }: { ev: EventModel; save: Save }) {
   const [msg, setMsg] = useState<string | null>(null);
   const run = () => {
     let nPosts = 0, nRaces = 0; const wroteRules = !ev.rules.trim();
-    save((e) => {
-      let posts = e.posts;
-      for (const r of e.races) {
-        if (posts.some((p) => p.raceId === r.id)) continue;
-        const rt = routes.find((x) => x.id === r.routeId); if (!rt) continue;
-        const add = proposePosts({ race: r, coords: rt.coords, pois: rt.pois, roads: e.prep?.roads?.[r.id] ?? [], newId: uid });
-        posts = [...posts, ...add]; nPosts += add.length; nRaces++;
-      }
-      return { ...e, posts, rules: e.rules.trim() ? e.rules : rulesDraft(e, e.prep ?? {}), prep: { ...(e.prep ?? {}), docsAt: Date.now() } };
-    });
-    setMsg(`${wroteRules ? "Règlement rédigé. " : "Règlement existant conservé. "}${nPosts ? `${nPosts} poste(s) proposé(s) sur ${nRaces} course(s) : départ, arrivée, ravitaillements, secours, signaleurs.` : "Postes existants conservés."} Dossier administratif, échéancier et dossier de préparation sont à jour.`);
+    // postes proposés pour chaque course : versés aussi dans les points d'intérêt du parcours (partagés, sans doublon)
+    const cur = eventsRepo.get(ev.id) ?? ev, add: Post[] = [], poisBy = new Map<string, Poi[]>();
+    for (const r of cur.races) {
+      const rt = routes.find((x) => x.id === r.routeId); if (!rt || rt.coords.length < 2) continue;
+      const res = proposeShared({ ...cur, posts: [...cur.posts, ...add] }, r, { coords: rt.coords, pois: [...rt.pois, ...(poisBy.get(rt.id) ?? [])] }, uid);
+      if (!res.posts.length) continue;
+      add.push(...res.posts); poisBy.set(rt.id, [...(poisBy.get(rt.id) ?? []), ...res.pois]); nPosts += res.posts.length; nRaces++;
+    }
+    save((e) => ({ ...e, posts: [...e.posts.filter((p) => !add.some((a) => a.id === p.id)), ...add], rules: e.rules.trim() ? e.rules : rulesDraft(e, e.prep ?? {}), prep: { ...(e.prep ?? {}), docsAt: Date.now() } }));
+    for (const [rid, pois] of poisBy) { const rt = routesRepo.get(rid); if (rt) routesRepo.upsert({ ...rt, pois: [...rt.pois, ...pois.filter((q) => !rt.pois.some((x) => x.id === q.id))], updatedAt: Date.now() }); }
+    setMsg(`${wroteRules ? "Règlement rédigé. " : "Règlement existant conservé. "}${nPosts ? `${nPosts} poste(s) ajouté(s) à la logistique sur ${nRaces} course(s) (ravitaillements, secours, signaleurs aux traversées…), repris aussi dans les parcours.` : "Logistique déjà complète : rien à ajouter."} Dossier administratif, échéancier et dossier de préparation sont à jour.`);
   };
   const pdf = async () => download(`${safeName(ev.name)}-preparation.pdf`, await prepPdf(ev.name, `${ev.organizer || "Organisateur à préciser"} · ${ev.date || "date à préciser"} · ${ev.place || "lieu à préciser"}`, PREP_NOTICE, prepReport(ev, prep)), "application/pdf");
   return (
     <div className="rounded-2xl bg-ink-950 p-5 text-white shadow-lift">
-      <div className="flex flex-wrap items-center justify-between gap-4"><div className="min-w-0"><p className="eyebrow !text-brass-400">Second clic</p><h3 className="mt-1 text-xl font-bold">{prep.docsAt ? "Documents générés" : "Générer les documents et la logistique"}</h3>
-        <p className="mt-1 max-w-xl text-sm text-white/70">Règlement, dossier administratif, échéancier, dossier de préparation, et une logistique proposée (postes placés sur chaque parcours). Ce que vous avez déjà saisi n&apos;est jamais écrasé.</p></div>
+      <div className="flex flex-wrap items-center justify-between gap-4"><div className="min-w-0"><p className="eyebrow !text-brass-400">Second clic</p><h3 className="mt-1 text-xl font-bold">{prep.docsAt ? "Documents générés" : "Générer les documents"}</h3>
+        <p className="mt-1 max-w-xl text-sm text-white/70">Règlement, dossier administratif, échéancier et dossier de préparation ; la logistique est complétée avec ce que l&apos;analyse a révélé (signaleurs aux traversées de routes…). Ce que vous avez déjà saisi n&apos;est jamais écrasé.</p></div>
         <div className="flex flex-wrap gap-2"><Button size="lg" onClick={run} data-action="generer"><Sparkles className="size-5" />{prep.docsAt ? "Régénérer ce qui manque" : "Tout générer"}</Button>{prep.docsAt && <Button size="lg" variant="onDark" onClick={pdf}><FileDown className="size-5" />PDF</Button>}</div></div>
       {msg && <p role="status" className="mt-3 rounded-lg bg-pine-600/30 px-3 py-2 text-sm">{msg}</p>}
     </div>

@@ -1,4 +1,5 @@
 "use client";
+import { northControl } from "@/components/map/north-control";
 import { useEffect, useImperativeHandle, useRef, forwardRef } from "react";
 import { MAP_LOCALE } from "@/components/map/use-map";
 import type { Map as MLMap } from "maplibre-gl";
@@ -42,6 +43,7 @@ export const HeroMap = forwardRef<HeroMapHandle>(function HeroMap(_, ref) {
         cooperativeGestures: true, locale: MAP_LOCALE,
       });
       m.addControl(new ml.NavigationControl({ showCompass: false }), "top-right");
+      m.addControl(northControl(), "top-right");
       map.current = m;
     })();
     return () => { cancelled = true; map.current?.remove(); map.current = null; };

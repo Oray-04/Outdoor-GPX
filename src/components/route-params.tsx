@@ -8,6 +8,7 @@ import { Library } from "./library/library";
 import { RoutePage } from "./route/route-page";
 import { EventPage } from "./events/event-page";
 import { OrganizerEvent } from "./organizer/organizer-event";
+import { LogisticsPage } from "./organizer/logistics";
 import { CollectionPage } from "./collections/collection-page";
 import { OwnerPageView } from "./collections/owner-page";
 import { validId } from "@/lib/url";
@@ -48,3 +49,6 @@ export const OwnerRoute = () => <Wrap><OwnerInner /></Wrap>;
 
 function ManageInner() { return <OrganizerEvent id={validId(useSearchParams().get("id")) ?? ""} />; }
 export const ManageEventRoute = () => <Wrap><ManageInner /></Wrap>;
+
+function LogisticsInner() { return <LogisticsPage id={validId(useSearchParams().get("id")) ?? ""} />; }
+export const LogisticsRoute = () => <Wrap><LogisticsInner /></Wrap>;

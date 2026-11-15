@@ -16,16 +16,16 @@ describe("parcours guidé : chaque étape ouvre la suivante", () => {
     const { f, by } = st(event(), []); expect(by).toEqual({ parcours: "todo", trail: "locked", analyse: "locked", documents: "locked", logistique: "locked", verification: "locked" });
     expect(f.current).toBe("parcours"); expect(f.steps[1].lockedWhy).toMatch(/Enregistrez d'abord un parcours/); expect(f.percent).toBeLessThan(15);
   });
-  it("déblocages successifs jusqu'à la vérification", () => {
-    let ev = event(); expect(st(ev).by.trail).not.toBe("locked"); expect(st(ev).by.analyse).toBe("locked"); expect(st(ev).f.steps[2].lockedWhy).toMatch(/Ajoutez d'abord une course/);
+  it("déblocages successifs jusqu'à la vérification (la logistique suit directement les parcours)", () => {
+    let ev = event(); expect(st(ev).by.trail).not.toBe("locked"); expect(st(ev).f.steps[2].id).toBe("logistique"); expect(st(ev).by.logistique).toBe("locked"); expect(st(ev).f.steps[2].lockedWhy).toMatch(/Ajoutez d'abord une course/);
     ev = { ...ev, races: [race({ routeId: undefined })] }; expect(st(ev).f.steps[2].lockedWhy).toMatch(/Associez un parcours/);
-    ev = { ...ev, races: [race()] }; expect(st(ev).f.steps[2].lockedWhy).toMatch(/participants/);
-    ev = { ...ev, prep: { participants: 300 } }; expect(st(ev).by.analyse).toBe("todo"); expect(st(ev).by.trail).toBe("done"); expect(st(ev).by.documents).toBe("locked"); expect(st(ev).f.current).toBe("analyse");
-    ev = { ...ev, prep: { ...ev.prep, analysedAt: 1, paved: { r1: 10 }, roads: { r1: [] }, departments: ["04"] } }; expect(st(ev).by.analyse).toBe("done"); expect(st(ev).by.documents).not.toBe("locked"); expect(st(ev).by.logistique).toBe("locked");
-    ev = { ...ev, rules: rulesDraft(ev, ev.prep!), prep: { ...ev.prep, docsAt: 2 } }; expect(st(ev).by.logistique).not.toBe("locked"); expect(st(ev).by.verification).toBe("locked"); expect(st(ev).f.steps[5].lockedWhy).toMatch(/postes/);
+    ev = { ...ev, races: [race()] }; expect(st(ev).by.logistique).not.toBe("locked"); expect(st(ev).f.steps[3].lockedWhy).toMatch(/participants/);
+    ev = { ...ev, prep: { participants: 300 } }; expect(st(ev).by.analyse).not.toBe("locked"); expect(st(ev).by.trail).toBe("done"); expect(st(ev).by.documents).toBe("locked"); expect(st(ev).f.current).toBe("logistique");
+    ev = { ...ev, prep: { ...ev.prep, analysedAt: 1, paved: { r1: 10 }, roads: { r1: [] }, departments: ["04"] } }; expect(st(ev).by.analyse).toBe("done"); expect(st(ev).by.documents).not.toBe("locked");
+    ev = { ...ev, rules: rulesDraft(ev, ev.prep!), prep: { ...ev.prep, docsAt: 2 } }; expect(st(ev).by.verification).toBe("locked"); expect(st(ev).f.steps[5].lockedWhy).toMatch(/postes/);
     ev = { ...ev, posts: proposePosts({ race: ev.races[0], coords: coordsOf(30), newId }) }; expect(st(ev).by.verification).toBe("progress");
-    // un parcours supprimé reverrouille l'analyse et la suite
-    expect(st(ev, []).by.analyse).toBe("locked"); expect(st(ev, []).by.verification).toBe("locked");
+    // un parcours supprimé reverrouille la logistique et la suite
+    expect(st(ev, []).by.logistique).toBe("locked"); expect(st(ev, []).by.verification).toBe("locked");
   });
   it("événement préparé avant le parcours guidé : ses postes et bénévoles restent accessibles", () => {
     const ev = event({ races: [race()], posts: [{ id: "x", raceId: "r1", kind: "ravito", name: "R", km: 5, staffNeeded: 2, note: "" }] }), { by } = st(ev);

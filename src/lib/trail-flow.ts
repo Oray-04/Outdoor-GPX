@@ -7,7 +7,7 @@ import { adminFile, classify, timeline, type Prep } from "./race-prep";
  * Tout est déduit des données de l'événement : aucun état d'avancement n'est saisi à la main, sauf les validations
  * humaines (documents officiels, décisions de sécurité), qui ne peuvent pas être automatisées.
  */
-export type StepId = "parcours" | "trail" | "analyse" | "documents" | "logistique" | "verification";
+export type StepId = "parcours" | "trail" | "logistique" | "analyse" | "documents" | "verification";
 export type ItemState = "done" | "todo" | "validate" | "optional";
 export interface FlowItem { id: string; step: StepId; label: string; state: ItemState; hint?: string; /** validation humaine : identifiant à cocher */ validateId?: string }
 export interface FlowStep { id: StepId; n: number; title: string; short: string; goal: string; status: "locked" | "todo" | "progress" | "done"; lockedWhy?: string; items: FlowItem[]; done: number; total: number }
@@ -16,9 +16,9 @@ export interface Flow { steps: FlowStep[]; current: StepId; percent: number; tod
 export const STEP_META: { id: StepId; title: string; short: string; goal: string }[] = [
   { id: "parcours", title: "Parcours", short: "Parcours", goal: "Tracez ou importez le parcours de chaque course et enregistrez-le." },
   { id: "trail", title: "Votre trail", short: "Trail", goal: "Décrivez l'événement et associez un parcours à chaque course." },
+  { id: "logistique", title: "Logistique", short: "Logistique", goal: "Départ, arrivée, ravitaillements, secours, parkings et bénévoles : placés et vérifiés sur la carte, partagés avec les points d'intérêt du parcours." },
   { id: "analyse", title: "Analyse", short: "Analyse", goal: "Le site lit vos parcours : nature des épreuves, routes traversées, départements, dispositif médical." },
   { id: "documents", title: "Documents", short: "Documents", goal: "Règlement, dossier administratif, échéancier et fiches sont préparés à partir de l'analyse." },
-  { id: "logistique", title: "Logistique", short: "Logistique", goal: "Postes, ravitaillements, secours, signaleurs et bénévoles sur la carte." },
   { id: "verification", title: "Vérification finale", short: "Vérification", goal: "Ce qui est prêt, ce qui reste à compléter et ce que vous devez valider vous-même." },
 ];
 /** Validations qui restent humaines : le site prépare, l'organisateur décide. */
@@ -73,7 +73,7 @@ export function trailFlow(ev: EventModel, routeIds: string[], today: string): Fl
       item("logistique", "l:depart", "Départ et arrivée placés", kinds("depart").length > 0 && kinds("arrivee").length > 0, "Placez-les sur la carte ou utilisez la proposition automatique."),
       item("logistique", "l:ravito", "Ravitaillements placés", kinds("ravito").length > 0, "Au moins un à l'arrivée."),
       item("logistique", "l:secours", "Postes de secours placés", kinds("secours").length > 0),
-      item("logistique", "l:signaleurs", "Signaleurs placés aux traversées de routes", kinds("signaleur").length > 0 || (!!prep.analysedAt && linked.every((r) => (prep.roads?.[r.id]?.length ?? 1) === 0)), "Un signaleur à chaque traversée ou carrefour dangereux."),
+      item("logistique", "l:signaleurs", "Signaleurs placés aux traversées de routes", kinds("signaleur").length > 0 || (!!prep.analysedAt && linked.every((r) => (prep.roads?.[r.id]?.length ?? 1) === 0)), "Un signaleur à chaque traversée ou carrefour dangereux. L'analyse (étape suivante) repère les traversées et les propose."),
       ...(ultraNoCut.length ? [item("logistique", "l:barrieres", `Barrières horaires (obligatoires en ultra) : ${ultraNoCut.map((r) => r.label).join(", ")}`, false, "Indiquez une heure limite sur au moins un poste.")] : []),
       item("logistique", "l:proposes", autoLeft ? `${autoLeft} poste(s) proposé(s) à vérifier` : "Postes proposés vérifiés", autoLeft === 0, "Ouvrez chaque poste proposé, ajustez-le puis confirmez-le."),
       item("logistique", "l:benevoles", staffed.length ? `Bénévoles : ${covered} poste(s) pourvu(s) sur ${staffed.length}` : "Bénévoles affectés aux postes", staffed.length > 0 && covered === staffed.length, "Affectez les bénévoles depuis la carte ou depuis leurs fiches."),
@@ -85,9 +85,9 @@ export function trailFlow(ev: EventModel, routeIds: string[], today: string): Fl
   const gate: Record<StepId, string | undefined> = {
     parcours: undefined,
     trail: routeIds.length > 0 || linked.length > 0 ? undefined : "Enregistrez d'abord un parcours.",
-    analyse: !ev.races.length ? "Ajoutez d'abord une course à votre trail." : !allLinked ? "Associez un parcours à chaque course." : !(prep.participants ?? 0) ? "Indiquez le nombre de participants attendus." : undefined,
+    logistique: !ev.races.length ? "Ajoutez d'abord une course à votre trail." : !allLinked ? "Associez un parcours à chaque course." : undefined,
+    analyse: !(prep.participants ?? 0) ? "Indiquez le nombre de participants attendus (étape Trail)." : undefined,
     documents: prep.analysedAt ? undefined : "Lancez d'abord l'analyse des parcours.",
-    logistique: prep.docsAt ? undefined : "Générez d'abord les documents.",
     verification: ev.posts.length ? undefined : "Placez d'abord les postes de la logistique.",
   };
   // événement déjà préparé avant l'existence du parcours guidé (postes ou bénévoles saisis) : rien de ce qui existe n'est verrouillé
@@ -100,7 +100,7 @@ export function trailFlow(ev: EventModel, routeIds: string[], today: string): Fl
     const counted = m.id === "verification" ? steps.flatMap((s) => s.items).filter((x) => x.state !== "optional") : its.filter((x) => x.state !== "optional"), done = counted.filter((x) => x.state === "done").length;
     steps.push({ ...m, n: i + 1, items: its, done, total: counted.length, lockedWhy: blocked, status: blocked ? "locked" : done === counted.length ? "done" : done > 0 || m.id === "verification" ? "progress" : "todo" });
   });
-  const all = steps.slice(0, 5).flatMap((s) => s.items).filter((x) => x.state !== "optional");
+  const all = steps.filter((s) => s.id !== "verification").flatMap((s) => s.items).filter((x) => x.state !== "optional");
   const current = (steps.find((s) => s.status !== "done" && s.status !== "locked") ?? [...steps].reverse().find((s) => s.status !== "locked") ?? steps[0]).id;
   return { steps, current, percent: all.length ? Math.round((100 * all.filter((x) => x.state === "done").length) / all.length) : 0, todo: all.filter((x) => x.state === "todo"), toValidate: all.filter((x) => x.state === "validate"), done: all.filter((x) => x.state === "done") };
 }

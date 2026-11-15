@@ -14,9 +14,10 @@ import { poiMarkerEl, poiPopupEl } from "@/lib/poi-icons";
 import { routeMarkerEl } from "@/lib/route-markers";
 import * as E from "@/lib/editor-core";
 import { addElevation, seedElevations } from "@/lib/ign";
+import { mergePois } from "@/lib/poi-sync";
 import { ENGINE_LABEL, PROFILE_HINT, SOURCE_LABEL, makeRouter, profileForSport, snapToPaths, type Engine, type Source } from "@/lib/routing";
 import { setEnginePref, useEnginePref } from "@/lib/map-prefs";
-import { routesRepo, useLayers, useTerrains } from "@/lib/repo";
+import { eventsRepo, routesRepo, useLayers, useTerrains } from "@/lib/repo";
 import { POI_TYPES, normalizePois, uid, type LL, type Poi, type PoiType, type Pt, type SavedRoute, type Visibility } from "@/lib/types";
 import { SPORTS, DIFFICULTY_LABEL, difficultyOf, estimateMinutes, type Sport } from "@/lib/sports";
 import { haversine, trackStats, rangeStats, fmtKm, fmtM, fmtDuration, bboxOf, cumulative } from "@/lib/geo";
@@ -93,10 +94,12 @@ export function Editor({ routeId }: { routeId?: string }) {
     createdAt.current = r.createdAt; sourceKind.current = r.source; fileName.current = r.fileName;
     setMeta({ name: r.name, description: r.description, sport: r.sport, visibility: r.visibility, terrain: r.terrain, region: r.region, country: r.country, layer: r.layer === "fkt" || !r.layer ? "mine" : r.layer, sourceUrl: r.sourceUrl ?? "" });
     setHist([{ waypoints: r.waypoints, segs: r.segs, pois: normalizePois(r.pois) }]); setHi(0);
-    setCoords(r.coords); // altitudes enregistrées affichées telles quelles ; après une modification, tout le tracé est réinterrogé (pas de mélange GPS / IGN) setElev("ok"); setLoaded(true);
+    // altitudes enregistrées affichées telles quelles ; après une modification, tout le tracé est réinterrogé (pas de mélange GPS / IGN)
+    setCoords(r.coords); setElev("ok"); setLoaded(true);
   }, [routeId]);
 
-  const track = useMemo(() => E.trackLL(st), [st]);
+  // le tracé ne dépend que des segments : ajouter, renommer ou déplacer un POI ne relance pas le calcul des altitudes (ni ne modifie le tracé)
+  const track = useMemo(() => E.trackLL(st), [st.segs, st.waypoints]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Altitudes (IGN) recalculées après chaque modification ───
   const firstLoad = useRef(!!routeId);
@@ -133,6 +136,19 @@ export function Editor({ routeId }: { routeId?: string }) {
   const hasTrack = st.waypoints.length >= 2;
   const dirty = loaded && savedSt.current !== null && (st !== savedSt.current || metaKey !== savedMeta.current) && (hasTrack || !!rid.current);
   const dirtyRef = useRef(false); dirtyRef.current = dirty;
+  // POI modifiés ailleurs (logistique d'un événement, autre onglet) pendant que le parcours est ouvert : repris en direct, sans perdre les modifications en cours
+  const storedRoute = routesRepo.useAll().find((r) => r.id === id);
+  const allEvents = eventsRepo.useAll(); const usedBy = id ? allEvents.filter((e) => e.races.some((r) => r.routeId === id)) : [];
+  const storedPoisKey = storedRoute ? JSON.stringify(storedRoute.pois) : "";
+  useEffect(() => {
+    if (!loaded || !storedRoute || savedSt.current === null) return;
+    const base = savedSt.current.pois, theirs = normalizePois(storedRoute.pois);
+    if (JSON.stringify(base) === JSON.stringify(theirs)) return;
+    const merged = mergePois(base, st.pois, theirs), clean = st === savedSt.current, next = { ...st, pois: merged };
+    setHist((h) => h.map((x, i) => (i === hi ? next : x)));
+    savedSt.current = clean ? next : { ...savedSt.current, pois: theirs }; bump((n) => n + 1);
+    if (JSON.stringify(merged) !== JSON.stringify(st.pois)) setMsg({ kind: "ok", text: "Points d'intérêt mis à jour depuis la logistique de l'événement (partagés avec ce parcours)." });
+  }, [storedPoisKey, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
   const saveRef = useRef<() => void>(() => {});
   const canSave = dirty && hasTrack && elev !== "loading" && coords.length >= 2 && saved !== "saving";
   const save = useCallback(async (): Promise<boolean> => {
@@ -141,11 +157,16 @@ export function Editor({ routeId }: { routeId?: string }) {
     const rId = rid.current ?? uid();
     const { region, country } = meta;
     const nextMeta = meta;
-    const route: SavedRoute = { id: rId, name: meta.name.trim() || "Parcours sans titre", description: meta.description, sport: meta.sport, segs: st.segs, waypoints: st.waypoints, coords, pois: st.pois, terrain: meta.terrain, visibility: meta.visibility, region, country, layer: meta.layer, sourceUrl: /^https?:\/\//.test(meta.sourceUrl) ? meta.sourceUrl : undefined, source: sourceKind.current, fileName: fileName.current, createdAt: createdAt.current, updatedAt: Date.now() };
+    // POI partagés avec la logistique : ce qui a changé ailleurs depuis l'ouverture est fusionné, pas écrasé
+    const storedNow = rid.current ? routesRepo.get(rid.current) : undefined;
+    const pois = storedNow && savedSt.current ? mergePois(savedSt.current.pois, st.pois, normalizePois(storedNow.pois)) : st.pois;
+    const route: SavedRoute = { id: rId, name: meta.name.trim() || "Parcours sans titre", description: meta.description, sport: meta.sport, segs: st.segs, waypoints: st.waypoints, coords, pois, terrain: meta.terrain, visibility: meta.visibility, region, country, layer: meta.layer, sourceUrl: /^https?:\/\//.test(meta.sourceUrl) ? meta.sourceUrl : undefined, source: sourceKind.current, fileName: fileName.current, createdAt: createdAt.current, updatedAt: Date.now() };
     const res = routesRepo.upsert(route);
     if (!res.ok) { setSaved("error"); setMsg({ kind: "err", text: res.error ?? "Enregistrement impossible." }); return false; }
     if (!rid.current) { createdHere.current = rId; setId(rId); rid.current = rId; window.history.replaceState(null, "", withBase(editorHref(rId))); }
-    savedSt.current = st; savedMeta.current = JSON.stringify(nextMeta); setMeta(nextMeta); setSaved("saved");
+    const savedState = pois === st.pois ? st : { ...st, pois };
+    if (savedState !== st) setHist((h) => h.map((x, i) => (i === hi ? savedState : x)));
+    savedSt.current = savedState; savedMeta.current = JSON.stringify(nextMeta); setMeta(nextMeta); setSaved("saved");
     setMsg({ kind: "ok", text: "Parcours enregistré dans votre bibliothèque." });
     // Région et pays : complétés ensuite, sans retarder l'enregistrement (service facultatif, 6 s au plus)
     if (!region && !country) {
@@ -157,7 +178,7 @@ export function Editor({ routeId }: { routeId?: string }) {
       }).catch(() => { /* facultatif */ }).finally(() => clearTimeout(tm));
     }
     return true;
-  }, [st, meta, coords]);
+  }, [st, meta, coords, hi]); // eslint-disable-line react-hooks/exhaustive-deps
   saveRef.current = () => { if (canSave) save(); else if (dirtyRef.current && elev === "loading") setMsg({ kind: "warn", text: "Altitudes en cours de calcul : réessayez dans un instant." }); };
   // Quitter sans enregistrer : avertissement du navigateur (fermeture, rechargement) et confirmation sur les liens du site
   useEffect(() => {
@@ -703,6 +724,7 @@ export function Editor({ routeId }: { routeId?: string }) {
 
           {tab === "poi" && (<>
             <p className="text-sm text-ink-600">Choisissez un type puis cliquez sur la carte.</p>
+            {usedBy.length > 0 && <p className="rounded-lg bg-pine-50 px-3 py-2 text-xs text-pine-800" data-shared="1">Points partagés avec la logistique de {usedBy.map((e) => `« ${e.name} »`).join(", ")} : ajoutés, déplacés ou supprimés ici, ils le sont aussi là-bas après « Enregistrer » (et inversement). Ravitaillement, eau, contrôle, secours, parking, passage (signaleur) et point de vue y deviennent des postes.</p>}
             <div className="flex flex-wrap gap-1.5">{(Object.keys(POI_TYPES) as PoiType[]).map((t) => <button key={t} aria-pressed={poiMode === t} onClick={() => setPoiMode(poiMode === t ? null : t)} className={clsx("inline-flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-3 text-xs font-medium", poiMode === t ? "border-transparent text-white" : "border-ink-200")} style={poiMode === t ? { background: POI_TYPES[t].color } : undefined}><PoiIcon decorative type={t} size={22} className={poiMode === t ? "ring-2 ring-white/70" : ""} />{POI_TYPES[t].label}</button>)}</div>
             <ul className="grid gap-2">{st.pois.map((p) => (
               <li key={p.id} className={clsx("flex items-center gap-2 rounded-lg border p-2", selPoi === p.id ? "border-pine-600 bg-pine-50" : "border-ink-100")}>

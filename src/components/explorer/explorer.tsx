@@ -1,4 +1,5 @@
 "use client";
+import { northControl } from "@/components/map/north-control";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type { Map as MLMap, Marker } from "maplibre-gl";
 import { Search, LocateFixed, Loader2, Layers, Filter, Eye, EyeOff, X, MapPin, Plus, Trash2, Layers3, Mountain } from "lucide-react";
@@ -90,6 +91,7 @@ export function Explorer({ initial, initialRef }: { initial?: { lng: number; lat
       mlRef.current = ml;
       const m = new ml.Map({ container: el.current, style: buildStyle(), center: initial ? [initial.lng, initial.lat] : [2.5, 46.6], zoom: initial ? 10 : 5.3, attributionControl: { compact: true } });
       m.addControl(new ml.NavigationControl({ showCompass: false }), "top-right");
+      m.addControl(northControl(), "top-right");
       m.addControl(new ml.ScaleControl({ unit: "metric" }), "bottom-left");
       m.on("style.load", () => {
         m.addSource("routes", { type: "geojson", data: { type: "FeatureCollection", features: [] } });

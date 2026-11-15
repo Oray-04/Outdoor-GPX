@@ -244,3 +244,31 @@ Un même calcul partout (fiche, éditeur, générateur, zone du profil, biblioth
 - **Pas de mélange** : après une modification dans l'éditeur, tout le tracé est réinterrogé sur le même modèle (IGN RGE ALTI) — plus de mélange entre altitudes GPS d'un fichier importé et altitudes IGN.
 - **Bruit** : lissage centré sur 40 m puis seuil d'hystérésis de 3 m ; le reste en fin de trace est compté. Un bruit de ±4 m ne gonfle plus le D+, une vraie bosse de 30 m est comptée.
 - Mesures réelles (IGN) : Chamonix → Montenvers 810/13 m → 809/15 m (stable) ; Annecy → Semnoz 1 253 → 1 247 m ; ligne droite « Libre » Planpraz → Montenvers 0 m D+ / 513 m D− → **830 m D+ / 1 323 m D−** (la vallée de Chamonix est enfin vue).
+
+### POI partagés entre parcours et logistique
+
+Une seule saisie : les points d'intérêt du parcours (`route.pois`) sont la source unique de l'emplacement, du type et du nom ; un poste de logistique lié (`post.poiId`) n'ajoute que les données d'organisation (bénévoles nécessaires, barrière horaire, consignes, bénévoles affectés). Moteur pur et testé : `src/lib/poi-sync.ts`.
+
+- **Parcours → logistique** : chaque enregistrement d'un parcours (`routesRepo.upsert`) réaligne aussitôt les événements qui l'utilisent (`syncEventsWithRoutes`) — POI ajouté = poste créé, déplacé/renommé = poste mis à jour (bénévoles et consignes gardés), supprimé = poste retiré (bénévoles remis à « non affecté », fiches conservées).
+- **Logistique → parcours** : ajouter, glisser, renommer ou supprimer un poste écrit le POI du parcours ; les autres événements utilisant ce parcours suivent.
+- **Correspondance** : ravitaillement, point d'eau, contrôle, secours, parking, point de vue ↔ même type ; signaleur ↔ « Passage ». **Départ et arrivée** sont pris aux extrémités du parcours de base ; déplacés à la main, ils le restent (bouton « Recaler »).
+- **Placement** : près du tracé (≤ 60 m), un poste s'aimante sur la trace ; plus loin il reste où l'on clique (badge « Hors tracé · x m ») ; le parking n'est jamais aimanté. Kilomètre toujours calculé sur le parcours.
+- **Sans doublon ni perte** : identifiants déterministes (`course~poi`) ; synchronisation idempotente ; anciens postes saisis seulement dans la logistique versés une fois dans le parcours (ou rattachés à un POI du même type à moins de 60 m) ; éditeur ouvert pendant une modification de la logistique → fusion à trois voies (`mergePois`), mise à jour en direct.
+- **Propositions automatiques** (« Proposer les postes », génération des documents) : chaque proposition devient un POI du parcours et un poste « à vérifier ».
+- Dans l'éditeur, un parcours utilisé par un événement l'indique dans l'onglet POI. Ajouter, renommer ou déplacer un POI ne relance plus le calcul des altitudes (le tracé ne dépend que des segments).
+
+### Logistique : page dédiée
+
+- Étape 3 du parcours guidé, juste après Parcours et Votre trail (avant Analyse et Documents) ; l'étape affiche un résumé par course et ouvre la page `/organisateurs/logistique/?id=…`.
+- Grande carte, palette de types, compteur de chaque équipement, liste des postes (bénévoles, barrière, consignes), onglets Bénévoles et Temps de passage, export PDF.
+- **Plein écran** : bouton dans la barre d'outils, tous les outils restent disponibles (placement, liste, propositions, PDF) ; « Quitter le plein écran » toujours visible, ou Échap. Sur mobile, palette sur une ligne défilante et liste repliable.
+
+### Boussole « Nord »
+
+Sur toutes les cartes : dès que la carte est tournée ou inclinée, une boussole apparaît sous le zoom (aiguille vers le nord réel) ; un clic remet le nord en haut et la carte à plat. Rotation et inclinaison 3D restent possibles.
+
+### Renommer un parcours
+
+- Mon espace → Mes parcours : bouton crayon sur chaque carte, saisie en place (Entrée pour valider, Échap pour annuler). Également dans Fichiers et dans l'éditeur (Infos).
+- Seul le nom change (`renameRoute`) : tracé, altitudes, statistiques et POI intacts ; courses, collections, bibliothèque et logistique lisent le parcours par son identifiant, le nouveau nom s'affiche partout.
+- Correction : depuis la révision du dénivelé, l'éditeur ne marquait plus un parcours chargé comme « prêt » (instruction neutralisée par un commentaire) — aucune modification, nom compris, ne pouvait être enregistrée.

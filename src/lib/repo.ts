@@ -1,6 +1,7 @@
 "use client";
 import { useStore, readStore, writeStore } from "./store";
 import type { SavedRoute } from "./types";
+import { syncEvent } from "./poi-sync";
 
 /** Dépôts de données. Tous les accès passent ici. */
 const EMPTY: never[] = [];
@@ -50,7 +51,39 @@ export function writeSingle<T>(key: string, value: T) {
 export const singleMeta = () => readStore<Record<string, number>>(SINGLE_META, {});
 export const setSingleMeta = (key: string, ts: number) => writeStore(SINGLE_META, { ...singleMeta(), [key]: ts });
 
-export const routesRepo = listKey<SavedRoute>("routes");
+const baseRoutes = listKey<SavedRoute>("routes");
+/** Parcours : chaque enregistrement réaligne la logistique des événements qui l'utilisent (POI partagés, départ / arrivée). */
+export const routesRepo = {
+  ...baseRoutes,
+  upsert: (r: SavedRoute) => { const res = baseRoutes.upsert(r); if (res.ok) syncEventsWithRoutes(r.id); return res; },
+};
+let syncing = false;
+/**
+ * POI partagés : réaligne les postes des événements liés au parcours `routeId` (ou à tous les parcours) et verse dans les parcours
+ * les POI créés par migration d'anciens postes. Idempotent : rien n'est écrit si rien ne change.
+ */
+export function syncEventsWithRoutes(routeId?: string) {
+  if (syncing) return; syncing = true;
+  try {
+    for (let pass = 0; pass < 2; pass++) { // 2e passe : après versement de POI migrés dans un parcours
+      const routes = baseRoutes.getAll(); let addedAny = false;
+      for (const ev of eventsRepo.getAll()) {
+        if (routeId && !ev.races.some((x) => x.routeId === routeId)) continue;
+        const res = syncEvent(ev, routes);
+        if (res.ev !== ev) eventsRepo.upsert(res.ev);
+        for (const [rid, add] of res.addPois) { const rt = baseRoutes.get(rid); if (!rt) continue; const fresh = add.filter((q) => !rt.pois.some((x) => x.id === q.id)); if (fresh.length) { baseRoutes.upsert({ ...rt, pois: [...rt.pois, ...fresh], updatedAt: Date.now() }); addedAny = true; } }
+      }
+      if (!addedAny) break;
+    }
+  } finally { syncing = false; }
+}
+/** Renomme un parcours : seul le nom change (tracé, altitudes, statistiques et points d'intérêt intacts). Les courses, collections et la bibliothèque lisent le parcours par son identifiant : le nouveau nom s'affiche partout. */
+export function renameRoute(id: string, name: string): { ok: boolean; error?: string } {
+  const n = name.replace(/\s+/g, " ").trim().slice(0, 120); if (!n) return { ok: false, error: "Le nom ne peut pas être vide." };
+  const r = routesRepo.get(id); if (!r) return { ok: false, error: "Parcours introuvable sur cet appareil." };
+  if (r.name === n) return { ok: true };
+  return routesRepo.upsert({ ...r, name: n, updatedAt: Date.now() });
+}
 
 export interface Activity { id: string; name: string; sport: string; startedAt: number; durationS: number; distanceM: number; gainM: number; coords: [number, number, number, number][]; routeId?: string }
 export const activitiesRepo = listKey<Activity>("activities");

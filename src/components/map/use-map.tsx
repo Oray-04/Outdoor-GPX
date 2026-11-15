@@ -1,4 +1,5 @@
 "use client";
+import { northControl } from "@/components/map/north-control";
 import { useEffect, useRef, useState } from "react";
 import type { Map as MLMap } from "maplibre-gl";
 import { buildStyle } from "@/lib/basemaps";
@@ -46,6 +47,7 @@ export function useMap(opts: { center?: [number, number]; zoom?: number; scale?:
       mlRef.current = ml;
       const m = new ml.Map({ container: el.current, style: buildStyle(), center: o.current.center ?? [2.5, 46.6], zoom: o.current.zoom ?? 5.3, attributionControl: { compact: true }, doubleClickZoom: false, cooperativeGestures: isEmbeddedMap(el.current), locale: MAP_LOCALE, canvasContextAttributes: { preserveDrawingBuffer: !!o.current.preserveBuffer } });
       m.addControl(new ml.NavigationControl({ showCompass: false }), "top-right");
+      m.addControl(northControl(), "top-right");
       if (o.current.scale !== false) m.addControl(new ml.ScaleControl({ unit: "metric" }), "bottom-left");
       m.on("style.load", () => { if (!dead) setReady(true); });
       mapRef.current = m;

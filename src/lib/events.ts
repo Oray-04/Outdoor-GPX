@@ -2,7 +2,7 @@ import type { Sport } from "./sports";
 import { haversine, trackStats } from "./geo";
 import type { Pt } from "./types";
 
-export type PostKind = "depart" | "arrivee" | "ravito" | "eau" | "controle" | "secours" | "signaleur" | "parking";
+export type PostKind = "depart" | "arrivee" | "ravito" | "eau" | "controle" | "secours" | "signaleur" | "parking" | "vue";
 export const POST_KINDS: Record<PostKind, { label: string; color: string; letter: string }> = {
   depart: { label: "Départ", color: "#1e7a58", letter: "D" },
   arrivee: { label: "Arrivée", color: "#0d1b17", letter: "A" },
@@ -12,11 +12,12 @@ export const POST_KINDS: Record<PostKind, { label: string; color: string; letter
   secours: { label: "Poste de secours", color: "#d4202a", letter: "+" },
   signaleur: { label: "Signaleur", color: "#c98a0b", letter: "S" },
   parking: { label: "Parking", color: "#36504a", letter: "P" },
+  vue: { label: "Point de vue", color: "#1d7a5a", letter: "V" },
 };
 
 /** Pictogramme de chaque type de poste : ceux des points d'intérêt du site (même dessin sur les cartes, les listes et les fiches) ; départ et arrivée reprennent les drapeaux des parcours. */
-export const POST_ICON: Record<PostKind, import("./types").PoiType | "start" | "finish"> = { depart: "start", arrivee: "finish", ravito: "ravito", eau: "eau", controle: "controle", secours: "secours", signaleur: "danger", parking: "parking" };
-export const POST_COLOR: Record<PostKind, string> = { depart: "#1e7a58", arrivee: "#0d1b17", ravito: "#d9622b", eau: "#1f8fbf", controle: "#6b4bc4", secours: "#cf2a35", signaleur: "#b8862b", parking: "#2b4a8c" };
+export const POST_ICON: Record<PostKind, import("./types").PoiType | "start" | "finish"> = { depart: "start", arrivee: "finish", ravito: "ravito", eau: "eau", controle: "controle", secours: "secours", signaleur: "danger", parking: "parking", vue: "vue" };
+export const POST_COLOR: Record<PostKind, string> = { depart: "#1e7a58", arrivee: "#0d1b17", ravito: "#d9622b", eau: "#1f8fbf", controle: "#6b4bc4", secours: "#cf2a35", signaleur: "#b8862b", parking: "#2b4a8c", vue: "#1d7a5a" };
 
 export interface Race { id: string; label: string; sport: Sport; distanceKm: number; gainM: number; startTime: string; maxHours: number; routeId?: string; fee?: string; /** repris du parcours lié */ lossM?: number; minEle?: number; maxEle?: number }
 
@@ -30,7 +31,10 @@ export function raceOutOfSync(r: Race, coords: Pt[]): boolean {
   const f = raceFactsFromRoute(coords);
   return r.distanceKm !== f.distanceKm || r.gainM !== f.gainM || r.lossM !== f.lossM || r.minEle !== f.minEle || r.maxEle !== f.maxEle;
 }
-export interface Post { id: string; raceId: string; kind: PostKind; name: string; km: number; lng?: number; lat?: number; /** heures après le départ */ cutoffH?: number; staffNeeded: number; note: string; /** proposé automatiquement, pas encore vérifié par l'organisateur */ auto?: boolean }
+export interface Post { id: string; raceId: string; kind: PostKind; name: string; km: number; lng?: number; lat?: number; /** heures après le départ */ cutoffH?: number; staffNeeded: number; note: string; /** proposé automatiquement, pas encore vérifié par l'organisateur */ auto?: boolean;
+  /** point d'intérêt du parcours lié : position, type et nom viennent de lui (une seule saisie, partagée avec le parcours) */ poiId?: string;
+  /** départ / arrivée déplacé à la main : n'est plus recalé sur les extrémités du parcours */ pinned?: boolean;
+  /** distance au tracé (m) quand le poste est placé à l'écart (parking, secours sur accès véhicule…) */ offTrackM?: number }
 export interface Volunteer { id: string; name: string; phone: string; postId: string; from: string; to: string; instructions: string }
 export type Role = "admin" | "logistique" | "benevoles" | "lecture";
 export interface Member { id: string; name: string; email: string; role: Role }
@@ -156,7 +160,7 @@ export function filterEvents(events: EventModel[], f: EventFilters): EventModel[
 
 // ── Logistique proposée automatiquement à partir du parcours ──
 const POI_POST: Partial<Record<string, PostKind>> = { ravito: "ravito", eau: "eau", controle: "controle", secours: "secours", parking: "parking", danger: "signaleur" };
-export interface ProposeInput { race: Race; coords: Pt[]; pois?: { type: string; name: string; lng: number; lat: number }[]; roads?: { kind: "traversee" | "route"; atM: number; lng: number; lat: number; roadClass: string; name: string; lengthM: number }[]; newId: () => string }
+export interface ProposeInput { race: Race; coords: Pt[]; pois?: { id?: string; type: string; name: string; lng: number; lat: number }[]; roads?: { kind: "traversee" | "route"; atM: number; lng: number; lat: number; roadClass: string; name: string; lengthM: number }[]; newId: () => string }
 const ROAD_RANKS: Record<string, number> = { motorway: 7, trunk: 6, primary: 5, secondary: 4, tertiary: 3, unclassified: 2, residential: 1 };
 const ROAD_WORD: Record<string, string> = { motorway: "autoroute", trunk: "voie rapide", primary: "route principale", secondary: "route secondaire", tertiary: "route locale", unclassified: "petite route", residential: "rue" };
 /**
@@ -172,7 +176,7 @@ export function proposePosts({ race, coords, pois = [], roads = [], newId }: Pro
   const add = (kind: PostKind, name: string, km: number, staff: number, o: Partial<Post> = {}) => { const p = at(km); out.push({ id: newId(), raceId: race.id, kind, name, km: +km.toFixed(2), lng: p.lng, lat: p.lat, staffNeeded: staff, note: "", auto: true, ...o }); };
   add("depart", "Départ", 0, 4);
   // points d'intérêt du parcours : déjà saisis une fois dans l'éditeur, repris ici
-  for (const poi of pois) { const kind = POI_POST[poi.type]; if (!kind) continue; const pos = positionOnTrack(coords, poi.lng, poi.lat); if (pos.offTrackM > 300) continue; out.push({ id: newId(), raceId: race.id, kind, name: poi.name || POST_KINDS[kind].label, km: +pos.km.toFixed(2), lng: poi.lng, lat: poi.lat, staffNeeded: kind === "ravito" ? 4 : kind === "eau" || kind === "parking" ? 1 : 2, note: "Repris des points d'intérêt du parcours", auto: true }); }
+  for (const poi of pois) { const kind = POI_POST[poi.type]; if (!kind) continue; const pos = positionOnTrack(coords, poi.lng, poi.lat); if (pos.offTrackM > 300) continue; out.push({ id: newId(), raceId: race.id, kind, name: poi.name || POST_KINDS[kind].label, km: +pos.km.toFixed(2), lng: poi.lng, lat: poi.lat, staffNeeded: kind === "ravito" ? 4 : kind === "eau" || kind === "parking" ? 1 : 2, note: "Repris des points d'intérêt du parcours", auto: true, poiId: poi.id }); }
   const has = (k: PostKind) => out.some((p) => p.kind === k);
   const ravKm: number[] = out.filter((p) => p.kind === "ravito").map((p) => p.km);
   if (!ravKm.length && totalKm > 12) { const step = totalKm > 80 ? 15 : totalKm > 42 ? 12 : 10, n = Math.max(1, Math.round(totalKm / step) - 1); for (let k = 1; k <= n; k++) { const km = (k * totalKm) / (n + 1); ravKm.push(km); add("ravito", `Ravitaillement ${k}`, km, 4, { note: "Emplacement à ajuster selon l'accès en véhicule" }); } }
