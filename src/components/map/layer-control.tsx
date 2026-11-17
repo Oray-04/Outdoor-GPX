@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { Map as MLMap } from "maplibre-gl";
 import { Layers, ListTree, Lock, X } from "lucide-react";
 import clsx from "clsx";
@@ -10,7 +11,16 @@ import { setBasemapPref, setOverlayPref, setThunderforestKey, thunderforestFromE
  * Sélecteur de fonds de carte et de surcouches : un seul bouton compact qui ouvre une petite fenêtre.
  * Le choix est mémorisé et partagé par toutes les cartes du site.
  */
-export function LayerControl({ map, ready, className, scope }: { map: { current: MLMap | null }; ready: boolean; className?: string; scope?: string }) {
+export function LayerControl({ map, ready, scope }: { map: { current: MLMap | null }; ready: boolean; scope?: string }) {
+  // Le bouton prend place dans la pile des contrôles de la carte (zoom, boussole « Nord », calques, légende) : jamais l'un sur l'autre, quel que soit l'affichage (3D comprise)
+  const [host, setHost] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const m = map.current; if (!m || !ready) return;
+    const div = document.createElement("div"); div.className = "maplibregl-ctrl crete-layers"; div.dataset.layers = "1";
+    const ctrl = { onAdd: () => div, onRemove: () => { div.remove(); } };
+    m.addControl(ctrl, "top-right"); setHost(div);
+    return () => { try { m.removeControl(ctrl); } catch { /* carte déjà détruite */ } setHost(null); };
+  }, [map, ready]);
   const base = useBasemapPref(scope);
   const overlays = useOverlayPref();
   const tfKey = useThunderforestKey();
@@ -44,26 +54,9 @@ export function LayerControl({ map, ready, className, scope }: { map: { current:
   const needsKey = !tfKey;
 
   const legend = legendFor(overlays);
-  return (<>
-    {legend.length > 0 && (
-      <div className="absolute right-2.5 top-[7.4rem] z-[9] flex flex-col items-end">
-        <button type="button" onClick={() => setLegendOpen((v) => !v)} aria-expanded={legendOpen} aria-controls="map-legend" className="flex h-[29px] items-center gap-1 rounded bg-white px-2 text-[11px] font-semibold text-ink-800 shadow ring-1 ring-black/10 hover:bg-ink-50"><ListTree className="size-3.5" />Légende</button>
-        {legendOpen && (
-          <div id="map-legend" role="region" aria-label="Légende des surcouches" className="mt-1 max-h-[min(20rem,calc(100dvh-18rem))] w-[min(16rem,calc(100vw-1.5rem))] overflow-y-auto rounded-xl bg-white/95 p-2.5 text-xs shadow-lift ring-1 ring-black/10 backdrop-blur">
-            {legend.map((l) => (
-              <section key={l.overlayId} className="mb-2 last:mb-0">
-                <h3 className="mb-1 text-[11px] font-bold uppercase tracking-wide text-ink-500">{l.title}</h3>
-                <ul className="grid gap-1">{l.items.map((it) => (
-                  <li key={it.label} className="flex items-center gap-2">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    {it.img ? <img src={it.img} alt="" className="size-5 shrink-0 rounded-sm object-contain ring-1 ring-black/10" loading="lazy" /> : it.line ? <span className="h-0 w-5 shrink-0 border-t-2" style={{ borderColor: it.color }} aria-hidden="true" /> : <span className="size-4 shrink-0 rounded-sm ring-1 ring-black/15" style={{ background: it.color }} aria-hidden="true" />}
-                    <span className="leading-tight text-ink-800">{it.label}</span>
-                  </li>))}</ul>
-                {l.note && <p className="mt-1 leading-snug text-ink-500">{l.note}</p>}
-              </section>))}
-          </div>)}
-      </div>)}
-    <div ref={box} className={clsx("absolute right-2.5 top-[5rem] z-10", className)}>
+  if (!host) return null;
+  return createPortal(<div className="flex flex-col items-end gap-2.5">
+    <div ref={box} className="relative z-10">
       <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-label="Fonds de carte et surcouches" title="Fonds de carte"
         className="grid size-[29px] place-items-center rounded bg-white text-ink-800 shadow ring-1 ring-black/10 hover:bg-ink-50"><Layers className="size-[17px]" /></button>
       {open && (
@@ -124,5 +117,23 @@ export function LayerControl({ map, ready, className, scope }: { map: { current:
         </div>
       )}
     </div>
-  </>);
+    {legend.length > 0 && (
+      <div className="relative z-[9] flex flex-col items-end">
+        <button type="button" onClick={() => setLegendOpen((v) => !v)} aria-expanded={legendOpen} aria-controls="map-legend" className="flex h-[29px] items-center gap-1 rounded bg-white px-2 text-[11px] font-semibold text-ink-800 shadow ring-1 ring-black/10 hover:bg-ink-50"><ListTree className="size-3.5" />Légende</button>
+        {legendOpen && (
+          <div id="map-legend" role="region" aria-label="Légende des surcouches" className="mt-1 max-h-[min(20rem,calc(100dvh-18rem))] w-[min(16rem,calc(100vw-1.5rem))] overflow-y-auto rounded-xl bg-white/95 p-2.5 text-xs shadow-lift ring-1 ring-black/10 backdrop-blur">
+            {legend.map((l) => (
+              <section key={l.overlayId} className="mb-2 last:mb-0">
+                <h3 className="mb-1 text-[11px] font-bold uppercase tracking-wide text-ink-500">{l.title}</h3>
+                <ul className="grid gap-1">{l.items.map((it) => (
+                  <li key={it.label} className="flex items-center gap-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    {it.img ? <img src={it.img} alt="" className="size-5 shrink-0 rounded-sm object-contain ring-1 ring-black/10" loading="lazy" /> : it.line ? <span className="h-0 w-5 shrink-0 border-t-2" style={{ borderColor: it.color }} aria-hidden="true" /> : <span className="size-4 shrink-0 rounded-sm ring-1 ring-black/15" style={{ background: it.color }} aria-hidden="true" />}
+                    <span className="leading-tight text-ink-800">{it.label}</span>
+                  </li>))}</ul>
+                {l.note && <p className="mt-1 leading-snug text-ink-500">{l.note}</p>}
+              </section>))}
+          </div>)}
+      </div>)}
+  </div>, host);
 }

@@ -145,7 +145,7 @@ export function RouteMap({ coords, pois = [], activeIndex, className = "h-80", o
     <MapFrame className={`overflow-hidden rounded-2xl ring-1 ring-ink-100 ${className}`} banner={<StatBanner title={title} items={st ? [{ label: "Distance", value: fmtKm(st.distanceM) }, { label: "D+", value: fmtM(st.gainM) }, { label: "D−", value: fmtM(st.lossM) }, { label: "Alt. min", value: fmtM(st.minEle) }, { label: "Alt. max", value: fmtM(st.maxEle) }] : [{ label: "Distance", value: "—" }]} />}>
       <div className="absolute inset-0"><div ref={el} className="size-full" role="region" aria-label="Carte du parcours" /></div>
       <LayerControl map={map} ready={ready} />
-      <div className="glass absolute left-3 top-3 z-10 flex flex-wrap items-center gap-1 rounded-2xl p-1 text-sm">
+      <div className="glass absolute left-3 top-3 z-10 flex max-w-[calc(100%-4.5rem)] flex-wrap items-center gap-1 rounded-2xl p-1 text-sm">
         <button type="button" aria-pressed={three} onClick={() => setThree((v) => !v)} className={`inline-flex h-9 items-center gap-1.5 rounded-xl px-3 font-semibold transition-colors ${three ? "bg-ink-900 text-white" : "text-ink-800 hover:bg-ink-900/[0.06]"}`} title="Vue 3D du relief (vue aérienne)"><Box className="size-4" />{three ? "Quitter la 3D" : "Vue 3D"}</button>
         {three && <>
           <button type="button" onClick={() => (fly ? stopFly() : startFly())} disabled={coords.length < 2} className="inline-flex h-9 items-center gap-1.5 rounded-xl px-3 font-semibold text-ink-800 hover:bg-ink-900/[0.06]">{fly ? <><Square className="size-3.5" />Arrêter</> : <><Play className="size-3.5" />Survoler le parcours</>}</button>

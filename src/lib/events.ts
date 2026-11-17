@@ -48,7 +48,7 @@ export function postsOfRace(posts: Post[], raceId: string): Post[] {
   }
   return out;
 }
-export interface Volunteer { id: string; name: string; phone: string; postId: string; from: string; to: string; instructions: string }
+export interface Volunteer { id: string; name: string; phone: string; postId: string; from: string; to: string; instructions: string; email?: string }
 export type Role = "admin" | "logistique" | "benevoles" | "lecture";
 export interface Member { id: string; name: string; email: string; role: Role }
 
@@ -87,9 +87,36 @@ export function postNumbers(ev: Pick<EventModel, "races" | "posts">): Map<string
 export function postLabel(ev: Pick<EventModel, "races" | "posts">, p: Post, withRace = ev.races.length > 1): string {
   const x = postNumbers(ev).get(p.id);
   const common = (p.shared ?? []).map((s) => ev.races.find((r) => r.id === s.raceId)?.label).filter(Boolean);
-  return `Poste ${x?.n ?? "?"} — ${p.name || POST_KINDS[p.kind].label} (km ${String(+p.km.toFixed(1)).replace(".", ",")})${withRace && x?.race ? ` · ${x.race.label}${common.length ? ` + ${common.join(", ")}` : ""}` : ""}`;
+  return `Poste ${x?.n ?? "?"} — ${p.name || POST_KINDS[p.kind].label} (km ${String(+p.km.toFixed(1)).replace(".", ",")})${withRace && x?.race ? ` · ${[x.race.label, ...common].join(" + ")}` : ""}`;
 }
 export const volunteersAt = (ev: Pick<EventModel, "volunteers">, postId: string) => ev.volunteers.filter((v) => v.postId === postId);
+/** État d'un poste : complet, partiellement pourvu, à pourvoir, ou sans besoin de bénévoles. */
+export type PostStatus = "complet" | "partiel" | "vide" | "aucun";
+export const POST_STATUS: Record<PostStatus, { label: string; color: string; tone: string }> = {
+  complet: { label: "Complet", color: "#1e7a58", tone: "pine" },
+  partiel: { label: "Partiel", color: "#d98a0b", tone: "warn" },
+  vide: { label: "À pourvoir", color: "#c0362c", tone: "danger" },
+  aucun: { label: "Sans bénévole requis", color: "#8a9a93", tone: "ink" },
+};
+export function postStatus(ev: Pick<EventModel, "volunteers">, p: Post): PostStatus {
+  const n = volunteersAt(ev, p.id).length;
+  if (p.staffNeeded <= 0) return "aucun";
+  return n >= p.staffNeeded ? "complet" : n > 0 ? "partiel" : "vide";
+}
+/**
+ * Effectifs de l'événement : chaque poste compté une fois (un poste commun à plusieurs courses n'est pas multiplié),
+ * chaque bénévole compté une fois (il n'a qu'un poste). `mutualised` : bénévoles qu'il aurait fallu en plus sans mutualisation.
+ */
+export function staffing(ev: Pick<EventModel, "posts" | "volunteers">, raceId?: string) {
+  const posts = raceId ? postsOfRace(ev.posts, raceId) : ev.posts, ids = new Set(posts.map((p) => p.id));
+  const by = { complet: 0, partiel: 0, vide: 0, aucun: 0 } as Record<PostStatus, number>; posts.forEach((p) => { by[postStatus(ev, p)]++; });
+  const need = posts.reduce((s, p) => s + Math.max(0, p.staffNeeded), 0);
+  const assigned = ev.volunteers.filter((v) => ids.has(v.postId)).length;
+  const covered = posts.reduce((s, p) => s + Math.min(Math.max(0, p.staffNeeded), volunteersAt(ev, p.id).length), 0);
+  const common = posts.filter((p) => (p.shared?.length ?? 0) > 0);
+  const mutualised = raceId ? 0 : common.reduce((s, p) => s + Math.max(0, p.staffNeeded) * (p.shared!.length), 0);
+  return { posts: posts.length, need, assigned, covered, missing: Math.max(0, need - covered), by, common: common.length, mutualised, unassigned: raceId ? 0 : ev.volunteers.filter((v) => !v.postId || !ev.posts.some((p) => p.id === v.postId)).length };
+}
 const normName = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
 /** Affecte un bénévole à un poste (ou le libère avec ""). Un bénévole n'a qu'un poste : l'ancien est quitté ; un poste inconnu vaut « non affecté ». */
 export function assignVolunteer<E extends Pick<EventModel, "posts" | "volunteers">>(ev: E, volunteerId: string, postId: string): E {
