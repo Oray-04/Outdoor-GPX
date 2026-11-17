@@ -307,7 +307,3 @@ Un ravitaillement, un poste de secours, un contrôle… utilisés par plusieurs 
 - **Assistant** : encart « Vous débutez ? » à l'étape 1, étape 4 renommée « Produits », réglages avancés et mesures personnelles repliés (facultatifs).
 - **Bouton « Actualiser »** : relit la saisie, les produits et les plans enregistrés, reprend les dernières données du parcours ou de la course d'événement liée (distance, dénivelé, ravitaillements) et recalcule le plan, sans quitter la page.
 - Mise à jour de sécurité : Next.js 16.4.6.
-
-### Logistique : postes proches disposés en trèfle
-
-Quand plusieurs postes sont trop proches pour être lisibles (moins de 34 px à l'écran), leurs marqueurs s'écartent « en trèfle » (en bouquet au-dessus de leur emplacement) : chacun reste visible avec son numéro et son effectif, relié par un trait fin à un point qui marque sa position réelle (`src/lib/clover.ts`, calcul pur et testé). La disposition se recalcule au zoom, à la rotation et à l'inclinaison ; en zoomant, les postes reprennent leur place exacte. Glisser un marqueur écarté le dépose exactement à la pointe visible. Les cartes PDF de la logistique utilisent la même disposition.
