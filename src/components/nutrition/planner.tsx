@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, Lock, User, Mountain, CloudSun, SlidersHorizontal, Sparkles, Package, FolderOpen, BookOpen, Trash2, RotateCcw } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Lock, User, Mountain, CloudSun, SlidersHorizontal, Sparkles, Package, FolderOpen, BookOpen, Trash2, RotateCcw, RefreshCw } from "lucide-react";
+import { eventsRepo, routesRepo } from "@/lib/repo";
+import { refreshLinked } from "@/lib/nutrition/link";
 import clsx from "clsx";
 import { Button } from "@/components/ui/button";
 import { computeNutrition, validateInput, type FieldError, type NutritionResult } from "@/lib/nutrition/engine";
@@ -17,7 +19,7 @@ import { Catalog } from "./catalog";
 
 type V = Omit<PlanInput, "products">;
 const STEPS = [
-  { n: 1, title: "Profil", I: User }, { n: 2, title: "Course", I: Mountain }, { n: 3, title: "Météo", I: CloudSun }, { n: 4, title: "Préférences", I: SlidersHorizontal }, { n: 5, title: "Plan", I: Sparkles },
+  { n: 1, title: "Profil", I: User }, { n: 2, title: "Course", I: Mountain }, { n: 3, title: "Météo", I: CloudSun }, { n: 4, title: "Produits", I: SlidersHorizontal }, { n: 5, title: "Plan", I: Sparkles },
 ] as const;
 type Tab = "plan" | "produits" | "plans" | "methode";
 
@@ -37,7 +39,14 @@ export function NutritionPlanner() {
   const check = useMemo(() => validateInput(input), [input]);
   const errsOf = (s: number) => check.errors.filter((e) => e.step === s);
   const firstBad = check.errors.length ? Math.min(...check.errors.map((e) => e.step)) : null;
-  const result: NutritionResult | null = useMemo(() => { if (check.errors.length) return null; try { return computeNutrition(input, uid); } catch { return null; } }, [input, check.errors.length]);
+  const [tick, setTick] = useState(0);
+  const result: NutritionResult | null = useMemo(() => { if (check.errors.length) return null; try { return computeNutrition(input, uid); } catch { return null; } }, [input, check.errors.length, tick]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [note, setNote] = useState<string | null>(null);
+  /** Actualiser : relit la saisie, les produits et les plans enregistrés, reprend les données du parcours ou de la course liée, puis recalcule le plan. */
+  const refresh = () => {
+    const res = refreshLinked(loadDraft(), eventsRepo.getAll(), routesRepo.getAll(), uid);
+    setV(res.v); setTick((t) => t + 1); setNote(`Actualisé à ${new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}. ${res.note}`);
+  };
   const [shown, setShown] = useState<Record<number, boolean>>({});
   const go = (s: number) => { setStep(s); requestAnimationFrame(() => { const t = top.current; if (t && t.getBoundingClientRect().top < 0) window.scrollTo({ top: window.scrollY + t.getBoundingClientRect().top - 80, behavior: "smooth" }); }); };
   const next = () => { setShown((x) => ({ ...x, [step]: true })); if (errsOf(step).length) return; go(step + 1); };
@@ -49,8 +58,10 @@ export function NutritionPlanner() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
-        <div><p className="eyebrow">Nutrition</p><h1 className="text-3xl sm:text-4xl">Planificateur nutritionnel</h1><p className="mt-1 max-w-2xl text-ink-600">Glucides, eau, sodium et caféine calculés pour votre course sur route, trail ou ultra, puis répartis prise par prise avec vos propres produits.</p></div>
+        <div><p className="eyebrow">Nutrition</p><h1 className="text-3xl sm:text-4xl">Planificateur nutritionnel</h1><p className="mt-1 max-w-2xl text-ink-600">Quoi manger et boire pendant votre course, et quand : un plan simple, prise par prise, avec vos propres produits.</p></div>
+        <Button variant="secondary" onClick={refresh} data-action="actualiser" title="Recharger vos produits, vos plans et les données du parcours lié, puis recalculer"><RefreshCw className="size-4" />Actualiser</Button>
       </header>
+      {note && <p role="status" className="mt-3 rounded-xl bg-pine-50 px-3 py-2 text-sm text-pine-800">{note}</p>}
       <div role="tablist" aria-label="Sections du planificateur" className="mt-5 flex w-fit max-w-full gap-1 overflow-x-auto rounded-full bg-ink-100/80 p-1">
         {([["plan", "Planifier", Sparkles], ["produits", `Mes produits (${products.length})`, Package], ["plans", `Mes plans (${plans.length})`, FolderOpen], ["methode", "Méthode", BookOpen]] as const).map(([k, l, I]) => <button key={k} role="tab" type="button" aria-selected={tab === k} onClick={() => setTab(k)} className={clsx("inline-flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition", tab === k ? "bg-white text-ink-900 shadow-sm" : "text-ink-600 hover:text-ink-900")}><I className="size-4" />{l}</button>)}
       </div>
@@ -69,17 +80,26 @@ export function NutritionPlanner() {
             <button type="button" className="mt-2 hidden items-center gap-1.5 px-2 text-xs font-semibold text-ink-500 hover:text-ink-800 lg:inline-flex" onClick={() => { if (confirm("Effacer toute la saisie en cours ?")) { setV(emptyInput()); setShown({}); setStep(1); } }}><RotateCcw className="size-3.5" />Nouvelle saisie</button>
           </nav>
           <div className="mt-5 grid min-w-0 grid-cols-[minmax(0,1fr)] gap-5 lg:mt-0">
+            {step === 1 && <section className="rounded-2xl bg-brass-100/60 p-4 ring-1 ring-brass-200 sm:p-5" aria-label="Comment ça marche" data-guide>
+              <p className="font-bold text-ink-900">Vous débutez ? Voici comment ça marche</p>
+              <ol className="mt-2 grid gap-1.5 text-sm text-ink-700 sm:grid-cols-3">
+                <li className="flex gap-2"><span className="grid size-6 shrink-0 place-items-center rounded-full bg-ink-950 text-xs font-bold text-white">1</span>Quelques questions sur vous, la course et la météo (2 minutes).</li>
+                <li className="flex gap-2"><span className="grid size-6 shrink-0 place-items-center rounded-full bg-ink-950 text-xs font-bold text-white">2</span>Vous cochez ce que vous emporterez : gels, barres, boisson…</li>
+                <li className="flex gap-2"><span className="grid size-6 shrink-0 place-items-center rounded-full bg-ink-950 text-xs font-bold text-white">3</span>Le site calcule quoi prendre et à quelle fréquence, prise par prise.</li>
+              </ol>
+              <p className="mt-2 text-xs text-ink-600">Les quantités dépendent de la durée, de l&apos;intensité et de votre habitude : ce sont des repères à tester à l&apos;entraînement, pas une règle universelle. Dans le doute, laissez les réglages par défaut.</p>
+            </section>}
             {step === 1 && <StepProfile v={v} set={set} errors={vis(errsOf(1), 1)} />}
             {step === 2 && <StepRace v={v} set={set} errors={vis(errsOf(2), 2)} />}
             {step === 3 && <StepWeather v={v} set={set} errors={vis(errsOf(3), 3)} />}
-            {step === 4 && <StepPrefs v={v} set={set} errors={vis(errsOf(4), 4)} />}
+            {step === 4 && <StepPrefs v={v} set={set} errors={vis(errsOf(4), 4)} result={result} />}
             {step === 5 && (result ? <Results input={input} r={result} onPdf={pdf} onSave={save} saved={!!savedId} /> : <div className="frost-panel p-6 text-center"><Lock className="mx-auto size-6 text-ink-400" /><p className="mt-2 font-semibold">Le plan se génère dès que les informations indispensables sont renseignées.</p><ul className="mx-auto mt-3 max-w-md text-left text-sm text-danger">{check.errors.map((e) => <li key={e.field}>Étape {e.step} : {e.text}</li>)}</ul></div>)}
             {step < 5 && check.warnings.length > 0 && <Notices list={check.warnings} compact />}
             {step < 5 && <div className="flex flex-wrap items-center justify-between gap-3">
               {step > 1 ? <Button variant="secondary" onClick={() => go(step - 1)}><ArrowLeft className="size-4" />Retour</Button> : <span />}
               <div className="flex items-center gap-3">{shown[step] && errsOf(step).length > 0 && <span role="alert" className="text-sm text-danger">Complétez les champs signalés.</span>}<Button onClick={next} data-next>{step === 4 ? "Générer le plan" : "Continuer"}<ArrowRight className="size-4" /></Button></div>
             </div>}
-            {step === 5 && <div><Button variant="secondary" onClick={() => go(4)}><ArrowLeft className="size-4" />Modifier les préférences</Button></div>}
+            {step === 5 && <div><Button variant="secondary" onClick={() => go(4)}><ArrowLeft className="size-4" />Modifier les produits</Button></div>}
           </div>
         </div>)}
 

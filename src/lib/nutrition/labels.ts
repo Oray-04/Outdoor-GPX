@@ -10,7 +10,7 @@ export const SWEAT_LABEL: Record<SweatProfile, string> = { faible: "Faible", moy
 export const SALT_LABEL: Record<SaltProfile, string> = { faible: "Peu salée", moyen: "Moyenne", eleve: "Très salée (traces blanches)", inconnu: "Je ne sais pas" };
 export const SKY_LABEL: Record<Sky, string> = { couvert: "Couvert", soleil: "Plein soleil", pluie: "Pluie", nuit: "Nuit" };
 export const SENSITIVITY_LABEL: Record<Sensitivity, string> = { faible: "Peu sensible", normale: "Normale", elevee: "Très sensible" };
-export const STRATEGY_LABEL: Record<CaffeineStrategy, string> = { aucune: "Aucune", prudente: "Prudente — 1 mg/kg", moderee: "Modérée — 2 mg/kg", standard: "Standard — 3 mg/kg", personnalisee: "Personnalisée" };
+export const STRATEGY_LABEL: Record<CaffeineStrategy, string> = { aucune: "Non, sans caféine", prudente: "Prudente — petite dose (1 mg par kg)", moderee: "Modérée (2 mg par kg)", standard: "Habitué(e) (3 mg par kg)", personnalisee: "Je choisis ma dose" };
 
 export const fmtDur = (min: number) => { const m = Math.round(min); return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")}`; };
 export const fmtL = (ml: number) => (ml >= 1000 ? `${(ml / 1000).toFixed(1).replace(".", ",")} L` : `${Math.round(ml)} ml`);

@@ -29,11 +29,15 @@ export async function nutritionPdf(i: PlanInput, r: NutritionResult): Promise<Bl
   h1("Profil et conditions");
   line(`${i.athlete.weightKg} kg · niveau ${LEVEL_LABEL[i.athlete.level].toLowerCase()}${i.athlete.experienceYears != null ? ` · ${i.athlete.experienceYears} an(s) d'endurance` : ""} · tolérance digestive ${TOLERANCE_LABEL[i.athlete.tolerance].toLowerCase()} · ${HABIT_LABEL[i.athlete.habit].toLowerCase()}.`);
   line(`${RACE_LABEL[i.race.type]} · intensité ${INTENSITY_LABEL[i.race.intensity].toLowerCase()} · ${i.weather.tempC} °C, ${i.weather.humidityPct} % d'humidité, ${SKY_LABEL[i.weather.sky].toLowerCase()} · sudation ${SWEAT_LABEL[i.weather.sweat].toLowerCase()}.`);
+  h1("Rythme pendant la course");
+  { const iv = r.interval, every = (m: number) => { if (m < 60 && Math.abs(m - Math.round(m)) > 0.05) return `${Math.floor(m)} à ${Math.ceil(m)} min`; const x = Math.round(m); return x >= 60 ? `${Math.floor(x / 60)} h ${String(x % 60).padStart(2, "0")}` : `${x} min`; };
+    line(iv.basis === "produits" ? `Manger : ${iv.portions > 1 ? `${iv.portions} portions` : "1 portion"} toutes les ${every(iv.carbEveryMin)} (${iv.servingG} g de glucides par portion, environ ${iv.effectiveGph} g/h ; objectif ${r.carbs.gph} g/h).` : iv.basis === "boisson" ? `Manger : la boisson apporte les ${r.carbs.gph} g/h prévus.` : iv.basis === "aucun-objectif" ? "Manger : aucun apport nécessaire pour cette durée." : `Manger : ${r.carbs.gph} g de glucides par heure (aucun produit choisi).`);
+    line(`Boire : environ ${Math.round((r.hydration.mlh * iv.stepMin) / 60 / 10) * 10} ml toutes les ${every(iv.stepMin)} (${r.hydration.mlh} ml/h), par petites gorgées.`); }
   h1("Besoins estimés");
   line(`Glucides : ${r.carbs.gph} g/h (${r.carbs.band.label.toLowerCase()} ; plafond personnel ${r.carbs.cap} g/h)${r.carbs.ramp[0] < 1 ? `, montée progressive ${r.carbs.ramp.map((f) => Math.round(r.carbs.gph * f)).join(" → ")} g/h` : ""}. Total ${r.carbs.totalG} g.`);
   line(`Sueur : ${r.hydration.sweatLh} L/h (${r.hydration.reliability === "mesuree" ? "mesuré" : `estimé, fourchette ${r.hydration.sweatRange[0]}–${r.hydration.sweatRange[1]} L/h`}). Boire ${r.hydration.mlh} ml/h (${r.hydration.replacePct} % des pertes), soit ${fmtL(r.hydration.totalMl)}. Perte de masse prévue ≈ ${r.hydration.lossPct} %.`);
   line(`Sodium : pertes ≈ ${r.sodium.lossMgH} mg/h (sueur à ${r.sodium.sweatMgL} mg/L, ${r.sodium.reliability === "mesuree" ? "mesurée" : "estimée"}) ; apport visé ${r.sodium.mgh} mg/h, soit ${r.sodium.totalMg} mg.`);
-  line(r.caffeine.totalMg ? `Caféine : ${r.caffeine.doses.map((d) => `${d.mg} mg à ${d.atMin < 0 ? `${-d.atMin} min avant le départ` : `${fmtDur(d.atMin)} de course`}`).join(", ")} ; pic estimé ${r.caffeine.peakMg} mg, ${r.caffeine.atFinishMg} mg à l'arrivée${r.caffeine.atBedMg != null ? `, ${r.caffeine.atBedMg} mg au coucher` : ""} (demi-vie ${r.caffeine.halfLifeH} h).` : "Caféine : aucune.");
+  line(r.caffeine.totalMg ? `Caféine : ${r.caffeine.doses.map((d) => `${d.mg} mg à ${d.atMin < 0 ? `${-d.atMin} min avant le départ` : `${fmtDur(d.atMin)} de course`}`).join(", ")} (total ${r.caffeine.totalMg} mg, ${r.caffeine.totalMgKg} mg/kg).` : "Caféine : aucune.");
   // objectifs non atteints
   const sf = shortfalls(r.plan), fixes = gapFixes(i, sf.totals);
   if (fixes.length) {

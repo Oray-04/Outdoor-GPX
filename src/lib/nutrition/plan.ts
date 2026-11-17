@@ -85,7 +85,8 @@ export function buildPlan(i: PlanBuildInput): PlanResult {
   const chosen = i.products.filter((p) => i.productIds.includes(p.id));
   const drink = i.drinkId ? i.products.find((p) => p.id === i.drinkId && p.category === "boisson" && p.volumeMl > 0) ?? null : null;
   const carbSrc = chosen.filter((p) => isCarbSource(p) && p.caffeineMg === 0), cafSrc = chosen.filter((p) => isCarbSource(p) && p.caffeineMg > 0), saltSrc = chosen.filter(isSodiumSource);
-  const step = Math.max(10, Math.min(60, Math.round(i.intervalMin || 20)));
+  // pas du planning calculé (voir interval.ts) : peut être fractionnaire (ex. 12,5 min = un gel toutes les 25 min, boire entre les deux)
+  const step = Math.max(5, Math.min(60, i.intervalMin || 20));
 
   // instants des prises
   const times: number[] = [];

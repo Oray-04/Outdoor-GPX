@@ -297,3 +297,13 @@ Un ravitaillement, un poste de secours, un contrôle… utilisés par plusieurs 
   - *Bénévoles* : tableau d'affectation (une ligne par poste, postes communs une fois), puis une fiche par bénévole : coordonnées, poste et courses avec km, horaires, barrière, GPS, mini-carte centrée sur le poste, consignes, coéquipiers.
   - *Temps de passage* : même présentation.
 - **Boussole « Nord »** : le sélecteur de calques et la légende font désormais partie de la pile des contrôles de la carte (zoom, boussole, calques) au lieu d'être posés par-dessus : la boussole n'est plus jamais masquée, y compris en 3D ; le panneau 3D de la fiche parcours laisse la colonne des contrôles libre.
+
+### Nutrition simplifiée (débutants)
+
+- **Rubrique « Préférences alimentaires » retirée** : ce texte libre n'entrait dans aucun calcul (il reste lu dans les anciens plans, sans effet).
+- **Intervalle entre les prises calculé** (`src/lib/nutrition/interval.ts`, plus de saisie) : glucides à apporter par les produits = objectif horaire − glucides de la boisson principale ; intervalle = glucides d'une portion (moyenne des produits choisis) ÷ ce besoin × 60. Arrondi à 5 min si l'apport reste à ±10 % de l'objectif, sinon à la minute ; 10 à 90 min ; sous 10 min, plusieurs portions par prise. Le planning garde un moment pour boire toutes les 20 min au plus (la prise de glucides tombe alors une fois sur deux…). Exemple : 60 g/h et gels de 30 g → un gel toutes les 30 min, boire toutes les 15 min. Le calcul est affiché pas à pas à l'étape « Produits » et dans le plan.
+- **Caféine simplifiée** : plus de demi-vie ni d'heure du coucher (ni courbe de caféine résiduelle) ; restent la stratégie (libellés clairs), la sensibilité, la consommation habituelle et les horaires des prises, avec les alertes de dose.
+- **Plan lisible** : encart « L'essentiel » (manger, boire, sel, caféine en une phrase chacun), « Pourquoi ces quantités ? » (repère de durée, plafond personnel, démarrage progressif, rappel que rien n'est universel), planning « prise par prise » en cartes (heure, temps de course, km, quoi prendre), détails par nutriment en onglets avec des **graphiques grand format** dessinés à la largeur réelle (300 px de haut, 240 sur mobile, textes 12–13 px), tableau détaillé replié.
+- **Assistant** : encart « Vous débutez ? » à l'étape 1, étape 4 renommée « Produits », réglages avancés et mesures personnelles repliés (facultatifs).
+- **Bouton « Actualiser »** : relit la saisie, les produits et les plans enregistrés, reprend les dernières données du parcours ou de la course d'événement liée (distance, dénivelé, ravitaillements) et recalcule le plan, sans quitter la page.
+- Mise à jour de sécurité : Next.js 16.4.6.

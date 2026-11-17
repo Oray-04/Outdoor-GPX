@@ -52,7 +52,6 @@ export function computeCaffeine(i: CaffeineInput): CaffeineResult {
   if (totalMg > C.dailyWarnMg) notices.push({ level: "warn", text: `Cumul de ${totalMg} mg sur la journée, au-delà du repère de ${C.dailyWarnMg} mg/jour pour un adulte en bonne santé.` });
   if ((i.habitualMgDay ?? 0) < C.habitualThresholdMg && totalMg > 0) notices.push({ level: "warn", text: "Consommation habituelle faible : testez toujours votre stratégie à l'entraînement avant une course, en commençant par la dose la plus basse." });
   if (atBedMg != null && atBedMg > C.sleepWarnMg) notices.push({ level: "warn", text: `Environ ${atBedMg} mg encore présents à l'heure du coucher : sommeil probablement perturbé (récupération moins bonne).` });
-  if (totalMg > 0 && halfLifeH === C.halfLifeH) notices.push({ level: "info", text: `Demi-vie de ${C.halfLifeH} h utilisée par défaut ; elle varie de ${C.halfLifeRange[0]} à ${C.halfLifeRange[1]} h selon les personnes (plus longue avec une contraception orale ou pendant la grossesse).` });
   const precautions = [
     "Déconseillée en cas de trouble du rythme cardiaque, d'hypertension non contrôlée, d'anxiété, de grossesse ou d'allaitement, et avec certains médicaments : demandez un avis médical.",
     "Effets indésirables possibles : palpitations, tremblements, troubles digestifs, envie d'uriner, nervosité, insomnie.",

@@ -21,16 +21,18 @@ export interface Preferences {
   carbOverrideGph: number | null;
   intakeOverrideMlH: number | null;
   sodiumOverrideMgH: number | null;
-  foodNotes: string;
+  /** ancienne rubrique « préférences alimentaires » (non utilisée par le calcul) : conservée pour les plans enregistrés */
+  foodNotes?: string;
   saltProfile: SaltProfile;
   sweatTest: SweatTest | null;
   /** Mesure individuelle de sodium de la sueur. */
   sweatSodium: { value: number | null; unit: "mgL" | "mmolL" } | null;
-  caffeine: { strategy: CaffeineStrategy; customMgKg: number | null; sensitivity: Sensitivity; habitualMgDay: number | null; halfLifeH: number | null; bedtime: string; doses: CaffeineDose[] | null };
+  caffeine: { strategy: CaffeineStrategy; customMgKg: number | null; sensitivity: Sensitivity; habitualMgDay: number | null; /** anciens réglages, plus proposés (valeurs par défaut du moteur) */ halfLifeH?: number | null; bedtime?: string; doses: CaffeineDose[] | null };
   /** Produits utilisés pendant la course (identifiants du catalogue) et boisson principale. */
   productIds: string[];
   drinkId: string | null;
-  intervalMin: number;
+  /** ancien réglage manuel, remplacé par le calcul automatique (interval.ts) */
+  intervalMin?: number;
   /** Capacité de liquide transportée (ml) et recharge aux ravitaillements. */
   carryMl: number | null;
   refillAtAid: boolean;

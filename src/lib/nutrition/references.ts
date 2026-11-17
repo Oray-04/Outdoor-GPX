@@ -26,6 +26,7 @@ export const ASSUMPTIONS = [
   "Débit de sudation estimé sans mesure : référence selon le profil, ajustée par la température, l'humidité, le soleil, l'intensité et le poids (fiabilité ± 40 %).",
   "Objectif d'eau : 65 % des pertes par défaut, borné entre 300 et 800 ml/h, toujours sous 90 % des pertes.",
   "Objectif de sodium : 0 % des pertes sous 1 h 30, 40 % jusqu'à 3 h, 60 % au-delà, plafonné à 1 000 mg/h.",
-  "Caféine : répartition proposée des prises, demi-vie de 5 h, seuil de 50 mg résiduels au coucher.",
+  "Caféine : répartition proposée des prises (avant le départ pour un effort court, puis en deuxième partie de course pour un effort long).",
+  "Intervalle entre les prises = glucides d'une prise ÷ glucides à apporter par heure × 60 (la boisson sucrée est déduite) ; arrondi à 5 min si l'apport reste à ±10 % de l'objectif ; quelques gorgées au moins toutes les 20 min.",
 ];
 export const DISCLAIMER = "Estimations destinées à la planification sportive, pas un avis ni un diagnostic médical. En cas de maladie (cardiaque, rénale, hypertension, diabète…), de grossesse ou de traitement, demandez l'avis d'un médecin. Testez toute stratégie à l'entraînement avant une course.";

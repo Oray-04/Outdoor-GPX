@@ -1,12 +1,11 @@
 "use client";
 import { useMemo, useState } from "react";
-import { Plus, Trash2, Route as RouteIcon, Wand2, FlaskConical, Info, CalendarDays } from "lucide-react";
+import { Plus, Trash2, Route as RouteIcon, Wand2, Info, CalendarDays, Timer, ChevronDown } from "lucide-react";
 import clsx from "clsx";
 import { Button } from "@/components/ui/button";
 import { eventsRepo, routesRepo } from "@/lib/repo";
-import { trackStats } from "@/lib/geo";
-import { positionOnTrack, postsOfRace } from "@/lib/events";
-import { suggestDurationMin, type FieldError } from "@/lib/nutrition/engine";
+import { linkEventRace, linkRoute } from "@/lib/nutrition/link";
+import { suggestDurationMin, type FieldError, type NutritionResult } from "@/lib/nutrition/engine";
 import { measuredSweatRate } from "@/lib/nutrition/hydration";
 import { computeCaffeine } from "@/lib/nutrition/caffeine";
 import { HABIT_LABEL, INTENSITY_LABEL, LEVEL_LABEL, RACE_LABEL, SALT_LABEL, SENSITIVITY_LABEL, SKY_LABEL, STRATEGY_LABEL, SWEAT_LABEL, TOLERANCE_LABEL, fmtDur, fmtRel } from "@/lib/nutrition/labels";
@@ -17,6 +16,8 @@ import { Catalog } from "./catalog";
 type V = Omit<PlanInput, "products">;
 export type SetV = (fn: (v: V) => V) => void;
 const inp = "h-10 w-full rounded-lg border border-ink-200 bg-white px-3 text-sm";
+/** « 20 min », « 1 h 15 » ; minutes fractionnaires arrondies. */
+export const fmtEvery = (m: number) => { if (m < 60 && Math.abs(m - Math.round(m)) > 0.05) return `${Math.floor(m)} à ${Math.ceil(m)} min`; const r = Math.round(m); return r >= 60 ? `${Math.floor(r / 60)} h${r % 60 ? ` ${String(r % 60).padStart(2, "0")}` : ""}` : `${r} min`; };
 const parse = (s: string): number | null => { const t = s.trim().replace(",", "."); if (t === "") return null; const n = Number(t); return Number.isFinite(n) ? n : null; };
 
 /** Champ numérique facultatif ou obligatoire, avec unité ; vide = valeur manquante (jamais remplacée par une valeur fictive). */
@@ -66,19 +67,13 @@ export function StepRace({ v, set, errors }: { v: V; set: SetV; errors: FieldErr
   const importEventRace = (key: string) => {
     const hit = eventRaces.find(({ ev, rc }) => `${ev.id}:${rc.id}` === key);
     if (!hit) { up({ eventRace: undefined }); return; }
-    const { ev, rc } = hit, rt = routes.find((x) => x.id === rc.routeId)!, s = trackStats(rt.coords, 3), km = Math.round(s.distanceM / 100) / 10;
-    const posts = postsOfRace(ev.posts, rc.id).filter((p) => (p.kind === "ravito" || p.kind === "eau") && p.km > 0 && p.km < km).sort((a, b) => a.km - b.km);
-    const aid = posts.length ? posts.map((p) => ({ id: uid(), name: p.name || (p.kind === "eau" ? "Point d'eau" : "Ravitaillement"), km: Math.round(p.km * 10) / 10, etaMin: null, water: true, food: p.kind === "ravito" })) : aidFromRoute(rt);
-    set((x) => ({ ...x, race: { ...x.race, eventRace: { eventId: ev.id, raceId: rc.id }, routeId: rt.id, name: `${ev.name} — ${rc.label}`, distanceKm: km, gainM: Math.round(s.gainM), startTime: /^\d{1,2}:\d{2}$/.test(rc.startTime) ? rc.startTime : x.race.startTime, type: km > 80 ? "ultra" : rc.sport === "course" ? "route" : "trail" }, aid: aid.length ? aid : x.aid }));
+    set((x) => linkEventRace(x, hit.ev, hit.rc.id, routes.find((r) => r.id === hit.rc.routeId)!, uid));
   };
-  const aidFromRoute = (rt: (typeof routes)[number]) => rt.pois.filter((p) => p.type === "ravito" || p.type === "eau").map((p) => ({ id: uid(), name: p.name || (p.type === "eau" ? "Point d'eau" : "Ravitaillement"), km: Math.round(positionOnTrack(rt.coords, p.lng, p.lat).km * 10) / 10, etaMin: null, water: true, food: p.type === "ravito" })).sort((a, b) => (a.km ?? 0) - (b.km ?? 0));
   const suggestion = suggestDurationMin(r.type, r.distanceKm, r.gainM, v.athlete.level);
   /** Reprend distance, dénivelé et points de ravitaillement d'un parcours enregistré (aucune ressaisie). */
   const importRoute = (id: string) => {
     const rt = routes.find((x) => x.id === id); if (!rt) { up({ routeId: undefined, eventRace: undefined }); return; }
-    const s = trackStats(rt.coords, 3), km = Math.round(s.distanceM / 100) / 10;
-    const aid = aidFromRoute(rt);
-    set((x) => ({ ...x, race: { ...x.race, eventRace: undefined, routeId: id, name: x.race.name || rt.name, distanceKm: km, gainM: Math.round(s.gainM), type: km > 80 ? "ultra" : rt.sport === "course" ? "route" : "trail" }, aid: aid.length ? aid : x.aid }));
+    set((x) => linkRoute(x, rt, uid));
   };
   const upAid = (id: string, p: Partial<V["aid"][number]>) => set((x) => ({ ...x, aid: x.aid.map((a) => (a.id === id ? { ...a, ...p } : a)) }));
   return (<>
@@ -133,57 +128,69 @@ export function StepWeather({ v, set, errors }: { v: V; set: SetV; errors: Field
   );
 }
 
-export function StepPrefs({ v, set, errors }: { v: V; set: SetV; errors: FieldError[] }) {
+export function StepPrefs({ v, set, errors, result }: { v: V; set: SetV; errors: FieldError[]; result?: NutritionResult | null }) {
   const p = v.prefs, up = (q: Partial<V["prefs"]>) => set((x) => ({ ...x, prefs: { ...x.prefs, ...q } })), c = p.caffeine, upC = (q: Partial<V["prefs"]["caffeine"]>) => up({ caffeine: { ...c, ...q } });
   const test = p.sweatTest, testRes = test ? measuredSweatRate(test) : null;
-  const preview = useMemo(() => (v.athlete.weightKg && v.race.durationMin ? computeCaffeine({ weightKg: v.athlete.weightKg, durationMin: v.race.durationMin, strategy: c.strategy, customMgKg: c.customMgKg, sensitivity: c.sensitivity, habitualMgDay: c.habitualMgDay, halfLifeH: c.halfLifeH, doses: null, startTime: v.race.startTime }) : null), [v.athlete.weightKg, v.race.durationMin, v.race.startTime, c.strategy, c.customMgKg, c.sensitivity, c.habitualMgDay, c.halfLifeH]);
-  const doses = c.doses ?? null;
+  const preview = useMemo(() => (v.athlete.weightKg && v.race.durationMin ? computeCaffeine({ weightKg: v.athlete.weightKg, durationMin: v.race.durationMin, strategy: c.strategy, customMgKg: c.customMgKg, sensitivity: c.sensitivity, habitualMgDay: c.habitualMgDay, doses: null, startTime: v.race.startTime }) : null), [v.athlete.weightKg, v.race.durationMin, v.race.startTime, c.strategy, c.customMgKg, c.sensitivity, c.habitualMgDay]);
+  const doses = c.doses ?? null, iv = result?.interval;
   return (<>
-    <Card title="Produits utilisés" hint="Cochez ce que vous emporterez. Le plan calcule le nombre exact de chaque produit.">
+    <Card title="Ce que vous emporterez" hint="Cochez vos gels, barres, pâtes de fruits ou boissons. Le site calcule tout seul à quel rythme les prendre et combien en emporter.">
       <Catalog selected={p.productIds} onToggle={(id) => up({ productIds: p.productIds.includes(id) ? p.productIds.filter((x) => x !== id) : [...p.productIds, id], drinkId: p.drinkId === id && p.productIds.includes(id) ? null : p.drinkId })} drinkId={p.drinkId} onDrink={(id) => up({ drinkId: id })} />
-      <label className="grid gap-1 text-sm font-medium">Préférences alimentaires (facultatif)<textarea rows={2} className="rounded-lg border border-ink-200 bg-white p-3 text-sm" value={p.foodNotes} maxLength={300} placeholder="Ex. salé après 4 h, pas de fructose, sans gluten…" onChange={(e) => up({ foodNotes: e.target.value })} /></label>
+      {result && iv && <div className="rounded-2xl bg-pine-50 p-4 ring-1 ring-pine-100" data-interval aria-live="polite">
+        <p className="flex items-center gap-2 text-sm font-bold text-pine-800"><Timer className="size-4" />Rythme calculé pour vous</p>
+        {iv.basis === "produits" ? <>
+          <p className="mt-1 text-lg font-bold text-ink-900">{iv.portions > 1 ? `${iv.portions} portions` : "1 portion"} toutes les {fmtEvery(iv.carbEveryMin)}</p>
+          <p className="mt-1 text-sm text-ink-700">Objectif : <b>{result.carbs.gph} g de glucides par heure</b>.{iv.drinkGph ? ` Votre boisson en apporte environ ${iv.drinkGph} g/h ; il reste ${iv.solidGph} g/h à prendre en produits.` : ""} Une portion de vos produits contient en moyenne <b>{String(iv.servingG).replace(".", ",")} g</b>.</p>
+          <p className="mt-1 rounded-lg bg-white/70 px-3 py-1.5 text-sm text-ink-700">Calcul : {iv.portions > 1 ? `${iv.portions} × ` : ""}{String(iv.servingG).replace(".", ",")} g ÷ {iv.solidGph} g/h × 60 min = {String(Math.round(((iv.servingG ?? 0) * iv.portions / iv.solidGph) * 60 * 10) / 10).replace(".", ",")} min{Math.abs(((iv.servingG ?? 0) * iv.portions / iv.solidGph) * 60 - iv.carbEveryMin) > 0.05 ? `, arrondi à ${fmtEvery(iv.carbEveryMin)}` : ""} → environ {iv.effectiveGph} g/h au total.</p>
+          {iv.stepMin < iv.carbEveryMin && <p className="mt-1 text-sm text-ink-700">Entre deux prises, buvez quelques gorgées toutes les {fmtEvery(iv.stepMin)} environ.</p>}
+        </> : iv.basis === "boisson" ? <p className="mt-1 text-sm text-ink-700">Votre boisson couvre à elle seule l&apos;objectif de {result.carbs.gph} g/h : buvez-en régulièrement, quelques gorgées toutes les {fmtEvery(iv.stepMin)}.</p>
+          : iv.basis === "aucun-objectif" ? <p className="mt-1 text-sm text-ink-700">Pour un effort de cette durée, aucun apport de glucides n&apos;est nécessaire : buvez selon la soif.</p>
+          : <p className="mt-1 text-sm text-ink-700">Cochez au moins un produit (gel, barre…) : le site calculera l&apos;intervalle entre les prises à partir de ses glucides et de votre objectif de {result.carbs.gph} g/h.</p>}
+      </div>}
     </Card>
-    <Card title="Objectifs et organisation" hint="Laissez vide pour utiliser les valeurs calculées. Une valeur saisie hors des repères est acceptée mais signalée.">
-      <div className="grid gap-4 sm:grid-cols-3"><Num label="Objectif glucidique" unit="g/h" value={p.carbOverrideGph} onChange={(n) => up({ carbOverrideGph: n })} hint="Calculé si vide" error={err(errors, "carbOverrideGph")} /><Num label="Eau" unit="ml/h" value={p.intakeOverrideMlH} onChange={(n) => up({ intakeOverrideMlH: n })} hint="Calculée si vide" /><Num label="Sodium" unit="mg/h" value={p.sodiumOverrideMgH} onChange={(n) => up({ sodiumOverrideMgH: n })} hint="Calculé si vide" /></div>
-      <div className="grid gap-4 sm:grid-cols-3"><Num label="Une prise toutes les" unit="min" value={p.intervalMin} onChange={(n) => up({ intervalMin: n ?? 20 })} error={err(errors, "intervalMin")} /><Num label="Liquide transporté" unit="ml" value={p.carryMl} onChange={(n) => up({ carryMl: n })} hint="Flasques et poche à eau ; facultatif" error={err(errors, "carryMl")} />
-        <label className="flex items-center gap-2 self-end pb-2.5 text-sm font-medium"><input type="checkbox" className="size-4 accent-[var(--color-pine-600)]" checked={p.refillAtAid} onChange={(e) => up({ refillAtAid: e.target.checked })} />Je recharge aux ravitaillements</label></div>
-    </Card>
-    <Card title="Caféine" hint="Facultative. Stratégie prudente par défaut ; testez-la toujours à l'entraînement.">
-      <Choice label="Stratégie" value={c.strategy} options={STRATEGY_LABEL} onChange={(x) => upC({ strategy: x, doses: null })} />
+    <Card title="Caféine (facultatif)" hint="Elle peut aider en fin d'effort, mais elle ne convient pas à tout le monde. Ne testez jamais une nouvelle dose le jour de la course.">
+      <Choice label="Voulez-vous de la caféine ?" value={c.strategy} options={STRATEGY_LABEL} onChange={(x) => upC({ strategy: x, doses: null })} hint="« Prudente » est le bon choix pour commencer." />
       {c.strategy === "personnalisee" && <Num label="Dose totale" unit="mg/kg" value={c.customMgKg} onChange={(n) => upC({ customMgKg: n, doses: null })} hint="Bornée à 6 mg/kg ; au-delà de 3 mg/kg, effets indésirables plus fréquents." />}
       {c.strategy !== "aucune" && (<>
-        <div className="grid gap-4 sm:grid-cols-3"><Num label="Consommation habituelle" unit="mg/jour" value={c.habitualMgDay} onChange={(n) => upC({ habitualMgDay: n })} hint="Un expresso ≈ 60 à 100 mg" /><Num label="Demi-vie" unit="h" value={c.halfLifeH} onChange={(n) => upC({ halfLifeH: n })} hint="5 h par défaut (de 2 à 10 h)" /><label className="grid gap-1 text-sm font-medium">Heure du coucher le soir<input type="time" className={inp} value={c.bedtime} onChange={(e) => upC({ bedtime: e.target.value })} /><span className="text-xs font-normal text-ink-500">Pour estimer la caféine restante</span></label></div>
-        <Choice label="Sensibilité à la caféine" value={c.sensitivity} options={SENSITIVITY_LABEL} onChange={(x) => upC({ sensitivity: x, doses: null })} />
+        <div className="grid gap-4 sm:grid-cols-2"><Num label="Caféine que vous prenez d'habitude" unit="mg/jour" value={c.habitualMgDay} onChange={(n) => upC({ habitualMgDay: n })} hint="Un expresso ≈ 60 à 100 mg" /><Choice label="Sensibilité à la caféine" value={c.sensitivity} options={SENSITIVITY_LABEL} onChange={(x) => upC({ sensitivity: x, doses: null })} /></div>
         <div className="rounded-xl bg-ink-50 p-3 text-sm">
-          <p className="font-semibold">Prises {doses ? "personnalisées" : "proposées"}</p>
+          <p className="font-semibold">Quand la prendre {doses ? "(vos horaires)" : "(proposé)"}</p>
           {(doses ?? preview?.doses ?? []).length ? <ul className="mt-2 grid gap-1.5">{(doses ?? preview?.doses ?? []).map((d) => (
             <li key={d.id} className="flex flex-wrap items-center gap-2">{doses ? <>
               <span className="relative w-28"><input aria-label="Moment (min, négatif = avant le départ)" inputMode="numeric" className={clsx(inp, "!h-9 pr-10")} value={d.atMin} onChange={(e) => { const n = parse(e.target.value); if (n != null) upC({ doses: doses.map((x) => (x.id === d.id ? { ...x, atMin: Math.round(n) } : x)) }); }} /><span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-ink-500">min</span></span>
               <span className="relative w-28"><input aria-label="Dose (mg)" inputMode="numeric" className={clsx(inp, "!h-9 pr-9")} value={d.mg} onChange={(e) => { const n = parse(e.target.value); if (n != null) upC({ doses: doses.map((x) => (x.id === d.id ? { ...x, mg: Math.max(0, Math.round(n)) } : x)) }); }} /><span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-ink-500">mg</span></span>
               <span className="text-xs text-ink-500">{fmtRel(d.atMin)}</span><button type="button" aria-label="Retirer cette prise" className="grid size-8 place-items-center rounded-lg hover:bg-danger/10" onClick={() => upC({ doses: doses.filter((x) => x.id !== d.id) })}><Trash2 className="size-4" /></button>
-            </> : <span><b>{d.mg} mg</b> · {fmtRel(d.atMin)}</span>}</li>))}</ul> : <p className="mt-1 text-ink-500">{v.athlete.weightKg && v.race.durationMin ? "Aucune prise." : "Renseignez poids et durée pour voir les prises proposées."}</p>}
+            </> : <span><b>{d.mg} mg</b> · {fmtRel(d.atMin)}</span>}</li>))}</ul> : <p className="mt-1 text-ink-500">{v.athlete.weightKg && v.race.durationMin ? "Aucune prise." : "Renseignez votre poids et la durée pour voir les prises proposées."}</p>}
           <div className="mt-2 flex flex-wrap gap-2">
-            {!doses && preview && preview.doses.length > 0 && <Button type="button" size="sm" variant="secondary" onClick={() => upC({ doses: preview.doses.map((d) => ({ ...d, id: uid() })) })}>Personnaliser les prises</Button>}
-            {doses && <><Button type="button" size="sm" variant="secondary" onClick={() => upC({ doses: [...doses, { id: uid(), atMin: Math.round((v.race.durationMin ?? 120) / 2), mg: 50 }] })}><Plus className="size-4" />Ajouter une prise</Button><Button type="button" size="sm" variant="ghost" onClick={() => upC({ doses: null })}>Revenir aux prises proposées</Button></>}
+            {!doses && preview && preview.doses.length > 0 && <Button type="button" size="sm" variant="secondary" onClick={() => upC({ doses: preview.doses.map((d) => ({ ...d, id: uid() })) })}>Changer les horaires</Button>}
+            {doses && <><Button type="button" size="sm" variant="secondary" onClick={() => upC({ doses: [...doses, { id: uid(), atMin: Math.round((v.race.durationMin ?? 120) / 2), mg: 50 }] })}><Plus className="size-4" />Ajouter une prise</Button><Button type="button" size="sm" variant="ghost" onClick={() => upC({ doses: null })}>Revenir à la proposition</Button></>}
           </div>
-          <p className="mt-2 text-xs text-ink-500">Moment en minutes depuis le départ ; négatif = avant le départ (ex. −45).</p>
+          {doses && <p className="mt-2 text-xs text-ink-500">Moment en minutes depuis le départ ; négatif = avant le départ (ex. −45).</p>}
         </div>
       </>)}
     </Card>
-    <Card title="Mesures personnelles (facultatif)" hint="Elles remplacent les estimations et rendent le plan bien plus fiable.">
-      <details open={!!test}>
-        <summary className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-pine-700"><FlaskConical className="size-4" />Test de sudation par pesée</summary>
-        <p className="mt-2 text-xs text-ink-500">Sortie d&apos;au moins 30 min à l&apos;intensité et dans des conditions proches de la course. Pesez-vous nu, séché, avant et après. Débit = (poids avant − poids après + liquide bu − urines) / durée.</p>
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-5">
+    <details className="frost-panel group p-5" open={p.carbOverrideGph != null || p.intakeOverrideMlH != null || p.sodiumOverrideMgH != null || p.carryMl != null || errors.length > 0}>
+      <summary className="flex cursor-pointer list-none items-center gap-2"><ChevronDown className="size-4 text-ink-400 transition group-open:rotate-180" /><span><span className="block font-bold">Réglages avancés (facultatif)</span><span className="block text-sm text-ink-500">Si vous connaissez déjà vos besoins. Sinon, laissez vide : tout est calculé.</span></span></summary>
+      <div className="mt-4 grid gap-4">
+        <div className="grid gap-4 sm:grid-cols-3"><Num label="Objectif glucidique" unit="g/h" value={p.carbOverrideGph} onChange={(n) => up({ carbOverrideGph: n })} hint="Calculé si vide" error={err(errors, "carbOverrideGph")} /><Num label="Eau" unit="ml/h" value={p.intakeOverrideMlH} onChange={(n) => up({ intakeOverrideMlH: n })} hint="Calculée si vide" /><Num label="Sodium" unit="mg/h" value={p.sodiumOverrideMgH} onChange={(n) => up({ sodiumOverrideMgH: n })} hint="Calculé si vide" /></div>
+        <div className="grid gap-4 sm:grid-cols-2"><Num label="Liquide transporté" unit="ml" value={p.carryMl} onChange={(n) => up({ carryMl: n })} hint="Flasques et poche à eau" error={err(errors, "carryMl")} />
+          <label className="flex items-center gap-2 self-end pb-2.5 text-sm font-medium"><input type="checkbox" className="size-4 accent-[var(--color-pine-600)]" checked={p.refillAtAid} onChange={(e) => up({ refillAtAid: e.target.checked })} />Je recharge aux ravitaillements</label></div>
+      </div>
+    </details>
+    <details className="frost-panel group p-5" open={!!test || !!p.sweatSodium?.value}>
+      <summary className="flex cursor-pointer list-none items-center gap-2"><ChevronDown className="size-4 text-ink-400 transition group-open:rotate-180" /><span><span className="block font-bold">Mesures personnelles (facultatif)</span><span className="block text-sm text-ink-500">Un test de sudation remplace les estimations et rend le plan bien plus fiable.</span></span></summary>
+      <div className="mt-4 grid gap-4">
+        <p className="text-xs text-ink-500">Sortie d&apos;au moins 30 min à l&apos;intensité et dans des conditions proches de la course. Pesez-vous nu, séché, avant et après. Débit = (poids avant − poids après + liquide bu − urines) / durée.</p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           {([["preKg", "Poids avant", "kg"], ["postKg", "Poids après", "kg"], ["fluidL", "Liquide bu", "L"], ["urineL", "Urines", "L"], ["durationMin", "Durée", "min"]] as const).map(([k, l, u]) => <Num key={k} label={l} unit={u} value={test?.[k] ?? null} onChange={(n) => up({ sweatTest: { preKg: null, postKg: null, fluidL: null, urineL: null, durationMin: null, ...test, [k]: n } })} />)}
         </div>
-        {testRes?.lh != null ? <p className="mt-2 rounded-lg bg-pine-50 px-3 py-2 text-sm text-pine-700">Débit de sudation mesuré : <b>{testRes.lh.toString().replace(".", ",")} L/h</b> — utilisé à la place de l&apos;estimation.</p> : testRes?.error && test && Object.values(test).some((x) => x != null) && <p className="mt-2 rounded-lg bg-warn/10 px-3 py-2 text-sm">{testRes.error}</p>}
-        {test && <button type="button" className="mt-2 text-xs font-semibold text-ink-600 underline" onClick={() => up({ sweatTest: null })}>Effacer le test</button>}
-      </details>
-      <Choice label="Votre sueur" value={p.saltProfile} options={SALT_LABEL} onChange={(x) => up({ saltProfile: x })} />
-      <div className="grid items-end gap-3 sm:grid-cols-[1fr_auto]"><Num label="Sodium de la sueur mesuré (analyse)" value={p.sweatSodium?.value ?? null} onChange={(n) => up({ sweatSodium: n == null ? null : { value: n, unit: p.sweatSodium?.unit ?? "mgL" } })} hint="Facultatif — remplace l'estimation" />
-        <select aria-label="Unité" className={clsx(inp, "w-32")} value={p.sweatSodium?.unit ?? "mgL"} onChange={(e) => up({ sweatSodium: { value: p.sweatSodium?.value ?? null, unit: e.target.value as "mgL" | "mmolL" } })}><option value="mgL">mg/L</option><option value="mmolL">mmol/L</option></select></div>
-      <p className="flex gap-2 text-xs text-ink-500"><Info className="mt-0.5 size-3.5 shrink-0" />1 mmol/L de sodium = 23 mg/L. Ne confondez pas la concentration de la sueur (mg/L) et la quantité à absorber (mg/h).</p>
-    </Card>
+        {testRes?.lh != null ? <p className="rounded-lg bg-pine-50 px-3 py-2 text-sm text-pine-700">Débit de sudation mesuré : <b>{testRes.lh.toString().replace(".", ",")} L/h</b> — utilisé à la place de l&apos;estimation.</p> : testRes?.error && test && Object.values(test).some((x) => x != null) && <p className="rounded-lg bg-warn/10 px-3 py-2 text-sm">{testRes.error}</p>}
+        {test && <button type="button" className="w-fit text-xs font-semibold text-ink-600 underline" onClick={() => up({ sweatTest: null })}>Effacer le test</button>}
+        <Choice label="Votre sueur" value={p.saltProfile} options={SALT_LABEL} onChange={(x) => up({ saltProfile: x })} />
+        <div className="grid items-end gap-3 sm:grid-cols-[1fr_auto]"><Num label="Sodium de la sueur mesuré (analyse)" value={p.sweatSodium?.value ?? null} onChange={(n) => up({ sweatSodium: n == null ? null : { value: n, unit: p.sweatSodium?.unit ?? "mgL" } })} hint="Facultatif — remplace l'estimation" />
+          <select aria-label="Unité" className={clsx(inp, "w-32")} value={p.sweatSodium?.unit ?? "mgL"} onChange={(e) => up({ sweatSodium: { value: p.sweatSodium?.value ?? null, unit: e.target.value as "mgL" | "mmolL" } })}><option value="mgL">mg/L</option><option value="mmolL">mmol/L</option></select></div>
+        <p className="flex gap-2 text-xs text-ink-500"><Info className="mt-0.5 size-3.5 shrink-0" />1 mmol/L de sodium = 23 mg/L. Ne confondez pas la concentration de la sueur (mg/L) et la quantité à absorber (mg/h).</p>
+      </div>
+    </details>
   </>);
 }

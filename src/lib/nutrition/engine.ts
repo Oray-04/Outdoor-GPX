@@ -4,6 +4,7 @@ import { computeHydration, estimateSweatRate, measuredSweatRate, type HydrationR
 import { computeSodium, sweatSodiumMgL, type SodiumResult } from "./sodium";
 import { computeCaffeine, type CaffeineResult } from "./caffeine";
 import { buildPlan, type PlanResult } from "./plan";
+import { autoInterval, type IntervalResult } from "./interval";
 import type { Level, Notice, PlanInput, RaceType } from "./types";
 
 /** Erreurs de saisie bloquantes, par étape du parcours et par champ. */
@@ -30,7 +31,6 @@ export function validateInput(i: PlanInput): { errors: FieldError[]; warnings: N
   if (!/^\d{1,2}:\d{2}$/.test(i.race.startTime)) e.push({ step: 2, field: "startTime", text: "Heure de départ au format hh:mm." });
   if (!inRange(i.weather.tempC, -20, 50)) e.push({ step: 3, field: "tempC", text: "Température : entre −20 et 50 °C." });
   if (!inRange(i.weather.humidityPct, 0, 100)) e.push({ step: 3, field: "humidityPct", text: "Humidité : entre 0 et 100 %." });
-  if (!inRange(i.prefs.intervalMin, 10, 60)) e.push({ step: 4, field: "intervalMin", text: "Intervalle entre deux prises : entre 10 et 60 min." });
   if (i.prefs.carryMl != null && !inRange(i.prefs.carryMl, 100, 5000)) e.push({ step: 4, field: "carryMl", text: "Liquide transporté : entre 100 et 5 000 ml." });
   if (i.prefs.carbOverrideGph != null && !inRange(i.prefs.carbOverrideGph, 0, 200)) e.push({ step: 4, field: "carbOverrideGph", text: "Objectif glucidique : entre 0 et 200 g/h (plafonné à 120)." });
   if (i.race.distanceKm && i.race.durationMin) {
@@ -42,7 +42,7 @@ export function validateInput(i: PlanInput): { errors: FieldError[]; warnings: N
   return { errors: e, warnings: w };
 }
 
-export interface NutritionResult { carbs: CarbResult; hydration: HydrationResult; sodium: SodiumResult; caffeine: CaffeineResult; plan: PlanResult; warnings: Notice[]; sweatError?: string; sodiumError?: string }
+export interface NutritionResult { interval: IntervalResult; carbs: CarbResult; hydration: HydrationResult; sodium: SodiumResult; caffeine: CaffeineResult; plan: PlanResult; warnings: Notice[]; sweatError?: string; sodiumError?: string }
 
 /** Calcul complet : quatre modules, puis plan de course. Lève une erreur si la saisie n'est pas valide (à appeler après `validateInput`). */
 export function computeNutrition(i: PlanInput, newId?: () => string): NutritionResult {
@@ -56,7 +56,9 @@ export function computeNutrition(i: PlanInput, newId?: () => string): NutritionR
   const na = sweatSodiumMgL(i.prefs.sweatSodium, i.prefs.saltProfile);
   const sodium = computeSodium({ sweatLh, sweatMgL: na.mgL, durationMin, reliability: na.reliability, overrideMgH: i.prefs.sodiumOverrideMgH });
   const c = i.prefs.caffeine;
-  const caffeine = computeCaffeine({ weightKg, durationMin, strategy: c.strategy, customMgKg: c.customMgKg, sensitivity: c.sensitivity, habitualMgDay: c.habitualMgDay, halfLifeH: c.halfLifeH, doses: c.doses, startTime: i.race.startTime, bedtime: c.bedtime, newId });
-  const plan = buildPlan({ durationMin, distanceKm: i.race.distanceKm, startTime: i.race.startTime, intervalMin: i.prefs.intervalMin, carbs: { gph: carbs.gph, ramp: carbs.ramp }, waterMlH: hydration.mlh, sodiumMgH: sodium.mgh, caffeineDoses: caffeine.doses, aid: i.aid, products: i.products, productIds: i.prefs.productIds, drinkId: i.prefs.drinkId, carryMl: i.prefs.carryMl, refillAtAid: i.prefs.refillAtAid });
-  return { carbs, hydration, sodium, caffeine, plan, warnings: v.warnings, sweatError: test?.error, sodiumError: na.error };
+  const caffeine = computeCaffeine({ weightKg, durationMin, strategy: c.strategy, customMgKg: c.customMgKg, sensitivity: c.sensitivity, habitualMgDay: c.habitualMgDay, doses: c.doses, startTime: i.race.startTime, newId });
+  // intervalle entre les prises calculé à partir de l'objectif horaire et des produits choisis (plus de saisie)
+  const interval = autoInterval({ gph: carbs.gph, waterMlH: hydration.mlh, products: i.products, productIds: i.prefs.productIds, drinkId: i.prefs.drinkId });
+  const plan = buildPlan({ durationMin, distanceKm: i.race.distanceKm, startTime: i.race.startTime, intervalMin: interval.stepMin, carbs: { gph: carbs.gph, ramp: carbs.ramp }, waterMlH: hydration.mlh, sodiumMgH: sodium.mgh, caffeineDoses: caffeine.doses, aid: i.aid, products: i.products, productIds: i.prefs.productIds, drinkId: i.prefs.drinkId, carryMl: i.prefs.carryMl, refillAtAid: i.prefs.refillAtAid });
+  return { interval, carbs, hydration, sodium, caffeine, plan, warnings: v.warnings, sweatError: test?.error, sodiumError: na.error };
 }
