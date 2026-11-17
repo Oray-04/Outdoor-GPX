@@ -73,7 +73,7 @@ export function Logistics({ ev, save }: P) {
   const [msg, setMsg] = useState<string | null>(null);
   const posts = useMemo(() => (race ? postsOfRace(ev.posts, race.id) : []).sort((a, b) => a.km - b.km), [ev.posts, race]); // y compris les postes communs à plusieurs parcours
   const { el, map, ml, ready } = useMap({ preserveBuffer: true });
-  const marks = useRef<Marker[]>([]); const popup = useRef<Popup | null>(null);
+  const marks = useRef<Marker[]>([]); const popup = useRef<Popup | null>(null); const markOf = useRef(new Map<string, Marker>());
   const [sel, setSel] = useState<string | null>(null); const [newName, setNewName] = useState<Record<string, string>>({});
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [filter, setFilter] = useState<"tous" | PostStatus>("tous");
@@ -181,18 +181,47 @@ export function Logistics({ ev, save }: P) {
 
   useEffect(() => {
     const m = map.current, lib = ml.current; if (!m || !lib || !ready) return;
-    marks.current.forEach((x) => x.remove()); marks.current = [];
+    marks.current.forEach((x) => x.remove()); marks.current = []; markOf.current.clear();
     posts.forEach((p, i) => {
       if (p.lng == null || p.lat == null) return;
       const vols = volunteersAt(ev, p.id), need = Math.max(0, p.staffNeeded);
       const b = postMarkerEl(p.kind, postNumbers(ev).get(p.id)?.n ?? i + 1, `${vols.length}/${need}`, POST_STATUS[postStatus(ev, p)].color, sel === p.id, !!p.auto, `Poste ${i + 1} — ${p.name} (km ${p.km})${p.offTrackM ? `, à ${p.offTrackM} m du tracé` : ""} : ${vols.length ? vols.map((v) => v.name).join(", ") : "aucun bénévole"}${p.auto ? " — proposé, à vérifier" : ""}${postRaceIds(ev.posts.find((x) => x.id === p.id) ?? p).length > 1 ? " — commun à plusieurs parcours" : ""}. Glisser pour déplacer.`);
       if (postRaceIds(ev.posts.find((x) => x.id === p.id) ?? p).length > 1) { const ring = document.createElement("span"); ring.className = "absolute -bottom-1.5 -right-2 rounded-full border border-white bg-glacier-600 px-1 text-[9px] font-bold leading-[0.95rem] text-white shadow"; ring.textContent = `×${postRaceIds(ev.posts.find((x) => x.id === p.id) ?? p).length}`; ring.title = "Commun à plusieurs parcours"; b.append(ring); }
-      b.addEventListener("click", (e) => { e.stopPropagation(); setSel(p.id); setTimeout(() => document.getElementById(`post-${p.id}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }), 50); });
-      const mk = new lib.Marker({ element: b, anchor: "bottom", draggable: true }).setLngLat([p.lng, p.lat]).addTo(m);
+      // grand écran : la fiche du poste (à côté de la carte) est amenée en vue ; petit écran : la carte reste en place (la fiche est dessous)
+      b.addEventListener("click", (e) => { e.stopPropagation(); setSel(p.id); if (window.matchMedia("(min-width: 1024px)").matches) setTimeout(() => document.getElementById(`post-${p.id}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }), 50); });
+      // orientation : le marqueur pivote autour de sa pointe (le point exact du poste), indépendamment de l'orientation de la carte
+      b.style.transformOrigin = "50% 100%";
+      const mk = new lib.Marker({ element: b, anchor: "bottom", draggable: true, rotation: p.rotation ?? 0, rotationAlignment: "viewport" }).setLngLat([p.lng, p.lat]).addTo(m);
       mk.on("dragend", () => { const ll = mk.getLngLat(); moveRef.current(p, ll.lng, ll.lat); });
-      marks.current.push(mk);
+      marks.current.push(mk); markOf.current.set(p.id, mk);
     });
   }, [posts, ev.volunteers, sel, ready, map, ml]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Poignée de rotation du poste sélectionné : la faire glisser autour de l'épingle pour l'orienter (pas de 5°)
+  useEffect(() => {
+    const m = map.current, lib = ml.current; if (!m || !lib || !ready) return;
+    const p = posts.find((x) => x.id === sel), mk = sel ? markOf.current.get(sel) : undefined;
+    if (!p || !mk || p.lng == null || p.lat == null) return;
+    const R = 54, place = (deg: number) => { const a = ((deg + 62) * Math.PI) / 180; return [R * Math.sin(a), -R * Math.cos(a)] as [number, number]; };
+    const el = document.createElement("button"); el.type = "button"; el.dataset.rotate = "1"; el.title = "Faire pivoter le marqueur (glisser) — double-clic pour le redresser"; el.setAttribute("aria-label", `Faire pivoter le marqueur de ${p.name}`);
+    el.className = "grid size-8 cursor-grab place-items-center rounded-full border-2 border-white bg-ink-950 text-white shadow-lift active:cursor-grabbing";
+    el.style.touchAction = "none"; // au doigt : le geste fait tourner la poignée au lieu de faire défiler la page
+    el.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>';
+    let deg = p.rotation ?? 0;
+    const hm = new lib.Marker({ element: el, anchor: "center", offset: place(deg) }).setLngLat([p.lng, p.lat]).addTo(m);
+    const stop = (e: Event) => { e.stopPropagation(); };
+    const move = (e: PointerEvent) => {
+      const r = m.getCanvas().getBoundingClientRect(), q = m.project(mk.getLngLat()), dx = e.clientX - r.left - q.x, dy = e.clientY - r.top - q.y;
+      deg = Math.round(((Math.atan2(dx, -dy) * 180) / Math.PI - 62) / 5) * 5; deg = ((deg + 540) % 360) - 180;
+      mk.setRotation(deg); hm.setOffset(place(deg));
+    };
+    // la bulle du poste est seulement masquée pendant la rotation (la fermer désélectionnerait le poste)
+    const bubble = (show: boolean) => { const e = popup.current?.getElement(); if (e) e.style.visibility = show ? "" : "hidden"; };
+    const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); m.dragPan.enable(); bubble(true); if (deg !== (p.rotation ?? 0)) upd(p.id, { rotation: deg || undefined }); };
+    el.addEventListener("pointerdown", (e) => { e.preventDefault(); e.stopPropagation(); m.dragPan.disable(); bubble(false); window.addEventListener("pointermove", move); window.addEventListener("pointerup", up); window.addEventListener("pointercancel", up, { once: true }); });
+    for (const t of ["mousedown", "touchstart", "click"]) el.addEventListener(t, stop);
+    el.addEventListener("dblclick", (e) => { e.stopPropagation(); mk.setRotation(0); hm.setOffset(place(0)); deg = 0; upd(p.id, { rotation: undefined }); });
+    return () => { hm.remove(); window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); m.dragPan.enable(); };
+  }, [sel, posts, ready, map, ml]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const m = map.current, lib = ml.current; if (!m || !lib || !ready) return;
     popup.current?.remove(); popup.current = null;
@@ -321,6 +350,8 @@ export function Logistics({ ev, save }: P) {
             <div className="mt-2 grid grid-cols-3 gap-2">{hasRoute ? <span className="grid content-start gap-0.5"><span>Km</span><span className="flex h-8 items-center rounded bg-white px-1.5 font-semibold" title="Calculé sur le parcours">{p.km.toFixed(2).replace(".", ",")}</span></span> : <label>Km<input type="number" step="0.1" className="h-8 w-full rounded border border-ink-200 px-1" value={p.km} onChange={(e) => upd(p.id, { km: +e.target.value || 0 })} /></label>}
               <label>Barrière (h)<input type="number" step="0.25" min={0} className="h-8 w-full rounded border border-ink-200 px-1" value={p.cutoffH ?? ""} onChange={(e) => upd(p.id, { cutoffH: e.target.value === "" ? undefined : +e.target.value })} /></label>
               <label>Bénévoles requis<input type="number" min={0} className="h-8 w-full rounded border border-ink-200 px-1" value={p.staffNeeded} onChange={(e) => upd(p.id, { staffNeeded: +e.target.value || 0 })} /></label></div>
+            <div className="mt-2 flex flex-wrap items-center gap-2"><label className="flex min-w-0 flex-1 items-center gap-2">Orientation sur la carte<input type="range" min={-180} max={180} step={5} aria-label={`Orientation du marqueur de ${p.name}`} className="min-w-0 flex-1 accent-[var(--color-pine-600)]" value={p.rotation ?? 0} onChange={(e) => upd(p.id, { rotation: +e.target.value || undefined })} /><span className="w-10 text-right font-semibold tabular-nums">{p.rotation ?? 0}°</span></label>
+              {p.rotation ? <button type="button" className="rounded-lg px-2 py-1 font-semibold text-pine-700 underline" onClick={() => upd(p.id, { rotation: undefined })}>Redresser</button> : null}</div>
             <input aria-label="Consignes du poste" placeholder="Consignes du poste, matériel…" className="mt-2 h-8 w-full rounded border border-ink-200 px-2 text-xs" value={p.note} onChange={(e) => upd(p.id, { note: e.target.value })} />
           </details>
         </li>); })}
@@ -344,7 +375,7 @@ export function Logistics({ ev, save }: P) {
         <div className="min-w-0">
           {/* carte de travail : la molette zoome directement (sans clic) ; sur écran tactile, deux doigts pour la déplacer, la page reste défilable */}
           <div data-workspace="touch" className="relative h-[min(72vh,44rem)] min-h-[22rem] overflow-hidden rounded-2xl shadow-card ring-1 ring-ink-100"><div className="absolute inset-0"><div ref={el} className="size-full" role="application" aria-label="Carte logistique : molette pour zoomer, cliquez pour placer un poste, glissez un poste pour le déplacer" /></div><LayerControl map={map} ready={ready} /></div>
-          <p className="mt-1.5 text-[11px] text-ink-500"><span className="hidden [@media(pointer:fine)]:inline">Molette : zoomer · glisser : déplacer · clic droit + glisser : tourner et incliner · boussole : revenir au nord.</span><span className="[@media(pointer:fine)]:hidden">Deux doigts : déplacer et zoomer · pincer-tourner : orienter · boussole : revenir au nord.</span></p>
+          <p className="mt-1.5 text-[11px] text-ink-500"><span className="hidden [@media(pointer:fine)]:inline">Molette : zoomer · glisser : déplacer · clic droit + glisser : tourner et incliner · boussole : revenir au nord · poste sélectionné : poignée ⟳ pour orienter son marqueur.</span><span className="[@media(pointer:fine)]:hidden">Deux doigts : déplacer et zoomer · pincer-tourner : orienter · boussole : revenir au nord · touchez un poste puis faites glisser sa poignée ⟳ pour l'orienter.</span></p>
           <p className="mt-1 text-xs text-ink-500" aria-live="polite">{busy ? <span className="inline-flex items-center gap-1.5 font-semibold text-pine-700"><Loader2 className="size-3.5 animate-spin" />{busy}</span> : hint}</p>
           <div className="mt-2">{actions}</div>
         </div>

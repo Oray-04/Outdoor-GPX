@@ -85,3 +85,15 @@ describe("poste sur le tronc commun de plusieurs parcours", () => {
     expect(ev.posts.filter((p) => p.kind === "ravito")).toHaveLength(1);
   });
 });
+
+describe("orientation d'un marqueur de poste", () => {
+  it("conservée par la synchronisation avec le parcours (POI renommé ou déplacé), y compris pour le départ", () => {
+    const rts = routes.map((r) => (r.id === "R10" ? { ...r, pois: [{ id: "rv", type: "ravito" as const, name: "Ravito", lng: 6, lat: 45.05 }] } : r));
+    let ev = syncEvent(base(), rts).ev;
+    ev = { ...ev, posts: ev.posts.map((p) => (p.poiId === "rv" ? { ...p, rotation: -40 } : p.kind === "depart" && p.raceId === "10" ? { ...p, rotation: 30 } : p)) };
+    const moved = rts.map((r) => (r.id === "R10" ? { ...r, pois: [{ id: "rv", type: "ravito" as const, name: "Ravito renommé", lng: 6, lat: 45.06 }] } : r));
+    const e2 = syncEvent(ev, moved).ev;
+    expect(e2.posts.find((p) => p.poiId === "rv")).toMatchObject({ name: "Ravito renommé", rotation: -40 });
+    expect(e2.posts.find((p) => p.kind === "depart" && p.raceId === "10")!.rotation).toBe(30);
+  });
+});

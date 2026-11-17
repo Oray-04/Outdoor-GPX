@@ -307,3 +307,11 @@ Un ravitaillement, un poste de secours, un contrôle… utilisés par plusieurs 
 - **Assistant** : encart « Vous débutez ? » à l'étape 1, étape 4 renommée « Produits », réglages avancés et mesures personnelles repliés (facultatifs).
 - **Bouton « Actualiser »** : relit la saisie, les produits et les plans enregistrés, reprend les dernières données du parcours ou de la course d'événement liée (distance, dénivelé, ravitaillements) et recalcule le plan, sans quitter la page.
 - Mise à jour de sécurité : Next.js 16.4.6.
+
+### Logistique : orienter le marqueur d'un poste
+
+Chaque poste placé sur la carte peut être tourné, pour dégager deux postes proches ou indiquer une direction.
+- **Sur la carte** : sélectionnez un poste, une poignée ⟳ apparaît à côté de son épingle ; faites-la glisser autour de l'épingle (souris ou doigt), par pas de 5°. Double-clic sur la poignée : marqueur redressé.
+- **Dans la fiche du poste** (Réglages du poste) : curseur « Orientation sur la carte » de −180° à 180° et bouton « Redresser ».
+- Le marqueur pivote autour de sa **pointe** : l'emplacement exact du poste ne change pas. L'orientation est enregistrée avec le poste (`post.rotation`), conservée par la synchronisation avec le parcours, et reprise dans les cartes PDF (pastilles comprises). Elle reste fixe à l'écran quand on tourne la carte.
+- Sur petit écran, toucher un poste ne fait plus défiler la page vers sa fiche (la carte reste en place pour pouvoir l'orienter).

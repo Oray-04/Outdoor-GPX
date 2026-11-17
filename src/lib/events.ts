@@ -35,6 +35,7 @@ export interface Post { id: string; raceId: string; kind: PostKind; name: string
   /** point d'intérêt du parcours lié : position, type et nom viennent de lui (une seule saisie, partagée avec le parcours) */ poiId?: string;
   /** départ / arrivée déplacé à la main : n'est plus recalé sur les extrémités du parcours */ pinned?: boolean;
   /** distance au tracé (m) quand le poste est placé à l'écart (parking, secours sur accès véhicule…) */ offTrackM?: number;
+  /** orientation du marqueur sur la carte (degrés, sens horaire, pivot à la pointe) : pour écarter visuellement deux postes proches */ rotation?: number;
   /** POI commun à plusieurs parcours : autres courses où ce même poste figure (un seul poste, une seule équipe), avec son kilomètre sur chacune */ shared?: PostShare[] }
 export interface PostShare { raceId: string; km: number; offTrackM?: number }
 /** Courses où figure un poste (la sienne, puis celles qui le partagent). */

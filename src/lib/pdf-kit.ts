@@ -76,6 +76,19 @@ export async function pinIcon(kind: PostKind) {
   const ic = POST_ICON[kind], svg = ic === "start" || ic === "finish" ? routeMarkerSvg(ic, 44) : poiPinSvg(ic, 34);
   const v = await svgToPng(svg); iconCache.set(k, v); return v;
 }
+/** Épingle orientée (degrés, sens horaire) : image carrée dont le centre est la pointe, pour pivoter autour du point exact du poste. */
+export async function pinIconRotated(kind: PostKind, deg: number) {
+  const k = `pin:${kind}:${Math.round(deg)}`; if (iconCache.has(k)) return iconCache.get(k)!;
+  const base = await pinIcon(kind), img = new Image();
+  await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = () => rej(new Error("pictogramme")); img.src = base.data; });
+  const H = img.height, W = img.width, S = H * 2, c = document.createElement("canvas"); c.width = S; c.height = S;
+  const g = c.getContext("2d")!; g.translate(S / 2, S / 2); g.rotate((deg * Math.PI) / 180); g.drawImage(img, -W / 2, -H, W, H);
+  const v = { data: c.toDataURL("image/png"), ratio: 1 }; iconCache.set(k, v); return v;
+}
+/** Pose une épingle orientée : pointe en (x, y), hauteur h (mm) de l'épingle droite. */
+export function placePinRotated(d: jsPDF, icon: { data: string }, x: number, y: number, h: number) { d.addImage(icon.data, "PNG", x - h, y - h, 2 * h, 2 * h, undefined, "FAST"); }
+/** Position d'un repère (dx, dy) attaché à l'épingle une fois tournée autour de sa pointe. */
+export const rotateAt = (dx: number, dy: number, deg: number) => { const a = (deg * Math.PI) / 180; return { x: dx * Math.cos(a) - dy * Math.sin(a), y: dx * Math.sin(a) + dy * Math.cos(a) }; };
 /** Pose une épingle dont la pointe est en (x, y), hauteur h (mm). */
 export function placePin(d: jsPDF, icon: { data: string; ratio: number }, x: number, y: number, h: number) {
   const w = h * icon.ratio; d.addImage(icon.data, "PNG", x - w / 2, y - h, w, h, undefined, "FAST");

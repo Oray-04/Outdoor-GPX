@@ -3,7 +3,7 @@ import type { StyleSpecification } from "maplibre-gl";
 import { POST_KINDS, POST_STATUS, postNumbers, postRaceIds, postStatus, postsOfRace, staffing, volunteersAt, type EventModel, type PassageRow, type Post, type PostKind, type Race, type Volunteer } from "./events";
 import type { Pt } from "./types";
 import { snapshotMap } from "./map-snapshot";
-import { C, T, footers, header, newDoc, numBadge, pageH, pageW, pinIcon, placePin, rgb, sectionTitle, statusDot, table, type Cell } from "./pdf-kit";
+import { C, T, footers, header, newDoc, numBadge, pageH, pageW, pinIcon, pinIconRotated, placePin, placePinRotated, rgb, rotateAt, sectionTitle, statusDot, table, type Cell } from "./pdf-kit";
 
 /**
  * Documents de terrain de la logistique, tous sur la même mise en page (bandeau, pictogrammes du site, légende, tableaux) :
@@ -49,9 +49,12 @@ export async function logisticsMapsPdf(ev: EventModel, races: Race[], routes: Ro
         const withPos = posts.filter((p) => p.lng != null && p.lat != null);
         for (let i = 0; i < withPos.length; i++) {
           const p = withPos[i], q = snap.points[i], x = MX + q.x * k, y = MY + q.y * k;
-          placePin(d, await pinIcon(p.kind), x, y, p.kind === "depart" || p.kind === "arrivee" ? 9 : 7.6);
-          numBadge(d, nums.get(p.id)?.n ?? i + 1, x - 3.4, y - 7.4);
-          if (p.staffNeeded > 0) statusDot(d, x + 3.4, y - 7.4, POST_STATUS[postStatus(ev, p)].color, 1.25);
+          const ph = p.kind === "depart" || p.kind === "arrivee" ? 9 : 7.6, rot = p.rotation ?? 0;
+          // orientation choisie sur la carte : épingle et pastilles pivotent autour de la pointe
+          if (rot) placePinRotated(d, await pinIconRotated(p.kind, rot), x, y, ph); else placePin(d, await pinIcon(p.kind), x, y, ph);
+          const nb = rotateAt(-3.4, -7.4, rot), sd = rotateAt(3.4, -7.4, rot);
+          numBadge(d, nums.get(p.id)?.n ?? i + 1, x + nb.x, y + nb.y);
+          if (p.staffNeeded > 0) statusDot(d, x + sd.x, y + sd.y, POST_STATUS[postStatus(ev, p)].color, 1.25);
         }
       } catch { d.setFontSize(10); d.setTextColor(...rgb(C.mute)); d.text(T("Carte indisponible (fond de carte non chargé). Le tableau des postes reste valable."), MX + 6, MY + 12); d.setTextColor(...rgb(C.ink)); }
     } else { d.setFontSize(10); d.text(T("Aucun parcours lié à cette course."), MX + 6, MY + 12); }
