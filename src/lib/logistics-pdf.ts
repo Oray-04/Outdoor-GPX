@@ -3,6 +3,7 @@ import type { StyleSpecification } from "maplibre-gl";
 import { POST_KINDS, POST_STATUS, postNumbers, postRaceIds, postStatus, postsOfRace, staffing, volunteersAt, type EventModel, type PassageRow, type Post, type PostKind, type Race, type Volunteer } from "./events";
 import type { Pt } from "./types";
 import { snapshotMap } from "./map-snapshot";
+import { cloverOffsets } from "./clover";
 import { C, T, footers, header, newDoc, numBadge, pageH, pageW, pinIcon, placePin, rgb, sectionTitle, statusDot, table, type Cell } from "./pdf-kit";
 
 /**
@@ -47,8 +48,11 @@ export async function logisticsMapsPdf(ev: EventModel, races: Race[], routes: Ro
         const snap = await snapshotMap({ width: PXW, height: PXH, lines: line.length > 1 ? [{ coords: line, color: ROUTE_COLOR, width: 4.5 }] : [], fit: all, points: pts, padding: { top: 82, right: 50, bottom: 36, left: 50 }, maxZoom: 16, style: opts.style });
         d.addImage(snap.dataUrl, "JPEG", MX, MY, MW, MH, undefined, "FAST");
         const withPos = posts.filter((p) => p.lng != null && p.lat != null);
+        // épingles trop proches : écartées en trèfle, reliées à leur position réelle par un trait fin
+        const real = withPos.map((_, i) => ({ x: MX + snap.points[i].x * k, y: MY + snap.points[i].y * k })), off = cloverOffsets(real, { threshold: 6.5, radius: 6, perItem: 1.2, lift: true, liftGap: 2 });
+        real.forEach((r0, i) => { if (!off[i].x && !off[i].y) return; d.setDrawColor(...rgb(C.ink)); d.setLineWidth(0.35); d.line(r0.x, r0.y, r0.x + off[i].x, r0.y + off[i].y); d.setFillColor(255, 255, 255); d.circle(r0.x, r0.y, 0.9, "FD"); });
         for (let i = 0; i < withPos.length; i++) {
-          const p = withPos[i], q = snap.points[i], x = MX + q.x * k, y = MY + q.y * k;
+          const p = withPos[i], x = real[i].x + off[i].x, y = real[i].y + off[i].y;
           placePin(d, await pinIcon(p.kind), x, y, p.kind === "depart" || p.kind === "arrivee" ? 9 : 7.6);
           numBadge(d, nums.get(p.id)?.n ?? i + 1, x - 3.4, y - 7.4);
           if (p.staffNeeded > 0) statusDot(d, x + 3.4, y - 7.4, POST_STATUS[postStatus(ev, p)].color, 1.25);

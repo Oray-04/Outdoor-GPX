@@ -16,6 +16,7 @@ import { POST_KINDS, passageTable, raceFactsFromRoute, raceOutOfSync, POST_ICON,
 import { KIND_TO_POI, STAFF_DEFAULT, commonCandidates, groupVolunteers, trackCandidates, isEndpoint, mergeEndpoints, mergePoiPlan, placeOn, poiPostId, proposeShared, routesWithPoi, splitEndpoint } from "@/lib/poi-sync";
 import { estimateMinutes } from "@/lib/sports";
 import { bboxOf } from "@/lib/geo";
+import { cloverOffsets } from "@/lib/clover";
 import { download, safeName } from "@/lib/formats";
 import { logisticsMapsPdf, passagePdf, volunteersPdf } from "@/lib/logistics-pdf";
 import { volunteersCsv } from "@/lib/volunteers-csv";
@@ -80,6 +81,23 @@ export function Logistics({ ev, save }: P) {
   const [editIns, setEditIns] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const clickRef = useRef<(lng: number, lat: number) => void>(() => {});
+  const dragging = useRef(false);
+  /** Postes trop proches à l'écran : écartés en trèfle autour de leur centre, reliés à leur position réelle. */
+  const layoutRef = useRef<() => void>(() => {});
+  layoutRef.current = () => {
+    const m = map.current; if (!m || !m.getSource("clover")) return;
+    const ms = marks.current, pts = ms.map((mk) => { const q = m.project(mk.getLngLat()); return { x: q.x, y: q.y }; });
+    if (dragging.current) return; // pendant un glisser, la disposition ne bouge pas
+    const off = cloverOffsets(pts, { threshold: 34, radius: 27, perItem: 6, lift: true, liftGap: 8 });
+    const feats: { type: "Feature"; properties: Record<string, never>; geometry: { type: "LineString"; coordinates: number[][] } | { type: "Point"; coordinates: number[] } }[] = [];
+    ms.forEach((mk, i) => {
+      mk.setOffset([off[i].x, off[i].y]);
+      if (!off[i].x && !off[i].y) return;
+      const ll = mk.getLngLat(), tip = m.unproject([pts[i].x + off[i].x, pts[i].y + off[i].y]);
+      feats.push({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [[ll.lng, ll.lat], [tip.lng, tip.lat]] } }, { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [ll.lng, ll.lat] } });
+    });
+    (m.getSource("clover") as GeoJSONSource).setData({ type: "FeatureCollection", features: feats });
+  };
   const moveRef = useRef<(p: Post, lng: number, lat: number) => void>(() => {});
 
   const routeNow = () => (race?.routeId ? routesRepo.get(race.routeId) : undefined); // lecture fraîche avant chaque écriture
@@ -174,6 +192,10 @@ export function Logistics({ ev, save }: P) {
       m.addSource("rt", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       m.addLayer({ id: "rt-c", type: "line", source: "rt", paint: { "line-color": "#fff", "line-width": 7 }, layout: { "line-cap": "round", "line-join": "round" } });
       m.addLayer({ id: "rt-l", type: "line", source: "rt", paint: { "line-color": "#f0612b", "line-width": 4 }, layout: { "line-cap": "round", "line-join": "round" } });
+      // trèfle : trait fin entre la position réelle d'un poste et son marqueur écarté, point à la position réelle
+      m.addSource("clover", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      m.addLayer({ id: "clover-l", type: "line", source: "clover", filter: ["==", ["geometry-type"], "LineString"], paint: { "line-color": "#0d1b17", "line-width": 1.6, "line-opacity": 0.75 } });
+      m.addLayer({ id: "clover-p", type: "circle", source: "clover", filter: ["==", ["geometry-type"], "Point"], paint: { "circle-radius": 4, "circle-color": "#ffffff", "circle-stroke-color": "#0d1b17", "circle-stroke-width": 2 } });
     }
     (m.getSource("rt") as GeoJSONSource).setData({ type: "FeatureCollection", features: route ? [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: route.coords.map((c) => [c[0], c[1]]) } }] : [] });
     if (route && route.coords.length > 1) { const b = bboxOf(route.coords); m.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 60, duration: 0, maxZoom: 15 }); }
@@ -189,10 +211,21 @@ export function Logistics({ ev, save }: P) {
       if (postRaceIds(ev.posts.find((x) => x.id === p.id) ?? p).length > 1) { const ring = document.createElement("span"); ring.className = "absolute -bottom-1.5 -right-2 rounded-full border border-white bg-glacier-600 px-1 text-[9px] font-bold leading-[0.95rem] text-white shadow"; ring.textContent = `×${postRaceIds(ev.posts.find((x) => x.id === p.id) ?? p).length}`; ring.title = "Commun à plusieurs parcours"; b.append(ring); }
       b.addEventListener("click", (e) => { e.stopPropagation(); setSel(p.id); setTimeout(() => document.getElementById(`post-${p.id}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }), 50); });
       const mk = new lib.Marker({ element: b, anchor: "bottom", draggable: true }).setLngLat([p.lng, p.lat]).addTo(m);
-      mk.on("dragend", () => { const ll = mk.getLngLat(); moveRef.current(p, ll.lng, ll.lat); });
+      // marqueur écarté (trèfle) : au début du glisser, il reprend sa place réelle sous le pointeur pour un déplacement naturel
+      // marqueur écarté (trèfle) : le décalage est gardé pendant le glisser ; au dépôt, c'est la pointe visible qui donne la nouvelle position
+      mk.on("dragstart", () => { dragging.current = true; });
+      mk.on("dragend", () => { dragging.current = false; const o = mk.getOffset(), q = m.project(mk.getLngLat()), ll = m.unproject([q.x + o.x, q.y + o.y]); moveRef.current(p, ll.lng, ll.lat); });
       marks.current.push(mk);
     });
+    layoutRef.current();
   }, [posts, ev.volunteers, sel, ready, map, ml]); // eslint-disable-line react-hooks/exhaustive-deps
+  // trèfle : recalculé quand le zoom, l'orientation ou l'inclinaison changent (le déplacement seul ne change pas les écarts)
+  useEffect(() => {
+    const m = map.current; if (!m || !ready) return;
+    let raf = 0; const h = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => layoutRef.current()); };
+    m.on("zoom", h); m.on("rotate", h); m.on("pitch", h); m.on("resize", h);
+    return () => { cancelAnimationFrame(raf); m.off("zoom", h); m.off("rotate", h); m.off("pitch", h); m.off("resize", h); };
+  }, [ready, map]);
   useEffect(() => {
     const m = map.current, lib = ml.current; if (!m || !lib || !ready) return;
     popup.current?.remove(); popup.current = null;
