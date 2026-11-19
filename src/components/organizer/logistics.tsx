@@ -437,9 +437,43 @@ export function Volunteers({ ev, save }: P) {
             {editIns === v.id ? <textarea autoFocus aria-label={`Consignes de ${v.name}`} rows={2} defaultValue={v.instructions} className="mt-2 w-full rounded-lg border border-ink-200 p-2 text-sm" onBlur={(e) => { const t = e.target.value; save((x) => ({ ...x, volunteers: x.volunteers.map((y) => (y.id === v.id ? { ...y, instructions: t } : y)) })); setEditIns(null); }} />
               : <button type="button" onClick={() => setEditIns(v.id)} aria-label={`Modifier les consignes de ${v.name}`} className={clsx("mt-2 block w-full rounded-lg px-3 py-1.5 text-left text-sm", v.instructions || p?.note ? "bg-brass-100/50 text-ink-800" : "border border-dashed border-ink-200 text-ink-400")}>{v.instructions ? <><b className="text-ink-600">Consignes : </b>{v.instructions}</> : "+ Ajouter des consignes"}{p?.note ? <span className="mt-0.5 block text-xs text-ink-600"><b>Poste : </b>{p.note}</span> : null}</button>}
           </li>); })}</ul>
-        {ev.posts.length > 0 && <div className="mt-5 rounded-xl bg-ink-50 p-3"><p className="mb-2 text-sm font-semibold">Couverture des postes <span className="font-normal text-ink-500">(postes communs comptés une fois)</span></p><ul className="grid gap-1 text-sm">{sorted.map((p) => { const s = postStatus(ev, p), n = volunteersAt(ev, p.id).length; return <li key={p.id} className="flex items-center justify-between gap-3"><span className="flex min-w-0 items-center gap-2"><span className="size-2.5 shrink-0 rounded-full" style={{ background: POST_STATUS[s].color }} aria-hidden="true" /><span className="truncate">{postLabel(ev, p)}</span></span><span className={clsx("shrink-0 font-semibold", s === "complet" ? "text-pine-700" : s === "partiel" ? "text-[#8a5a00]" : s === "vide" ? "text-danger" : "text-ink-400")}>{n} / {p.staffNeeded}</span></li>; })}</ul></div>}
+        {ev.posts.length > 0 && <CoverageSummary ev={ev} />}
       </div>
     </div>
+  );
+}
+
+/**
+ * Couverture des postes : synthèse de toutes les places, chaque poste une seule fois.
+ * Un poste commun à plusieurs parcours apparaît une fois, avec la liste distincte des courses qui le partagent.
+ */
+function CoverageSummary({ ev }: { ev: EventModel }) {
+  const st = staffing(ev), raceIdx = (id: string) => ev.races.findIndex((r) => r.id === id);
+  const rows = [...ev.posts].sort((a, b) => raceIdx(a.raceId) - raceIdx(b.raceId) || a.km - b.km);
+  return (
+    <section className="mt-5 rounded-2xl bg-white p-4 ring-1 ring-ink-100" aria-labelledby="couverture" data-coverage>
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <h3 id="couverture" className="text-base font-bold">Couverture des postes</h3>
+        <p className="text-sm text-ink-600"><b className="font-display text-lg text-ink-900">{st.covered}/{st.need}</b> places pourvues · {st.posts} poste(s){st.common ? ` dont ${st.common} commun(s)` : ""}</p>
+      </div>
+      <div className="mt-2 flex h-2 overflow-hidden rounded-full bg-ink-100" aria-hidden="true"><span className="bg-pine-600" style={{ width: `${st.need ? (100 * st.covered) / st.need : 0}%` }} /></div>
+      <ul className="mt-3 flex flex-wrap gap-1.5 text-xs" aria-label="Répartition">{(["complet", "partiel", "vide"] as const).map((k) => <li key={k} className="flex items-center gap-1.5 rounded-full bg-ink-50 px-2.5 py-1 font-semibold text-ink-700"><span className="size-2.5 rounded-full" style={{ background: POST_STATUS[k].color }} />{POST_STATUS[k].label} : {st.by[k]}</li>)}{st.missing > 0 && <li className="rounded-full bg-danger/10 px-2.5 py-1 font-semibold text-danger">{st.missing} place(s) à pourvoir</li>}</ul>
+      <ul className="mt-3 grid gap-2" aria-label="Postes">{rows.map((p) => {
+        const s = postStatus(ev, p), n = volunteersAt(ev, p.id).length, races = postRaceIds(p), common = races.length > 1;
+        const kmOf = (rid: string) => (rid === p.raceId ? p.km : p.shared?.find((x) => x.raceId === rid)?.km ?? p.km);
+        return (
+          <li key={p.id} data-coverage-post={p.name} data-common={common ? "1" : undefined} className={clsx("grid gap-2 rounded-xl border-l-4 bg-paper/60 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center", s === "complet" ? "border-l-pine-600" : s === "partiel" ? "border-l-warn" : s === "vide" ? "border-l-danger" : "border-l-ink-200")}>
+            <div className="min-w-0">
+              <p className="flex flex-wrap items-center gap-2"><PostIcon kind={p.kind} size={22} /><b className="text-sm">{p.name}</b><span className="text-xs text-ink-500">{POST_KINDS[p.kind].label}</span>{common && <span className="rounded-full bg-glacier-600 px-2 py-0.5 text-[11px] font-bold text-white">Commun à {races.length} parcours</span>}</p>
+              <ul className="mt-1.5 flex flex-wrap gap-1" aria-label={common ? "Parcours qui partagent ce poste" : "Parcours"}>{races.map((rid) => <li key={rid} className={clsx("rounded-md px-2 py-0.5 text-xs font-semibold", common ? "bg-glacier-100 text-glacier-600 ring-1 ring-glacier-500/30" : "bg-ink-100 text-ink-700")}>{ev.races.find((r) => r.id === rid)?.label ?? "?"} · km {kmOf(rid).toFixed(1).replace(".", ",")}</li>)}</ul>
+            </div>
+            <div className="flex items-center gap-3 sm:justify-end">
+              {p.staffNeeded > 0 ? <span className="flex flex-wrap gap-0.5" aria-hidden="true">{Array.from({ length: Math.min(12, p.staffNeeded) }, (_, k) => <span key={k} className={clsx("size-3 rounded-sm", k < n ? "bg-pine-600" : "bg-white ring-1 ring-ink-300")} />)}{p.staffNeeded > 12 && <span className="text-[11px] text-ink-500">+{p.staffNeeded - 12}</span>}</span> : null}
+              <span className={clsx("min-w-[4.5rem] text-right text-sm font-bold", s === "complet" ? "text-pine-700" : s === "partiel" ? "text-[#8a5a00]" : s === "vide" ? "text-danger" : "text-ink-400")} aria-label={`${n} sur ${p.staffNeeded} places pourvues`}>{p.staffNeeded > 0 ? `${n} / ${p.staffNeeded}` : "—"}</span>
+            </div>
+          </li>); })}</ul>
+      <p className="mt-2 text-xs text-ink-500">Chaque poste n&apos;apparaît qu&apos;une fois : un poste commun à plusieurs parcours a une seule équipe, comptée une seule fois dans le total.</p>
+    </section>
   );
 }
 
