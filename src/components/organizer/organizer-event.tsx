@@ -45,15 +45,15 @@ function Workspace({ ev }: { ev: EventModel }) {
   const save = (fn: (e: EventModel) => EventModel) => { eventsRepo.upsert(fn(eventsRepo.get(ev.id) ?? ev)); };
   const flow = useFlow(ev), routes = routesRepo.useAll();
   const stepOf = (id: StepId) => flow.steps.find((s) => s.id === id)!;
-  // rubriques ouvertes : celle du moment au chargement (ou celle de l'adresse, ex. #rubrique-logistique)
-  const [open, setOpen] = useState<Set<string>>(() => new Set([typeof window !== "undefined" && /^#rubrique-/.test(location.hash) ? location.hash.slice(10) : flow.current]));
+  // mosaïque : tuiles réduites au chargement, sauf la rubrique demandée par l'adresse (ex. #rubrique-logistique) ; la rubrique du moment est signalée
+  const [open, setOpen] = useState<Set<string>>(() => new Set(typeof window !== "undefined" && /^#rubrique-/.test(location.hash) ? [location.hash.slice(10)] : []));
   const toggle = (id: string) => setOpen((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const goTo = (id: string) => { setOpen((s) => new Set(s).add(id)); requestAnimationFrame(() => document.getElementById(`rubrique-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })); };
   const prep = ev.prep ?? {}, st = staffing(ev), linkedRoutes = [...new Set(ev.races.map((r) => r.routeId).filter(Boolean))];
   const fileOk = adminFile(ev, prep).filter((f) => f.ok).length, fileN = adminFile(ev, prep).length;
-  const card = (id: StepId, children: React.ReactNode, facts?: (string | null | false | undefined)[], summary?: string) => {
+  const card = (id: StepId, children: React.ReactNode, facts?: (string | null | false | undefined)[], summary?: string, wide?: boolean) => {
     const s = stepOf(id), counted = s.items.filter((x) => x.state !== "optional");
-    return <SectionCard key={id} id={id} n={s.n} title={s.title} icon={CARD_ICON[id]} status={s.status} lockedWhy={s.lockedWhy} summary={summary ?? s.goal} facts={facts} progress={id === "verification" ? { done: flow.done.length, total: flow.done.length + flow.todo.length + flow.toValidate.length } : counted.length ? { done: counted.filter((x) => x.state === "done").length, total: counted.length } : null} open={open.has(id)} onToggle={() => toggle(id)}>
+    return <SectionCard key={id} id={id} n={s.n} title={s.title} icon={CARD_ICON[id]} status={s.status} lockedWhy={s.lockedWhy} summary={summary ?? s.goal} facts={facts} progress={id === "verification" ? { done: flow.done.length, total: flow.done.length + flow.todo.length + flow.toValidate.length } : counted.length ? { done: counted.filter((x) => x.state === "done").length, total: counted.length } : null} open={open.has(id)} onToggle={() => toggle(id)} wide={wide} current={id === flow.current && s.status !== "done"}>
       {s.status === "locked" ? <p className="flex items-center gap-2 rounded-2xl border border-dashed border-ink-300 bg-white p-5 text-sm text-ink-700"><Lock className="size-4 shrink-0 text-ink-400" />Pour ouvrir cette rubrique : {s.lockedWhy}</p> : (<>
         {id !== "verification" && <StepChecklist step={s} />}
         {children}
@@ -76,7 +76,7 @@ function Workspace({ ev }: { ev: EventModel }) {
         </div>
       </header>
       <Consistency ev={ev} save={save} />
-      <div className="mt-6 grid gap-4">
+      <div className="mt-6 grid grid-flow-row-dense grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {card("evenement", <div className="rounded-2xl bg-white p-4 ring-1 ring-ink-100 sm:p-5"><Infos ev={ev} save={save} /></div>, [eventDate, ev.place, ev.organizer, ev.visibility === "public" ? "Public" : "Privé"], "Nom, date, lieu, organisateur et présentation : ce que verront les coureurs.")}
         <SectionCard id="gerer" title="Gérer mon trail" icon={Settings2} status="optional" summary="Publication de l'événement, collection de parcours et équipe d'organisation." facts={[ev.visibility === "public" ? "Événement public" : "Événement privé", ev.collectionId ? "Collection créée" : "Pas de collection", `${ev.team.length} membre(s) d'équipe`]} open={open.has("gerer")} onToggle={() => toggle("gerer")}>
           <div className="rounded-2xl bg-white p-4 ring-1 ring-ink-100 sm:p-5"><Publication ev={ev} save={save} /></div>
@@ -84,7 +84,7 @@ function Workspace({ ev }: { ev: EventModel }) {
         </SectionCard>
         {card("parcours", <StepParcours ev={ev} />, [`${routes.length} parcours enregistré(s)`, `${linkedRoutes.length} utilisé(s) par vos courses`])}
         {card("trail", <><div><h3 className="mb-3 text-base font-bold">Les courses</h3><Races ev={ev} save={save} /></div><PrepTab ev={ev} save={save} part="params" /></>, [...ev.races.map((r) => `${r.label} · ${r.distanceKm} km`), prep.participants ? `${prep.participants} participants attendus` : "Participants à indiquer"], "Une course par parcours : distance, dénivelé et altitudes sont repris du parcours choisi.")}
-        {card("logistique", <LogisticsSummary ev={ev} />, [`${st.posts} poste(s)`, `Bénévoles ${st.covered}/${st.need}`, st.common ? `${st.common} poste(s) commun(s)` : null, ev.posts.some((p) => p.auto) ? `${ev.posts.filter((p) => p.auto).length} proposé(s) à vérifier` : null], "Départ, arrivée, ravitaillements, secours, parkings et bénévoles : placés et ajustés par vous sur la carte.")}
+        {card("logistique", <LogisticsSummary ev={ev} />, [`${st.posts} poste(s)`, `Bénévoles ${st.covered}/${st.need}`, st.common ? `${st.common} poste(s) commun(s)` : null, ev.posts.some((p) => p.auto) ? `${ev.posts.filter((p) => p.auto).length} proposé(s) à vérifier` : null], "Départ, arrivée, ravitaillements, secours, parkings et bénévoles : placés et ajustés par vous sur la carte.", true)}
         {card("analyse", <><GenerationPanel ev={ev} save={save} flow={flow} onOpen={goTo} /><PrepTab ev={ev} save={save} part="analyse" /><Fold title="Analyse cadastrale et réglementaire" hint="Parcelles traversées, statut des chemins, forêts publiques et zones protégées : pour préparer les demandes d'accord."><AnalysisTab ev={ev} /></Fold></>, [prep.docMode === "site" ? "Génération choisie" : prep.docMode === "propres" ? "Documents fournis par vous" : "Génération non choisie", prep.analysedAt ? `Analysé le ${new Date(prep.analysedAt).toLocaleDateString("fr-FR")}` : "Pas encore analysé", prep.departments?.length ? `Départements ${prep.departments.join(", ")}` : null], "Facultatif : le site lit vos parcours et peut générer vos documents. Les organisateurs qui ont déjà les leurs passent directement à la logistique.")}
         {card("documents", <>{prep.docMode === "propres" ? <p className="rounded-2xl bg-white p-4 text-sm text-ink-700 ring-1 ring-ink-100">Vous utilisez vos propres documents : confirmez simplement ci-dessous qu&apos;ils sont prêts. Les outils ci-dessous restent disponibles si vous voulez vous en servir.<br /><button type="button" className="mt-2 font-semibold text-pine-700 underline" onClick={() => goTo("analyse")}>Faire générer quand même</button></p> : null}<PrepTab ev={ev} save={save} part="documents" /></>, [ev.rules.trim().length > 40 ? "Règlement rédigé" : "Règlement à rédiger", `Dossier ${fileOk}/${fileN}`, prep.docsAt ? "Documents générés" : null], prep.docMode === "propres" ? "Vos propres documents : vous confirmez qu'ils sont prêts." : undefined)}
         {card("verification", <FinalCheck flow={flow} ev={ev} save={save} onPick={(s) => goTo(s)} />, [`${flow.percent} % prêt`, `${flow.todo.length} à compléter`, `${flow.toValidate.length} à valider`])}

@@ -19,35 +19,45 @@ export const CARD_STATUS: Record<CardStatus, { label: string; chip: string; bar:
 };
 
 /**
- * Grande carte de rubrique : titre, informations principales, statut et progression, bouton « Développer ».
- * Le contenu détaillé s'ouvre sur place (pas de changement de page ni d'onglet).
+ * Tuile de rubrique en mosaïque : titre, informations principales, statut et progression, bouton « Développer ».
+ * Développée, la tuile prend toute la largeur et son contenu s'ouvre sur place (pas de changement de page ni d'onglet).
  */
-export function SectionCard({ id, n, title, icon: I, status, progress, facts, summary, lockedWhy, open, onToggle, children }: {
+export function SectionCard({ id, n, title, icon: I, status, progress, facts, summary, lockedWhy, open, onToggle, wide, current, children }: {
   id: string; n?: number; title: string; icon: typeof Check; status: CardStatus; progress?: { done: number; total: number } | null;
-  facts?: (string | null | false | undefined)[]; summary?: string; lockedWhy?: string; open: boolean; onToggle: () => void; children: React.ReactNode;
+  facts?: (string | null | false | undefined)[]; summary?: string; lockedWhy?: string; open: boolean; onToggle: () => void; /** tuile double en mosaïque */ wide?: boolean; /** rubrique à traiter en priorité */ current?: boolean; children: React.ReactNode;
 }) {
   const st = CARD_STATUS[status], pct = progress && progress.total ? Math.round((100 * progress.done) / progress.total) : status === "done" ? 100 : 0;
+  const shown = (facts ?? []).filter(Boolean) as string[];
+  const toggle = <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={`contenu-${id}`} data-action="developper" className={clsx("inline-flex h-10 items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold transition", open ? "bg-ink-100 text-ink-900 hover:bg-ink-200" : "bg-ink-950 text-white hover:bg-ink-800")}>{open ? "Réduire" : "Développer"}<ChevronDown className={clsx("size-4 transition", open && "rotate-180")} /></button>;
+  const bar = progress && progress.total > 0 ? <div className="grid gap-1"><div className="h-1.5 overflow-hidden rounded-full bg-ink-100" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${title} : ${progress.done} sur ${progress.total}`}><div className={clsx("h-full rounded-full transition-all", st.bar)} style={{ width: `${pct}%` }} /></div><span className="text-[11px] text-ink-500">{progress.done}/{progress.total} point(s) traité(s)</span></div> : null;
   return (
-    <section id={`rubrique-${id}`} aria-labelledby={`titre-${id}`} data-card={id} data-status={status} className={clsx("scroll-mt-24 overflow-hidden rounded-3xl bg-white shadow-card ring-1 transition", open ? "ring-2 ring-ink-900/80" : "ring-ink-100 hover:shadow-lift")}>
-      <div className="grid gap-4 p-4 sm:p-5 md:grid-cols-[auto_minmax(0,1fr)_12rem_auto] md:items-center">
-        <div className="flex items-start gap-3 md:contents">
+    <section id={`rubrique-${id}`} aria-labelledby={`titre-${id}`} data-card={id} data-status={status}
+      className={clsx("group/tile relative flex scroll-mt-24 flex-col overflow-hidden rounded-3xl bg-white shadow-card ring-1 transition", open ? "col-span-full ring-2 ring-ink-900/80" : clsx(current ? "ring-2 ring-ember-500/70" : "ring-ink-100", "hover:-translate-y-0.5 hover:shadow-lift", wide && "sm:col-span-2"))} data-current={current ? "1" : undefined}>
+      {/* liseré d'état en haut de la tuile */}
+      <span aria-hidden="true" className={clsx("absolute inset-x-0 top-0 h-1", st.bar)} />
+      {open ? (
+        <div className="grid gap-4 p-4 sm:p-5 md:grid-cols-[auto_minmax(0,1fr)_12rem_auto] md:items-center">
           <span className={clsx("grid size-12 shrink-0 place-items-center rounded-2xl", st.bubble)} aria-hidden="true">{status === "done" ? <Check className="size-6" /> : status === "locked" ? <Lock className="size-5" /> : <I className="size-6" />}</span>
+          <div className="min-w-0">{n != null && <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-ink-400">Rubrique {n}</p>}<h2 id={`titre-${id}`} className="text-xl font-bold leading-tight sm:text-2xl">{title}</h2>{summary && <p className="mt-0.5 text-sm text-ink-600">{summary}</p>}</div>
+          <div className="grid gap-1.5"><span className={clsx("w-fit rounded-full px-3 py-1 text-xs font-bold", st.chip)}>{st.label}</span>{bar}</div>
+          {toggle}
+        </div>
+      ) : (
+        <div className="flex flex-1 flex-col gap-3 p-4 pt-5 sm:p-5 sm:pt-6">
+          <div className="flex items-start justify-between gap-3">
+            <span className={clsx("grid size-11 shrink-0 place-items-center rounded-2xl", st.bubble)} aria-hidden="true">{status === "done" ? <Check className="size-5" /> : status === "locked" ? <Lock className="size-5" /> : <I className="size-5" />}</span>
+            <span className="flex flex-col items-end gap-1">{current && <span className="rounded-full bg-ember-500/10 px-2.5 py-0.5 text-[11px] font-bold text-ember-600">Prochaine étape</span>}<span className={clsx("rounded-full px-2.5 py-1 text-[11px] font-bold", st.chip)} aria-label={`État : ${st.label}`}>{st.label}</span></span>
+          </div>
           <div className="min-w-0">
             {n != null && <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-ink-400">Rubrique {n}</p>}
-            <h2 id={`titre-${id}`} className="text-xl font-bold leading-tight sm:text-2xl">{title}</h2>
-            {summary && <p className="mt-0.5 text-sm text-ink-600">{summary}</p>}
-            {facts && facts.filter(Boolean).length > 0 && <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="Informations principales">{facts.filter(Boolean).map((f) => <li key={String(f)} className="rounded-full bg-ink-50 px-2.5 py-1 text-xs font-medium text-ink-700">{f}</li>)}</ul>}
-            {status === "locked" && lockedWhy && <p className="mt-2 flex items-center gap-1.5 text-sm font-medium text-ink-600"><Lock className="size-3.5" />{lockedWhy}</p>}
+            <h2 id={`titre-${id}`} className="text-xl font-bold leading-tight">{title}</h2>
+            {summary && <p className={clsx("mt-1 text-sm text-ink-600", !wide && "line-clamp-3")}>{summary}</p>}
           </div>
+          {shown.length > 0 && <ul className="flex flex-wrap gap-1.5" aria-label="Informations principales">{shown.map((f) => <li key={f} className="rounded-full bg-ink-50 px-2.5 py-1 text-xs font-medium text-ink-700">{f}</li>)}</ul>}
+          {status === "locked" && lockedWhy && <p className="flex items-start gap-1.5 text-sm font-medium text-ink-600"><Lock className="mt-0.5 size-3.5 shrink-0" />{lockedWhy}</p>}
+          <div className="mt-auto grid gap-3 pt-1">{bar}{toggle}</div>
         </div>
-        <div className="grid gap-1.5" aria-label={`État : ${st.label}`}>
-          <span className={clsx("w-fit rounded-full px-3 py-1 text-xs font-bold", st.chip)}>{st.label}</span>
-          {progress && progress.total > 0 && <><div className="h-2 overflow-hidden rounded-full bg-ink-100" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${title} : ${progress.done} sur ${progress.total}`}><div className={clsx("h-full rounded-full transition-all", st.bar)} style={{ width: `${pct}%` }} /></div><span className="text-xs text-ink-500">{progress.done}/{progress.total} point(s) traité(s)</span></>}
-        </div>
-        <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={`contenu-${id}`} data-action="developper" className={clsx("inline-flex h-11 items-center justify-center gap-2 rounded-full px-5 text-sm font-semibold transition", open ? "bg-ink-100 text-ink-900 hover:bg-ink-200" : "bg-ink-950 text-white hover:bg-ink-800")}>
-          {open ? "Réduire" : "Développer"}<ChevronDown className={clsx("size-4 transition", open && "rotate-180")} />
-        </button>
-      </div>
+      )}
       {open && <div id={`contenu-${id}`} className="grid gap-5 border-t border-ink-100 bg-paper/60 p-4 sm:p-6">{children}</div>}
     </section>
   );
