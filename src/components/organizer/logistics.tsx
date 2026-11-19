@@ -3,7 +3,7 @@ import { Field, RequiredLegend, filled } from "@/components/ui/field";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { GeoJSONSource, Marker, Popup } from "maplibre-gl";
-import { ArrowLeft, Plus, Trash2, FileDown, Printer, Users, X, UserPlus, Sparkles, Check, Flag, FlagTriangleRight, MapPinned, ArrowRight, CircleAlert, CircleDashed, ChevronDown, Loader2, Sheet } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, FileDown, Printer, Users, X, UserPlus, Check, Flag, FlagTriangleRight, MapPinned, ArrowRight, CircleAlert, CircleDashed, ChevronDown, Loader2, Sheet } from "lucide-react";
 import clsx from "clsx";
 import { useMap } from "@/components/map/use-map";
 import { LayerControl } from "@/components/map/layer-control";
@@ -13,7 +13,7 @@ import { routeMarkerSvg } from "@/lib/route-markers";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { eventsRepo, routesRepo, syncEventsWithRoutes } from "@/lib/repo";
 import { POST_KINDS, passageTable, raceFactsFromRoute, raceOutOfSync, POST_ICON, POST_COLOR, postNumbers, postLabel, volunteersAt, assignVolunteer, addVolunteerAt, cleanAssignments, postsOfRace, postRaceIds, postStatus, POST_STATUS, staffing, type PostStatus, type EventModel, type Post, type PostKind, type Volunteer } from "@/lib/events";
-import { KIND_TO_POI, STAFF_DEFAULT, commonCandidates, groupVolunteers, trackCandidates, isEndpoint, mergeEndpoints, mergePoiPlan, placeOn, poiPostId, proposeShared, routesWithPoi, splitEndpoint } from "@/lib/poi-sync";
+import { KIND_TO_POI, STAFF_DEFAULT, commonCandidates, groupVolunteers, trackCandidates, isEndpoint, mergeEndpoints, mergePoiPlan, placeOn, poiPostId, routesWithPoi, splitEndpoint } from "@/lib/poi-sync";
 import { estimateMinutes } from "@/lib/sports";
 import { bboxOf } from "@/lib/geo";
 import { download, safeName } from "@/lib/formats";
@@ -235,14 +235,6 @@ export function Logistics({ ev, save }: P) {
     popup.current.on("close", () => setSel((x) => (x === p.id ? null : x)));
   }, [sel, posts, ev.volunteers, ready, map, ml]); // eslint-disable-line react-hooks/exhaustive-deps
   const autoN = posts.filter((p) => p.auto).length;
-  const propose = () => {
-    const rt = routeNow(); if (!race || !rt) return;
-    const { pois, posts: add } = proposeShared(eventsRepo.get(ev.id) ?? ev, race, rt, uid);
-    if (!add.length) { setMsg("Rien à ajouter : tous les postes proposés existent déjà."); return; }
-    save((e) => ({ ...e, posts: [...e.posts.filter((p) => !add.some((a) => a.id === p.id)), ...add] })); // postes d'abord (données d'organisation), puis POI du parcours
-    writePois((ps) => [...ps, ...pois.filter((q) => !ps.some((x) => x.id === q.id))]);
-    setMsg(`${add.length} poste(s) proposé(s), ajoutés aussi aux points d'intérêt du parcours : vérifiez chacun, glissez-le si besoin, puis confirmez.${ev.prep?.roads?.[race.id] ? "" : " Les signaleurs aux traversées de routes seront proposés après l'analyse des parcours."}`);
-  };
   const geo = () => routesRepo.getAll().map((r) => ({ id: r.id, name: r.name, coords: r.coords }));
   /** Cartes PDF cadrées sur chaque parcours et tous ses postes, même fond que la carte affichée. */
   const exportMaps = async (all: boolean) => {
@@ -282,7 +274,6 @@ export function Logistics({ ev, save }: P) {
   );
   const actions = (
     <div className="flex flex-wrap gap-2">
-      {hasRoute && <Button size="sm" onClick={propose} data-action="proposer"><Sparkles className="size-4" />{posts.some((p) => !isEndpoint(p.kind)) ? "Compléter avec les postes proposés" : "Proposer les postes automatiquement"}</Button>}
       {autoN > 0 && <Button size="sm" variant="secondary" onClick={() => save((e) => ({ ...e, posts: e.posts.map((p) => (p.raceId === race?.id ? { ...p, auto: undefined } : p)) }))}><Check className="size-4" />Confirmer les {autoN} postes proposés</Button>}
       <Button size="sm" variant="secondary" onClick={() => exportMaps(false)} disabled={!posts.length || !!busy} data-action="pdf-carte"><FileDown className="size-4" />Carte PDF</Button>
       {ev.races.filter((r) => r.routeId).length > 1 && <Button size="sm" variant="secondary" onClick={() => exportMaps(true)} disabled={!!busy} data-action="pdf-cartes"><FileDown className="size-4" />Cartes de toutes les courses</Button>}

@@ -80,8 +80,8 @@ export function trailFlow(ev: EventModel, routeIds: string[], today: string): Fl
       item("documents", "d:echeancier", late ? `Échéancier : ${late} échéance(s) dépassée(s)` : "Échéancier à jour", late === 0, "Cochez les étapes faites ou traitez celles en retard."),
     ]),
     logistique: [
-      item("logistique", "l:depart", "Départ et arrivée placés", kinds("depart").length > 0 && kinds("arrivee").length > 0, "Placez-les sur la carte ou utilisez la proposition automatique."),
-      item("logistique", "l:ravito", "Ravitaillements placés", kinds("ravito").length > 0, "Placez vos ravitaillements sur la carte (ou proposez-les automatiquement). Course en autonomie : dites-le dans le règlement.", true),
+      item("logistique", "l:depart", "Départ et arrivée placés", kinds("depart").length > 0 && kinds("arrivee").length > 0, "Pris aux extrémités de chaque parcours : déplacez-les sur la carte si besoin."),
+      item("logistique", "l:ravito", "Ravitaillements placés", kinds("ravito").length > 0, "Placez vos ravitaillements sur la carte. Course en autonomie : dites-le dans le règlement.", true),
       item("logistique", "l:secours", "Postes de secours placés", kinds("secours").length > 0),
       item("logistique", "l:signaleurs", "Signaleurs placés aux traversées de routes", kinds("signaleur").length > 0 || (!!prep.analysedAt && linked.every((r) => (prep.roads?.[r.id]?.length ?? 1) === 0)), "Un signaleur à chaque traversée ou carrefour dangereux. L'analyse (étape suivante) repère les traversées et les propose."),
       ...(ultraNoCut.length ? [item("logistique", "l:barrieres", `Barrières horaires (obligatoires en ultra) : ${ultraNoCut.map((r) => r.label).join(", ")}`, false, "Indiquez une heure limite sur au moins un poste.")] : []),
