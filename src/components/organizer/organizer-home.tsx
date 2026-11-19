@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { Plus, Trash2, ArrowRight, Route as RouteIcon, Flag, ScanSearch, FileText, MapPinned, ClipboardCheck, Sparkles, Lock } from "lucide-react";
+import { Plus, Trash2, ArrowRight, Route as RouteIcon, Flag, ScanSearch, FileText, MapPinned, ClipboardCheck, Sparkles, Lock, Users } from "lucide-react";
 import clsx from "clsx";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { eventsRepo, routesRepo } from "@/lib/repo";
@@ -14,8 +14,8 @@ import { Field, RequiredLegend, filled } from "@/components/ui/field";
 import { LocationFields } from "@/components/ui/location-fields";
 import { todayISO } from "./flow";
 
-const ICONS = [RouteIcon, Flag, ScanSearch, FileText, MapPinned, ClipboardCheck];
-const AUTO = ["Vous tracez ou importez.", "Distance et dénivelés repris du parcours.", "Premier clic : le site lit vos parcours.", "Second clic : documents et postes proposés.", "Vous ajustez sur la carte.", "Vous validez ce qui vous engage."];
+const ICONS = [Flag, RouteIcon, Users, MapPinned, ScanSearch, FileText, ClipboardCheck];
+const AUTO = ["Nom, date, lieu.", "Vous tracez ou importez.", "Distance et dénivelés repris du parcours.", "Vous placez et ajustez sur la carte.", "Facultatif : le site lit vos parcours.", "Facultatif : générés, ou les vôtres.", "Vous validez ce qui vous engage."];
 
 export function OrganizerHome() {
   const events = eventsRepo.useAll(), routes = routesRepo.useAll();
@@ -40,9 +40,9 @@ export function OrganizerHome() {
           <p className="eyebrow !text-brass-400">Organisation Trail</p>
           <h1 className="mt-2 max-w-3xl text-4xl sm:text-5xl">Organisez votre trail, <em className="text-brass-400">étape par étape</em>.</h1>
           <p className="mt-4 max-w-2xl text-white/70">Même pour une première édition : vous tracez les parcours, le site en tire l&apos;analyse, les documents et une logistique proposée. Vous gardez la main sur ce qui vous engage.</p>
-          <ol className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">{STEP_META.map((s, i) => { const I = ICONS[i]; return (
+          <ol className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-7">{STEP_META.map((s, i) => { const I = ICONS[i]; return (
             <li key={s.id} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"><span className="flex items-center gap-2"><span className="grid size-7 place-items-center rounded-full bg-brass-400 font-display text-xs font-bold text-ink-950">{i + 1}</span><I className="size-4 text-brass-400" /></span><span className="mt-2 block text-sm font-semibold">{s.title}</span><span className="mt-0.5 block text-xs text-white/60">{AUTO[i]}</span></li>); })}</ol>
-          <p className="mt-4 flex items-center gap-2 text-sm text-white/70"><Sparkles className="size-4 text-brass-400" />Une fois les parcours enregistrés et quatre informations données, deux clics suffisent pour l&apos;analyse, les documents et les postes.</p>
+          <p className="mt-4 flex items-center gap-2 text-sm text-white/70"><Sparkles className="size-4 text-brass-400" />La génération automatique (analyse, règlement, dossier) est facultative : si vous avez déjà vos documents, passez directement à la logistique.</p>
         </div>
       </section>
       <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_24rem]">
@@ -54,7 +54,7 @@ export function OrganizerHome() {
                 <div className="flex flex-wrap items-start gap-3"><div className="min-w-0 flex-1"><Link href={manageHref(e.id)} className="text-lg font-semibold hover:text-pine-700">{e.name}</Link><p className="text-sm text-ink-500">{e.date} · {e.place} · {e.races.length} course(s) · {e.posts.length} poste(s) · {e.volunteers.length} bénévole(s)</p></div>
                   <Button size="sm" variant="ghost" aria-label={`Supprimer ${e.name}`} onClick={() => confirm(`Supprimer « ${e.name} » ? Courses, postes et fiches bénévoles de cet événement seront supprimés.`) && eventsRepo.remove(e.id)}><Trash2 className="size-4" /></Button></div>
                 <div className="mt-3 flex items-center gap-1" aria-hidden="true">{fl.steps.map((s) => <span key={s.id} className={clsx("h-1.5 flex-1 rounded-full", s.status === "done" ? "bg-pine-500" : s.status === "progress" ? "bg-ember-500" : s.status === "locked" ? "bg-ink-100" : "bg-ink-300")} />)}</div>
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2"><p className="text-sm text-ink-600"><b className="font-display text-ink-900">{fl.percent} %</b> · étape {cur.n} sur 6 : {cur.title}{fl.toValidate.length ? ` · ${fl.toValidate.length} validation(s) en attente` : ""}</p>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2"><p className="text-sm text-ink-600"><b className="font-display text-ink-900">{fl.percent} %</b> · rubrique {cur.n} sur {fl.steps.length} : {cur.title}{fl.toValidate.length ? ` · ${fl.toValidate.length} validation(s) en attente` : ""}</p>
                   <ButtonLink href={manageHref(e.id)} size="sm">Continuer<ArrowRight className="size-4" /></ButtonLink></div>
               </li>); })}</ul>)}
         </section>

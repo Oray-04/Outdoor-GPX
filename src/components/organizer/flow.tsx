@@ -22,7 +22,7 @@ export const useFlow = (ev: EventModel): Flow => { const routes = routesRepo.use
 
 const STATUS: Record<FlowStep["status"], { label: string; cls: string }> = {
   done: { label: "Terminé", cls: "bg-pine-600 text-white" }, progress: { label: "En cours", cls: "bg-ember-500 text-white" },
-  todo: { label: "À faire", cls: "bg-white text-ink-700 ring-1 ring-ink-300" }, locked: { label: "Verrouillé", cls: "bg-ink-100 text-ink-400" },
+  todo: { label: "À faire", cls: "bg-white text-ink-700 ring-1 ring-ink-300" }, locked: { label: "Verrouillé", cls: "bg-ink-100 text-ink-400" }, optional: { label: "Facultatif", cls: "bg-glacier-100 text-glacier-600 ring-1 ring-glacier-500/30" },
 };
 
 /** Fil des six étapes : numéro, état, avancement. Une étape verrouillée dit ce qui la débloque. */
@@ -44,7 +44,7 @@ export function Stepper({ flow, active, onPick, vertical = false }: { flow: Flow
   );
   return (
     <nav aria-label="Étapes de l'organisation" className="rounded-2xl bg-white p-2 shadow-card ring-1 ring-ink-100">
-      <ol className="flex gap-1 overflow-x-auto lg:grid lg:grid-cols-6">
+      <ol className="flex gap-1 overflow-x-auto lg:grid lg:grid-cols-7">
         {flow.steps.map((s) => { const on = s.id === active, locked = s.status === "locked"; return (
           <li key={s.id} className="min-w-[8.5rem] flex-1 lg:min-w-0">
             <button type="button" onClick={() => onPick(s.id)} aria-current={on ? "step" : undefined} title={locked ? s.lockedWhy : undefined} data-step={s.id} data-status={s.status}
@@ -82,7 +82,7 @@ export function StepFrame({ step, flow, ev, save, onPick, auto, children }: { st
   return (
     <section aria-labelledby="step-title" className="mt-5 lg:mt-0">
       <header className="rounded-2xl bg-white p-5 shadow-card ring-1 ring-ink-100">
-        <p className="eyebrow">Étape {step.n} sur 6</p>
+        <p className="eyebrow">Étape {step.n} sur {flow.steps.length}</p>
         <div className="mt-1 flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><h2 id="step-title" className="text-2xl">{step.title}</h2><p className="mt-1 max-w-2xl text-sm text-ink-600">{step.goal}</p></div>
           <span className={clsx("rounded-full px-3 py-1 text-xs font-semibold", STATUS[step.status].cls)}>{STATUS[step.status].label}</span></div>
         {auto && <p className="mt-3 flex gap-2 rounded-xl bg-brass-100/70 px-3 py-2 text-sm text-ink-800"><Sparkles className="mt-0.5 size-4 shrink-0 text-brass-600" /><span><b>Automatique :</b> {auto}</span></p>}

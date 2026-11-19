@@ -315,3 +315,14 @@ Chaque poste placé sur la carte peut être tourné, pour dégager deux postes p
 - **Dans la fiche du poste** (Réglages du poste) : curseur « Orientation sur la carte » de −180° à 180° et bouton « Redresser ».
 - Le marqueur pivote autour de sa **pointe** : l'emplacement exact du poste ne change pas. L'orientation est enregistrée avec le poste (`post.rotation`), conservée par la synchronisation avec le parcours, et reprise dans les cartes PDF (pastilles comprises). Elle reste fixe à l'écran quand on tourne la carte.
 - Sur petit écran, toucher un poste ne fait plus défiler la page vers sa fiche (la carte reste en place pour pouvoir l'orienter).
+
+### Organisation Trail : une page, des rubriques, génération facultative
+
+- **Une seule page par trail**, en grandes cartes : Mon événement, Gérer mon trail, Parcours, Votre trail, Logistique, Analyse, Documents, Vérification finale. Chaque carte montre son titre, les informations principales, son état (Terminé, En cours, À faire, Facultatif, Verrouillé) et sa progression ; « Développer » ouvre le contenu sur place (plusieurs cartes à la fois, « Tout développer »). La rubrique du moment est ouverte au chargement ; `#rubrique-logistique` (lien de retour de la page Logistique) ouvre directement la bonne carte.
+- **Génération automatique facultative**, regroupée dans « Analyse » : l'organisateur choisit « Le site prépare mes documents » ou « J'ai déjà mes documents » (ou décide plus tard). Les éléments générables sont listés avec leur état — à générer, généré, à compléter (ex. mentions entre crochets du règlement), après génération : analyse des parcours, signaleurs aux traversées, règlement, dossier administratif, échéancier, dossier de préparation PDF.
+  - Non choisie : l'analyse et les documents sont facultatifs, hors du pourcentage, jamais bloquants.
+  - « Le site prépare » : ils comptent dans la progression, comme avant.
+  - « J'ai déjà mes documents » : deux confirmations (règlement, dossier administratif) suffisent ; l'organisateur passe directement à la logistique, la génération reste disponible.
+  - La logistique s'ouvre dès que chaque course a son parcours ; la vérification finale dès que des postes sont placés — sans passer par l'analyse.
+- **Ravitaillements** : plus aucun ravitaillement ajouté d'office au départ ni à l'arrivée par les propositions automatiques ; les contrôles n'en réclament plus à l'arrivée.
+- **Analyse cadastrale** : l'erreur « Unexpected token … "# HELP jmx"… is not valid JSON » venait d'un serveur public qui renvoie parfois, avec un statut 200, une page de métriques au lieu des données ; le code appelait `res.json()` sans vérifier. Toutes les réponses des services IGN / Géoplateforme passent désormais par `readJson` (`src/lib/http.ts`) : le contenu est vérifié, une réponse qui n'est pas des données est traitée comme une panne passagère (nouvel essai, puis repli sur le WFS pour les parcelles), avec un message clair nommant le service.

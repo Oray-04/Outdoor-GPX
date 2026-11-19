@@ -11,28 +11,42 @@ const event = (o: Partial<EventModel> = {}): EventModel => ({ id: "e", name: "Tr
 let k = 0; const newId = () => `p${++k}`;
 const st = (ev: EventModel, routes: string[] = ["rt"]) => { const f = trailFlow(ev, routes, "2026-11-15"); return { f, by: Object.fromEntries(f.steps.map((s) => [s.id, s.status])) }; };
 
-describe("parcours guidé : chaque étape ouvre la suivante", () => {
-  it("sans parcours : seule l'étape 1 est ouverte", () => {
-    const { f, by } = st(event(), []); expect(by).toEqual({ parcours: "todo", trail: "locked", analyse: "locked", documents: "locked", logistique: "locked", verification: "locked" });
-    expect(f.current).toBe("parcours"); expect(f.steps[1].lockedWhy).toMatch(/Enregistrez d'abord un parcours/); expect(f.percent).toBeLessThan(15);
+describe("organisation par rubriques : génération automatique facultative", () => {
+  it("sans parcours : l'événement et les parcours sont ouverts, le reste attend un parcours", () => {
+    const { f, by } = st(event(), []); expect(by).toEqual({ evenement: "done", parcours: "todo", trail: "locked", logistique: "locked", analyse: "locked", documents: "locked", verification: "locked" });
+    expect(f.current).toBe("parcours"); expect(f.steps.find((s) => s.id === "trail")!.lockedWhy).toMatch(/Enregistrez d'abord un parcours/); expect(f.percent).toBeLessThan(25);
   });
-  it("déblocages successifs jusqu'à la vérification (la logistique suit directement les parcours)", () => {
-    let ev = event(); expect(st(ev).by.trail).not.toBe("locked"); expect(st(ev).f.steps[2].id).toBe("logistique"); expect(st(ev).by.logistique).toBe("locked"); expect(st(ev).f.steps[2].lockedWhy).toMatch(/Ajoutez d'abord une course/);
-    ev = { ...ev, races: [race({ routeId: undefined })] }; expect(st(ev).f.steps[2].lockedWhy).toMatch(/Associez un parcours/);
-    ev = { ...ev, races: [race()] }; expect(st(ev).by.logistique).not.toBe("locked"); expect(st(ev).f.steps[3].lockedWhy).toMatch(/participants/);
-    ev = { ...ev, prep: { participants: 300 } }; expect(st(ev).by.analyse).not.toBe("locked"); expect(st(ev).by.trail).toBe("done"); expect(st(ev).by.documents).toBe("locked"); expect(st(ev).f.current).toBe("logistique");
-    ev = { ...ev, prep: { ...ev.prep, analysedAt: 1, paved: { r1: 10 }, roads: { r1: [] }, departments: ["04"] } }; expect(st(ev).by.analyse).toBe("done"); expect(st(ev).by.documents).not.toBe("locked");
-    ev = { ...ev, rules: rulesDraft(ev, ev.prep!), prep: { ...ev.prep, docsAt: 2 } }; expect(st(ev).by.verification).toBe("locked"); expect(st(ev).f.steps[5].lockedWhy).toMatch(/postes/);
+  it("organisateur expérimenté : de la course à la logistique puis à la vérification, sans analyse ni génération", () => {
+    let ev = event(); const step = (id: string) => st(ev).f.steps.find((s) => s.id === id)!;
+    expect(step("logistique").lockedWhy).toMatch(/Ajoutez d'abord une course/);
+    ev = { ...ev, races: [race({ routeId: undefined })] }; expect(step("logistique").lockedWhy).toMatch(/Associez un parcours/);
+    ev = { ...ev, races: [race()], prep: { participants: 300, docMode: "propres" } };
+    expect(st(ev).by.logistique).not.toBe("locked"); expect(st(ev).by.analyse).toBe("optional"); expect(["todo", "progress"]).toContain(st(ev).by.documents); expect(st(ev).f.current).toBe("logistique");
+    // pas besoin d'analyse pour atteindre la vérification ; les documents « propres » se confirment par deux validations
     ev = { ...ev, posts: proposePosts({ race: ev.races[0], coords: coordsOf(30), newId }) }; expect(st(ev).by.verification).toBe("progress");
+    const f = st(ev).f; expect(f.toValidate.map((x) => x.id)).toEqual(expect.arrayContaining(["v:reglement", "v:dossier"])); expect(f.todo.some((x) => x.step === "analyse" || x.id === "d:generes")).toBe(false);
     // un parcours supprimé reverrouille la logistique et la suite
     expect(st(ev, []).by.logistique).toBe("locked"); expect(st(ev, []).by.verification).toBe("locked");
+  });
+  it("génération non choisie : analyse et documents facultatifs, hors du pourcentage et jamais bloquants", () => {
+    const ev = event({ races: [race()], prep: { participants: 300 } }), { f, by } = st(ev);
+    expect(by.analyse).toBe("optional"); expect(by.documents).toBe("optional"); expect(f.todo.some((x) => x.step === "analyse" || x.step === "documents")).toBe(false);
+    const withDocs = st({ ...ev, prep: { ...ev.prep, docMode: "site" } });
+    expect(withDocs.by.analyse).toBe("todo"); expect(withDocs.f.todo.some((x) => x.id === "a:lancee")).toBe(true); expect(withDocs.f.percent).toBeLessThan(f.percent); // choisie : elle compte
+  });
+  it("nouvel organisateur : le site analyse et génère, les étapes se valident", () => {
+    let ev = event({ races: [race()], prep: { participants: 300, docMode: "site" } });
+    ev = { ...ev, prep: { ...ev.prep, analysedAt: 1, paved: { r1: 10 }, roads: { r1: [] }, departments: ["04"] } }; expect(st(ev).by.analyse).toBe("done");
+    ev = { ...ev, rules: rulesDraft(ev, ev.prep!), prep: { ...ev.prep, docsAt: 2 } }; expect(st(ev).by.documents).toBe("progress");
+    expect(st(ev).by.verification).toBe("locked"); expect(st(ev).f.steps.find((s) => s.id === "verification")!.lockedWhy).toMatch(/postes/);
+    ev = { ...ev, posts: proposePosts({ race: ev.races[0], coords: coordsOf(30), newId }) }; expect(st(ev).by.verification).toBe("progress");
   });
   it("événement préparé avant le parcours guidé : ses postes et bénévoles restent accessibles", () => {
     const ev = event({ races: [race()], posts: [{ id: "x", raceId: "r1", kind: "ravito", name: "R", km: 5, staffNeeded: 2, note: "" }] }), { by } = st(ev);
     expect(by.logistique).not.toBe("locked"); expect(by.documents).not.toBe("locked"); expect(by.analyse).not.toBe("locked"); expect(by.verification).not.toBe("locked");
   });
   it("validations humaines : proposées quand l'élément est prêt, jamais faites à la place de l'organisateur", () => {
-    const ev = event({ races: [race()], rules: "x".repeat(80), prep: { participants: 300, analysedAt: 1, docsAt: 1, paved: { r1: 10 }, roads: { r1: [] }, departments: ["04"] } });
+    const ev = event({ races: [race()], rules: "x".repeat(80), prep: { participants: 300, docMode: "site", analysedAt: 1, docsAt: 1, paved: { r1: 10 }, roads: { r1: [] }, departments: ["04"] } });
     const { f } = st(ev); expect(f.toValidate.map((x) => x.id)).toContain("v:reglement"); expect(f.toValidate.map((x) => x.id)).toContain("v:autorisations"); expect(f.toValidate.map((x) => x.id)).not.toContain("v:medical"); // pas de poste de secours : rien à valider encore
     const f2 = st({ ...ev, prep: { ...ev.prep, validated: ["v:reglement"] } }).f; expect(f2.toValidate.map((x) => x.id)).not.toContain("v:reglement"); expect(f2.done.map((x) => x.id)).toContain("v:reglement"); expect(f2.percent).toBeGreaterThan(f.percent);
   });
@@ -43,7 +57,7 @@ describe("parcours guidé : chaque étape ouvre la suivante", () => {
     expect(left.filter((l) => !/Bénévoles|signaleurs nommés|liste des signaleurs|Dossier administratif/.test(l))).toEqual([]); expect(by.analyse).toBe("done"); expect(f.percent).toBeGreaterThan(85);
   });
   it("trop de goudron et ultra sans barrière : signalés", () => {
-    const ev = event({ races: [race({ distanceKm: 100 })], prep: { participants: 100, analysedAt: 1, docsAt: 1, paved: { r1: 40 }, roads: { r1: [] }, departments: ["04"] }, posts: [{ id: "x", raceId: "r1", kind: "depart", name: "D", km: 0, staffNeeded: 0, note: "" }] });
+    const ev = event({ races: [race({ distanceKm: 100 })], prep: { participants: 100, docMode: "site", analysedAt: 1, docsAt: 1, paved: { r1: 40 }, roads: { r1: [] }, departments: ["04"] }, posts: [{ id: "x", raceId: "r1", kind: "depart", name: "D", km: 0, staffNeeded: 0, note: "" }] });
     const f = st(ev).f; expect(f.toValidate.map((x) => x.label).join(" | ")).toMatch(/Trop de goudron.*40 %/); expect(f.todo.map((x) => x.label).join(" | ")).toMatch(/Barrières horaires/);
     expect(st({ ...ev, prep: { ...ev.prep, validated: ["v:plafond"] } }).f.toValidate.some((x) => x.id === "v:plafond")).toBe(false);
   });
@@ -54,11 +68,11 @@ describe("postes proposés automatiquement", () => {
   it("course de 30 km sans point d'intérêt : départ, ravitaillements espacés, arrivée, secours", () => {
     const ps = proposePosts({ race: race(), coords: coordsOf(30), newId });
     expect(ps[0].kind).toBe("depart"); expect(ps.every((p) => p.auto && p.lng != null && p.raceId === "r1")).toBe(true); expect(kinds(ps).filter((x) => x === "arrivee")).toHaveLength(1);
-    const rav = ps.filter((p) => p.kind === "ravito"); expect(rav).toHaveLength(3); expect(rav[0].km).toBeGreaterThan(8); expect(rav[0].km).toBeLessThan(12); expect(rav[2].km).toBeGreaterThan(29);
+    const rav = ps.filter((p) => p.kind === "ravito"); expect(rav).toHaveLength(2); expect(rav[0].km).toBeGreaterThan(8); expect(rav[0].km).toBeLessThan(12); expect(rav.every((p) => p.km > 1 && p.km < 29)).toBe(true); // jamais d'office au départ ni à l'arrivée
     expect(ps.filter((p) => p.kind === "secours")).toHaveLength(2); expect(ps.map((p) => p.km)).toEqual([...ps.map((p) => p.km)].sort((a, b) => a - b)); expect(ps.some((p) => p.cutoffH != null)).toBe(false);
   });
-  it("course courte : pas de ravitaillement en route, mais un à l'arrivée", () => {
-    const ps = proposePosts({ race: race({ distanceKm: 8 }), coords: coordsOf(8), newId }); expect(ps.filter((p) => p.kind === "ravito").map((p) => p.name)).toEqual(["Ravitaillement d'arrivée"]); expect(ps.filter((p) => p.kind === "secours")).toHaveLength(1);
+  it("course courte : aucun ravitaillement ajouté d'office (ni en route, ni au départ, ni à l'arrivée)", () => {
+    const ps = proposePosts({ race: race({ distanceKm: 8 }), coords: coordsOf(8), newId }); expect(ps.filter((p) => p.kind === "ravito")).toEqual([]); expect(ps.filter((p) => p.kind === "secours")).toHaveLength(1);
   });
   it("au-delà du marathon : barrière horaire à mi-course, au prorata de l'effort", () => {
     const ps = proposePosts({ race: race({ distanceKm: 60, maxHours: 12 }), coords: coordsOf(60), newId }), cut = ps.find((p) => p.cutoffH != null)!;
@@ -66,7 +80,7 @@ describe("postes proposés automatiquement", () => {
   });
   it("points d'intérêt du parcours repris sans ressaisie ; pas de ravitaillement inventé s'il y en a déjà", () => {
     const c = coordsOf(30), ps = proposePosts({ race: race(), coords: c, newId, pois: [{ type: "ravito", name: "Ravito du col", lng: c[120][0], lat: c[120][1] }, { type: "eau", name: "Fontaine", lng: c[200][0], lat: c[200][1] }, { type: "danger", name: "Route D4", lng: c[50][0], lat: c[50][1] }, { type: "vue", name: "Belvédère", lng: c[60][0], lat: c[60][1] }, { type: "secours", name: "Loin", lng: 7, lat: 46 }] });
-    expect(ps.filter((p) => p.kind === "ravito").map((p) => p.name)).toEqual(["Ravito du col", "Ravitaillement d'arrivée"]); expect(ps.find((p) => p.name === "Ravito du col")!.km).toBeCloseTo(12, 0);
+    expect(ps.filter((p) => p.kind === "ravito").map((p) => p.name)).toEqual(["Ravito du col"]); expect(ps.find((p) => p.name === "Ravito du col")!.km).toBeCloseTo(12, 0);
     expect(ps.some((p) => p.kind === "eau" && p.name === "Fontaine")).toBe(true); expect(ps.some((p) => p.kind === "signaleur" && p.name === "Route D4")).toBe(true); expect(ps.some((p) => p.name === "Belvédère" || p.name === "Loin")).toBe(false);
   });
   it("signaleurs aux routes détectées : toutes les routes classées, deux personnes sur les plus importantes", () => {

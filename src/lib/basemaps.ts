@@ -1,4 +1,5 @@
 import type { Map as MLMap, StyleSpecification } from "maplibre-gl";
+import { readJson } from "./http";
 
 export type BasemapGroup = "ign" | "world" | "outdoor";
 export interface Basemap {
@@ -71,7 +72,7 @@ export async function envZonesAt(lng: number, lat: number, overlayIds: string[],
   for (const o of ENV_OVERLAYS.filter((v) => overlayIds.includes(v.id))) {
     const u = `https://data.geopf.fr/wms-v/ows?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetFeatureInfo&LAYERS=${o.env!.layer}&QUERY_LAYERS=${o.env!.layer}&STYLES=&CRS=EPSG:3857&BBOX=${x - h},${y - h},${x + h},${y + h}&WIDTH=101&HEIGHT=101&I=50&J=50&INFO_FORMAT=application/json&FEATURE_COUNT=5`;
     const r = await fetch(u, { signal }); if (!r.ok) throw new Error(`Couche « ${o.label} » indisponible (${r.status})`);
-    const j = (await r.json()) as { features?: { properties: Record<string, string | number | null> }[] };
+    const j = await readJson<{ features?: { properties: Record<string, string | number | null> }[] }>(r, `La couche « ${o.label} »`);
     for (const f of j.features ?? []) { const p = f.properties; const a = Number(p.surf_off ?? p.area_sig);
       out.push({ overlayId: o.id, kind: o.env!.kind, regulated: o.env!.regulated, name: String(p.nom_site ?? "(sans nom)"), zone: String(p.zone ?? ""), areaHa: Number.isFinite(a) && a > 0 ? a : null, created: String(p.date_crea ?? "").slice(0, 4), manager: String(p.gest_site ?? p.operateur ?? ""), url: /^https:\/\/inpn\.mnhn\.fr\//.test(String(p.url_fiche ?? "")) ? String(p.url_fiche) : "" }); }
   }

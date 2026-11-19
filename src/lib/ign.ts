@@ -1,5 +1,6 @@
 import type { LL, Pt } from "./types";
 import { haversine, resampleLine, thin } from "./geo";
+import { readJson } from "./http";
 
 const BASE = "https://data.geopf.fr";
 const elevCache = new Map<string, number>();
@@ -38,12 +39,12 @@ async function getJsonRetry<T>(url: string, signal: AbortSignal | undefined, tri
     const onAbort = () => ctrl.abort(); signal?.addEventListener("abort", onAbort, { once: true });
     try {
       const r = await fetch(url, { signal: ctrl.signal });
-      if (r.ok) return (await r.json()) as T;
+      if (r.ok) { try { return await readJson<T>(r, "Le service d'altitudes (IGN)"); } catch { last = new ElevationError("server", r.status); throw last; } } // réponse qui n'est pas des données : panne passagère du serveur
       last = new ElevationError(r.status === 429 ? "rate" : r.status >= 500 ? "server" : "network", r.status);
       if (r.status !== 429 && r.status < 500) throw last; // 4xx hors limite : inutile de recommencer
     } catch (e) {
       if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
-      if (e instanceof ElevationError && e.status && e.status !== 429 && e.status < 500) throw e;
+      if (e instanceof ElevationError && e.status && e.status !== 429 && e.status < 500 && e.kind !== "server") throw e;
       if (!(e instanceof ElevationError)) last = new ElevationError("network"); // dont CORS : le service coupé par la limite de débit répond sans en-têtes
     } finally { clearTimeout(t); signal?.removeEventListener("abort", onAbort); }
     if (a < tries - 1) await sleep(700 * 2 ** a + Math.random() * 300, signal);
@@ -58,7 +59,7 @@ async function openMeteoElevations(b: LL[], signal?: AbortSignal): Promise<numbe
     const c = b.slice(i, i + 100);
     const r = await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${c.map((p) => p[1].toFixed(5)).join(",")}&longitude=${c.map((p) => p[0].toFixed(5)).join(",")}`, { signal });
     if (!r.ok) throw new ElevationError(r.status === 429 ? "rate" : "server", r.status);
-    out.push(...((await r.json()) as { elevation: number[] }).elevation);
+    out.push(...(await readJson<{ elevation: number[] }>(r, "Le service d'altitudes Open-Meteo")).elevation);
   }
   return out;
 }
@@ -129,7 +130,7 @@ export async function routeOnPaths(a: LL, b: LL, signal?: AbortSignal): Promise<
   try {
     const r = await fetch(url, { signal });
     if (!r.ok) return null;
-    const j = (await r.json()) as { geometry?: { coordinates: LL[] } };
+    const j = await readJson<{ geometry?: { coordinates: LL[] } }>(r, "Le calcul d'itinéraire (IGN)");
     const line = j.geometry?.coordinates?.map((p) => [p[0], p[1]] as LL);
     if (!line || line.length < 2) return null;
     routeCache.set(key, line);

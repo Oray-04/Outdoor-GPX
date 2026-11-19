@@ -2,6 +2,7 @@ import type { LL } from "./types";
 import type { Sport } from "./sports";
 import { haversine, inFrance, thin } from "./geo";
 import { routeOnPaths } from "./ign";
+import { readJson } from "./http";
 
 /**
  * Moteur de tracé multi-sources.
@@ -80,8 +81,8 @@ async function postJson<T>(path: string, body: unknown, signal?: AbortSignal, st
     const onAbort = () => ctrl.abort(); signal?.addEventListener("abort", onAbort, { once: true });
     try {
       const r = await slot(() => fetch(VALHALLA + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: ctrl.signal }));
-      if (r.ok) return (await r.json()) as T;
-      if (r.status === 429 || r.status >= 500) { fail = new RoutingError(r.status === 429 ? "rate" : "server", r.status); }
+      if (r.ok) { try { return await readJson<T>(r, "Le calcul d'itinéraire"); } catch { fail = new RoutingError("server", r.status); } } // pas des données : panne passagère, nouvel essai après la pause
+      else if (r.status === 429 || r.status >= 500) { fail = new RoutingError(r.status === 429 ? "rate" : "server", r.status); }
       else return null; // 400 : aucun chemin / aucun tronçon proche (ce n'est pas une panne)
     } catch (e) {
       if (signal?.aborted) throw new DOMException("Aborted", "AbortError");

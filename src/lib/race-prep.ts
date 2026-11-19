@@ -2,6 +2,7 @@ import type { EventModel, Post, Race } from "./events";
 import { clockAt, postsOfRace } from "./events";
 import { estimateMinutes } from "./sports";
 import type { LL } from "./types";
+import { readJson } from "./http";
 
 /**
  * Préparation d'une épreuve de trail : tout ce qui se déduit automatiquement de l'événement (courses, postes, bénévoles,
@@ -23,6 +24,8 @@ export interface Prep {
   analysedAt?: number; offRoad?: Record<string, number>; roads?: Record<string, import("./routing").RoadPoint[]>;
   /** Date de génération des documents et de la logistique proposée. */
   docsAt?: number;
+  /** Préparation des documents : générés par le site, ou déjà en possession de l'organisateur (génération facultative). Non choisi : analyse et documents restent facultatifs. */
+  docMode?: "site" | "propres";
   /** Points validés par l'organisateur (documents officiels, décisions de sécurité). */
   validated?: string[];
 }
@@ -148,10 +151,9 @@ export function logisticsChecks(ev: EventModel, race: Race, cls: Classification)
   else out.push({ level: "ok", text: `${sig.length} poste(s) de signaleur, tous pourvus.` });
   if (!of("secours").length) out.push({ level: "warn", text: "Aucun poste de secours placé sur le parcours." }); else out.push({ level: "ok", text: `${of("secours").length} poste(s) de secours sur le parcours.` });
   const rav = of("ravito");
-  if (rav.length && !rav.some((p) => p.km >= race.distanceKm - 0.5)) out.push({ level: "warn", text: "Pas de ravitaillement à l'arrivée (boissons, eau, solide) : à prévoir." });
   if (rav.length) out.push({ level: "info", text: `${rav.length} ravitaillement(s) : panneau d'entrée 50 m avant la première table, panneau de sortie 50 m après la dernière, jamais dans un virage ; sacs-poubelle et ramassage des déchets par l'équipe du poste.` });
   else if (cls.id === "nature" || cls.id === "decouverte") out.push({ level: "info", text: "Aucun ravitaillement sur le parcours : conseillé mais non obligatoire à cette distance ; annoncez-le aux coureurs." });
-  else out.push({ level: "warn", text: "Aucun ravitaillement, pas même à l'arrivée : prévoyez-en un à l'arrivée et précisez dans le règlement que la course est en autonomie complète." });
+  else out.push({ level: "warn", text: "Aucun ravitaillement placé : placez ceux que vous prévoyez, ou précisez dans le règlement que la course est en autonomie complète." });
   const cut = posts.filter((p) => p.cutoffH != null);
   if (cls.id === "ultra" && !cut.length) out.push({ level: "warn", text: "Ultra-trail sans barrière horaire : des heures limites de passage sont obligatoires." });
   else if (cut.length) out.push({ level: "ok", text: `${cut.length} barrière(s) horaire(s) définie(s) : à communiquer aux coureurs.` });
@@ -240,8 +242,8 @@ export async function departmentsAlong(line: LL[], signal?: AbortSignal): Promis
     await Promise.all(pts.slice(i, i + 4).map(async (p) => {
       try {
         const r = await fetch(`https://data.geopf.fr/geocodage/reverse?lon=${p[0].toFixed(5)}&lat=${p[1].toFixed(5)}&limit=1&index=parcel`, { signal });
-        if (!r.ok) return; answered++;
-        const j = (await r.json()) as { features?: { properties?: { departmentcode?: string } }[] }; const d = j.features?.[0]?.properties?.departmentcode; if (d) out.add(d);
+        if (!r.ok) return;
+        const j = await readJson<{ features?: { properties?: { departmentcode?: string } }[] }>(r, "Le géocodage (IGN)"); answered++; const d = j.features?.[0]?.properties?.departmentcode; if (d) out.add(d);
       } catch { /* point ignoré */ }
     }));
   }

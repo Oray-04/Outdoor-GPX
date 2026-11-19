@@ -38,7 +38,7 @@ describe("préparation d'une épreuve de trail", () => {
     expect(raceDay(race({ maxHours: 0 })).steps[5].estimate).toBe(true);
   });
   it("contrôles de la logistique : signaleurs, secours, ravitaillement, barrières", () => {
-    const empty = logisticsChecks(event(), race(), classify(30)); expect(empty.filter((c) => c.level === "warn")).toHaveLength(2); expect(logisticsChecks(event({ races: [race({ distanceKm: 55 })] }), race({ distanceKm: 55 }), classify(55)).some((c) => c.level === "warn" && /pas même à l'arrivée/.test(c.text))).toBe(true); expect(empty.some((c) => /Aucun poste de signaleur/.test(c.text))).toBe(true);
+    const empty = logisticsChecks(event(), race(), classify(30)); expect(empty.filter((c) => c.level === "warn")).toHaveLength(2); expect(logisticsChecks(event({ races: [race({ distanceKm: 55 })] }), race({ distanceKm: 55 }), classify(55)).some((c) => c.level === "warn" && /autonomie complète/.test(c.text))).toBe(true); expect(empty.some((c) => /Aucun poste de signaleur/.test(c.text))).toBe(true);
     const ev = event({ posts: [post("s1", "signaleur", 3), post("sec", "secours", 15), post("rav", "ravito", 30), post("c", "controle", 15, { cutoffH: 4 })], volunteers: [{ id: "v", name: "Ana", phone: "", postId: "s1", from: "", to: "", instructions: "" }] });
     const full = logisticsChecks(ev, race(), classify(30)); expect(full.filter((c) => c.level === "warn")).toEqual([]); expect(full.some((c) => /tous pourvus/.test(c.text))).toBe(true); expect(full.some((c) => /50 m avant/.test(c.text))).toBe(true);
     const short = logisticsChecks({ ...ev, volunteers: [] }, race(), classify(30)); expect(short.some((c) => c.level === "warn" && /sans bénévole/.test(c.text))).toBe(true);

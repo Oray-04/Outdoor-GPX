@@ -208,7 +208,7 @@ const ROAD_RANKS: Record<string, number> = { motorway: 7, trunk: 6, primary: 5, 
 const ROAD_WORD: Record<string, string> = { motorway: "autoroute", trunk: "voie rapide", primary: "route principale", secondary: "route secondaire", tertiary: "route locale", unclassified: "petite route", residential: "rue" };
 /**
  * Postes proposés pour une course : départ, arrivée, points d'intérêt déjà placés sur le parcours (repris tels quels, sans ressaisie),
- * ravitaillements espacés selon la distance, ravitaillement et secours à l'arrivée, barrière horaire à mi-course au-delà du marathon,
+ * ravitaillements espacés selon la distance (jamais d'office au départ ni à l'arrivée), secours à l'arrivée, barrière horaire à mi-course au-delà du marathon,
  * signaleurs aux traversées et passages sur route détectés. Tous marqués `auto` : ce sont des propositions à vérifier sur le terrain.
  */
 export function proposePosts({ race, coords, pois = [], roads = [], newId }: ProposeInput): Post[] {
@@ -223,7 +223,7 @@ export function proposePosts({ race, coords, pois = [], roads = [], newId }: Pro
   const has = (k: PostKind) => out.some((p) => p.kind === k);
   const ravKm: number[] = out.filter((p) => p.kind === "ravito").map((p) => p.km);
   if (!ravKm.length && totalKm > 12) { const step = totalKm > 80 ? 15 : totalKm > 42 ? 12 : 10, n = Math.max(1, Math.round(totalKm / step) - 1); for (let k = 1; k <= n; k++) { const km = (k * totalKm) / (n + 1); ravKm.push(km); add("ravito", `Ravitaillement ${k}`, km, 4, { note: "Emplacement à ajuster selon l'accès en véhicule" }); } }
-  if (!out.some((p) => p.kind === "ravito" && p.km >= totalKm - 0.5)) add("ravito", "Ravitaillement d'arrivée", totalKm, 4, { note: "Boissons, eau, solide" });
+  // pas de ravitaillement ajouté d'office au départ ni à l'arrivée : c'est à l'organisateur de les placer s'il en veut
   if (!has("secours")) { add("secours", "Poste de secours — arrivée", totalKm, 2); if (totalKm > 21 && ravKm.length) add("secours", "Poste de secours — mi-course", ravKm[Math.floor(ravKm.length / 2)], 2, { note: "À placer avec le responsable des secours, sur un accès véhicule" }); }
   if (totalKm > 42 && !out.some((p) => p.cutoffH != null) && ravKm.length && race.maxHours > 0) { const km = ravKm[Math.floor(ravKm.length / 2)], frac = Math.min(1, e[at(km).i] / totalE); add("controle", "Contrôle et barrière horaire", km, 2, { cutoffH: Math.ceil(race.maxHours * frac * 4) / 4, note: "Barrière calculée au prorata de l'effort sur le temps limite" }); }
   // signaleurs : toutes les routes classées et petites routes, puis les rues jusqu'à 15 postes

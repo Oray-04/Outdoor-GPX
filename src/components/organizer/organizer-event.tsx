@@ -3,18 +3,20 @@ import { Field, RequiredLegend, filled } from "@/components/ui/field";
 import { LocationFields } from "@/components/ui/location-fields";
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, Trash2, Eye, ChevronDown } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Eye, ChevronDown, Flag, Settings2, Route as RouteIcon, Users, MapPinned, ScanSearch, FileText, ClipboardCheck, Lock } from "lucide-react";
 import clsx from "clsx";
 import { AnalysisTab } from "./analysis-tab";
 import { PrepTab } from "./prep-tab";
 import { Consistency, LogisticsSummary } from "./logistics";
-import { Stepper, StepFrame, StepParcours, AnalyseRunner, DocumentsRunner, FinalCheck, LockedPanel, useFlow } from "./flow";
+import { StepParcours, FinalCheck, useFlow } from "./flow";
+import { SectionCard, StepChecklist, StepValidations, GenerationPanel } from "./cards";
+import { adminFile } from "@/lib/race-prep";
 import type { StepId } from "@/lib/trail-flow";
 import { Button } from "@/components/ui/button";
 import { collectionsRepo, eventsRepo, routesRepo } from "@/lib/repo";
 import { cloudEnabled } from "@/lib/cloud";
 import { collectionHref, editorHref } from "@/lib/url";
-import { ROLES, raceFactsFromRoute, type EventModel, type Member, type Race, type Role } from "@/lib/events";
+import { ROLES, raceFactsFromRoute, staffing, type EventModel, type Member, type Race, type Role } from "@/lib/events";
 import { SPORTS, estimateMinutes, type Sport } from "@/lib/sports";
 import { fmtDuration } from "@/lib/geo";
 import { uid } from "@/lib/types";
@@ -33,48 +35,60 @@ export function OrganizerEvent({ id }: { id: string }) {
   return <Workspace ev={ev} />;
 }
 
+const CARD_ICON: Record<string, typeof Flag> = { evenement: Flag, gerer: Settings2, parcours: RouteIcon, trail: Users, logistique: MapPinned, analyse: ScanSearch, documents: FileText, verification: ClipboardCheck };
+
+/**
+ * Espace d'organisation d'un trail : toutes les rubriques sur une seule page, en grandes cartes.
+ * Chaque carte montre l'essentiel (titre, informations, état, progression) et se développe sur place.
+ */
 function Workspace({ ev }: { ev: EventModel }) {
   const save = (fn: (e: EventModel) => EventModel) => { eventsRepo.upsert(fn(eventsRepo.get(ev.id) ?? ev)); };
-  const flow = useFlow(ev);
-  const [picked, setPicked] = useState<StepId | null>(null);
-  const active = picked ?? flow.current, step = flow.steps.find((s) => s.id === active)!;
-  const pick = (s: StepId) => { setPicked(s); requestAnimationFrame(() => { const t = document.getElementById("etapes"); if (t && t.getBoundingClientRect().top < 0) window.scrollTo({ top: window.scrollY + t.getBoundingClientRect().top - 80, behavior: "smooth" }); }); };
-  const frame = (auto: string | undefined, children: React.ReactNode) => <StepFrame step={step} flow={flow} ev={ev} save={save} onPick={pick} auto={auto}>{children}</StepFrame>;
+  const flow = useFlow(ev), routes = routesRepo.useAll();
+  const stepOf = (id: StepId) => flow.steps.find((s) => s.id === id)!;
+  // rubriques ouvertes : celle du moment au chargement (ou celle de l'adresse, ex. #rubrique-logistique)
+  const [open, setOpen] = useState<Set<string>>(() => new Set([typeof window !== "undefined" && /^#rubrique-/.test(location.hash) ? location.hash.slice(10) : flow.current]));
+  const toggle = (id: string) => setOpen((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const goTo = (id: string) => { setOpen((s) => new Set(s).add(id)); requestAnimationFrame(() => document.getElementById(`rubrique-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })); };
+  const prep = ev.prep ?? {}, st = staffing(ev), linkedRoutes = [...new Set(ev.races.map((r) => r.routeId).filter(Boolean))];
+  const fileOk = adminFile(ev, prep).filter((f) => f.ok).length, fileN = adminFile(ev, prep).length;
+  const card = (id: StepId, children: React.ReactNode, facts?: (string | null | false | undefined)[], summary?: string) => {
+    const s = stepOf(id), counted = s.items.filter((x) => x.state !== "optional");
+    return <SectionCard key={id} id={id} n={s.n} title={s.title} icon={CARD_ICON[id]} status={s.status} lockedWhy={s.lockedWhy} summary={summary ?? s.goal} facts={facts} progress={id === "verification" ? { done: flow.done.length, total: flow.done.length + flow.todo.length + flow.toValidate.length } : counted.length ? { done: counted.filter((x) => x.state === "done").length, total: counted.length } : null} open={open.has(id)} onToggle={() => toggle(id)}>
+      {s.status === "locked" ? <p className="flex items-center gap-2 rounded-2xl border border-dashed border-ink-300 bg-white p-5 text-sm text-ink-700"><Lock className="size-4 shrink-0 text-ink-400" />Pour ouvrir cette rubrique : {s.lockedWhy}</p> : (<>
+        {id !== "verification" && <StepChecklist step={s} />}
+        {children}
+        {id !== "verification" && <StepValidations step={s} ev={ev} save={save} />}
+      </>)}
+    </SectionCard>;
+  };
+  const eventDate = /^\d{4}-\d{2}-\d{2}$/.test(ev.date) ? new Date(`${ev.date}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : null;
+  const counts = { done: flow.steps.filter((s) => s.status === "done").length, todo: flow.steps.filter((s) => s.status === "todo" || s.status === "progress").length, optional: flow.steps.filter((s) => s.status === "optional").length };
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
       <Link href="/organisateurs" className="inline-flex items-center gap-1.5 text-sm text-ink-500 hover:text-ink-900"><ArrowLeft className="size-4" />Organisation Trail</Link>
-      <header className="mt-2 flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0"><h1 className="text-3xl sm:text-4xl">{ev.name}</h1><p className="mt-1 text-sm text-ink-600">{/^\d{4}-\d{2}-\d{2}$/.test(ev.date) ? new Date(`${ev.date}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : "Date à préciser"} · {ev.place || "Lieu à préciser"} · {ev.races.length} course(s)</p></div>
-        <div className="flex items-center gap-4"><div className="w-44" role="img" aria-label={`Préparation : ${flow.percent} %`}><p className="flex items-baseline justify-between text-xs font-semibold text-ink-600"><span>Préparation</span><span className="font-display text-lg text-ink-900">{flow.percent} %</span></p><div className="mt-1 h-2 overflow-hidden rounded-full bg-ink-100"><div className="h-full rounded-full bg-gradient-to-r from-pine-600 to-pine-400 transition-all" style={{ width: `${flow.percent}%` }} /></div></div>
-          <Link href={eventHref(ev.id)} className="inline-flex h-10 items-center gap-1.5 rounded-full border border-ink-200 bg-white px-4 text-sm font-semibold hover:bg-ink-50"><Eye className="size-4" />Page publique</Link></div>
+      <header className="mt-3 grid gap-4 rounded-3xl bg-ink-950 p-5 text-white shadow-lift sm:p-7 md:grid-cols-[minmax(0,1fr)_16rem] md:items-end">
+        <div className="min-w-0"><p className="eyebrow !text-brass-400">Mon trail</p><h1 className="mt-1 text-3xl sm:text-4xl">{ev.name}</h1><p className="mt-1 text-sm text-white/70">{eventDate ?? "Date à préciser"} · {ev.place || "Lieu à préciser"} · {ev.races.length} course(s)</p>
+          <ul className="mt-4 flex flex-wrap gap-2 text-xs font-semibold" aria-label="Résumé"><li className="rounded-full bg-pine-600 px-3 py-1">{counts.done} rubrique(s) terminée(s)</li><li className="rounded-full bg-ember-500 px-3 py-1">{counts.todo} à faire</li>{counts.optional > 0 && <li className="rounded-full bg-white/15 px-3 py-1">{counts.optional} facultative(s)</li>}</ul></div>
+        <div className="grid gap-3">
+          <div role="img" aria-label={`Préparation : ${flow.percent} %`}><p className="flex items-baseline justify-between text-sm font-semibold text-white/80"><span>Préparation</span><span className="font-display text-3xl text-white">{flow.percent} %</span></p><div className="mt-1 h-2.5 overflow-hidden rounded-full bg-white/15"><div className="h-full rounded-full bg-gradient-to-r from-pine-500 to-brass-400 transition-all" style={{ width: `${flow.percent}%` }} /></div></div>
+          <div className="flex flex-wrap gap-2"><Link href={eventHref(ev.id)} className="inline-flex h-9 items-center gap-1.5 rounded-full bg-white/10 px-3 text-sm font-semibold hover:bg-white/20"><Eye className="size-4" />Page publique</Link>
+            <button type="button" className="inline-flex h-9 items-center rounded-full bg-white/10 px-3 text-sm font-semibold hover:bg-white/20" onClick={() => setOpen((s) => (s.size > 2 ? new Set() : new Set([...flow.steps.map((x) => x.id), "gerer"])))}>{open.size > 2 ? "Tout réduire" : "Tout développer"}</button></div>
+        </div>
       </header>
       <Consistency ev={ev} save={save} />
-      <div id="etapes" className="mt-5 scroll-mt-20 lg:grid lg:grid-cols-[15.5rem_minmax(0,1fr)] lg:items-start lg:gap-6">
-      <aside className="lg:sticky lg:top-20"><div className="lg:hidden"><Stepper flow={flow} active={active} onPick={pick} /></div><div className="hidden lg:block"><Stepper vertical flow={flow} active={active} onPick={pick} /><p className="mt-3 px-2 text-xs text-ink-500">Chaque étape ouvre la suivante. Vous pouvez revenir sur une étape terminée à tout moment.</p></div></aside>
-      <div className="min-w-0">
-      {step.status === "locked" ? <LockedPanel step={step} flow={flow} onPick={pick} /> : (<>
-        {active === "parcours" && frame(undefined, <StepParcours ev={ev} />)}
-        {active === "trail" && frame("la distance, le dénivelé, les altitudes et la discipline de chaque course sont repris du parcours choisi.", <>
-          <div className={panel}><h3 className="mb-3 text-base font-bold">L&apos;événement</h3><Infos ev={ev} save={save} /></div>
-          <div><h3 className="mb-3 text-base font-bold">Les courses</h3><Races ev={ev} save={save} /></div>
-          <PrepTab ev={ev} save={save} part="params" />
-          <Fold title="Équipe et rôles" hint="Facultatif : les personnes qui préparent l'événement avec vous."><Team ev={ev} save={save} /></Fold>
-        </>)}
-        {active === "analyse" && frame("nature de chaque épreuve, part de goudron, traversées de routes, départements, catégories d'âge admises, matériel à exiger et dispositif médical recommandé.", <>
-          <AnalyseRunner ev={ev} save={save} />
-          <PrepTab ev={ev} save={save} part="analyse" />
-          <Fold title="Analyse cadastrale et réglementaire" hint="Parcelles traversées, statut des chemins, forêts publiques et zones protégées : pour préparer les demandes d'accord."><AnalysisTab ev={ev} /></Fold>
-        </>)}
-        {active === "documents" && frame("le règlement, le dossier administratif, l'échéancier daté et le dossier de préparation sont rédigés à partir de l'analyse ; les postes sont proposés sur la carte.", <>
-          <DocumentsRunner ev={ev} save={save} />
-          <PrepTab ev={ev} save={save} part="documents" />
-        </>)}
-        {active === "logistique" && frame("départ et arrivée sont placés aux extrémités de chaque parcours, les points d'intérêt des parcours deviennent des postes, d'autres postes peuvent être proposés depuis le parcours ; kilomètres et temps de passage sont calculés. Tout est partagé avec les parcours : rien n'est saisi deux fois.", <>
-          <LogisticsSummary ev={ev} />
-        </>)}
-        {active === "verification" && frame(undefined, <FinalCheck flow={flow} ev={ev} save={save} onPick={pick} />)}
-      </>)}
-      </div></div>
+      <div className="mt-6 grid gap-4">
+        {card("evenement", <div className="rounded-2xl bg-white p-4 ring-1 ring-ink-100 sm:p-5"><Infos ev={ev} save={save} /></div>, [eventDate, ev.place, ev.organizer, ev.visibility === "public" ? "Public" : "Privé"], "Nom, date, lieu, organisateur et présentation : ce que verront les coureurs.")}
+        <SectionCard id="gerer" title="Gérer mon trail" icon={Settings2} status="optional" summary="Publication de l'événement, collection de parcours et équipe d'organisation." facts={[ev.visibility === "public" ? "Événement public" : "Événement privé", ev.collectionId ? "Collection créée" : "Pas de collection", `${ev.team.length} membre(s) d'équipe`]} open={open.has("gerer")} onToggle={() => toggle("gerer")}>
+          <div className="rounded-2xl bg-white p-4 ring-1 ring-ink-100 sm:p-5"><Publication ev={ev} save={save} /></div>
+          <div className="rounded-2xl bg-white p-4 ring-1 ring-ink-100 sm:p-5"><h3 className="mb-3 text-base font-bold">Équipe et rôles</h3><Team ev={ev} save={save} /></div>
+        </SectionCard>
+        {card("parcours", <StepParcours ev={ev} />, [`${routes.length} parcours enregistré(s)`, `${linkedRoutes.length} utilisé(s) par vos courses`])}
+        {card("trail", <><div><h3 className="mb-3 text-base font-bold">Les courses</h3><Races ev={ev} save={save} /></div><PrepTab ev={ev} save={save} part="params" /></>, [...ev.races.map((r) => `${r.label} · ${r.distanceKm} km`), prep.participants ? `${prep.participants} participants attendus` : "Participants à indiquer"], "Une course par parcours : distance, dénivelé et altitudes sont repris du parcours choisi.")}
+        {card("logistique", <LogisticsSummary ev={ev} />, [`${st.posts} poste(s)`, `Bénévoles ${st.covered}/${st.need}`, st.common ? `${st.common} poste(s) commun(s)` : null, ev.posts.some((p) => p.auto) ? `${ev.posts.filter((p) => p.auto).length} proposé(s) à vérifier` : null], "Départ, arrivée, ravitaillements, secours, parkings et bénévoles : placés et ajustés par vous sur la carte.")}
+        {card("analyse", <><GenerationPanel ev={ev} save={save} flow={flow} onOpen={goTo} /><PrepTab ev={ev} save={save} part="analyse" /><Fold title="Analyse cadastrale et réglementaire" hint="Parcelles traversées, statut des chemins, forêts publiques et zones protégées : pour préparer les demandes d'accord."><AnalysisTab ev={ev} /></Fold></>, [prep.docMode === "site" ? "Génération choisie" : prep.docMode === "propres" ? "Documents fournis par vous" : "Génération non choisie", prep.analysedAt ? `Analysé le ${new Date(prep.analysedAt).toLocaleDateString("fr-FR")}` : "Pas encore analysé", prep.departments?.length ? `Départements ${prep.departments.join(", ")}` : null], "Facultatif : le site lit vos parcours et peut générer vos documents. Les organisateurs qui ont déjà les leurs passent directement à la logistique.")}
+        {card("documents", <>{prep.docMode === "propres" ? <p className="rounded-2xl bg-white p-4 text-sm text-ink-700 ring-1 ring-ink-100">Vous utilisez vos propres documents : confirmez simplement ci-dessous qu&apos;ils sont prêts. Les outils ci-dessous restent disponibles si vous voulez vous en servir.<br /><button type="button" className="mt-2 font-semibold text-pine-700 underline" onClick={() => goTo("analyse")}>Faire générer quand même</button></p> : null}<PrepTab ev={ev} save={save} part="documents" /></>, [ev.rules.trim().length > 40 ? "Règlement rédigé" : "Règlement à rédiger", `Dossier ${fileOk}/${fileN}`, prep.docsAt ? "Documents générés" : null], prep.docMode === "propres" ? "Vos propres documents : vous confirmez qu'ils sont prêts." : undefined)}
+        {card("verification", <FinalCheck flow={flow} ev={ev} save={save} onPick={(s) => goTo(s)} />, [`${flow.percent} % prêt`, `${flow.todo.length} à compléter`, `${flow.toValidate.length} à valider`])}
+      </div>
     </div>
   );
 }
@@ -97,7 +111,6 @@ function Infos({ ev, save }: P) {
       <Field l="Lien d'inscription (https://…)"><input className={inp} value={ev.registrationUrl} onChange={(e) => set("registrationUrl", e.target.value)} placeholder="https://" /></Field>
       <div className="md:col-span-2"><Field l="Description"><textarea rows={4} className="rounded-lg border border-ink-200 p-3 text-sm" value={ev.description} onChange={(e) => set("description", e.target.value)} /></Field></div>
       <Field l="Informations pratiques"><textarea rows={5} className="rounded-lg border border-ink-200 p-3 text-sm" value={ev.practical} onChange={(e) => set("practical", e.target.value)} placeholder="Retrait des dossards, parkings, douches…" /></Field>
-      <Publication ev={ev} save={save} />
       <p className="text-xs text-ink-500 md:col-span-2">Enregistrement automatique sur cet appareil.</p>
     </div>
   );

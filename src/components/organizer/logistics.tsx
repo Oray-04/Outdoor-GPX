@@ -487,8 +487,8 @@ export function LogisticsPage({ id }: { id: string }) {
   return (
     <div className="mx-auto max-w-[96rem] px-3 py-5 sm:px-6">
       <Consistency ev={ev} save={save} />
-      <Link href={manageHref(ev.id)} className="inline-flex items-center gap-1.5 text-sm text-ink-500 hover:text-ink-900"><ArrowLeft className="size-4" />{ev.name} — organisation</Link>
-      <header className="mt-2 flex flex-wrap items-end justify-between gap-3"><div className="min-w-0"><p className="eyebrow">Étape 3 · Logistique</p><h1 className="text-3xl sm:text-4xl">Préparation logistique</h1>
+      <Link href={`${manageHref(ev.id)}#rubrique-logistique`} className="inline-flex items-center gap-1.5 text-sm text-ink-500 hover:text-ink-900"><ArrowLeft className="size-4" />{ev.name} — organisation</Link>
+      <header className="mt-2 flex flex-wrap items-end justify-between gap-3"><div className="min-w-0"><p className="eyebrow">Organisation Trail · Logistique</p><h1 className="text-3xl sm:text-4xl">Préparation logistique</h1>
         <p className="mt-1 max-w-3xl text-sm text-ink-600">Départ et arrivée sont pris aux extrémités de chaque parcours ; les points d&apos;intérêt du parcours (ravitaillements, eau, secours, parkings, passages…) sont repris d&apos;eux-mêmes. Ajoutez, déplacez ou supprimez : le parcours est mis à jour en même temps.</p></div>
         <Tabs label="Logistique" value={sub} onChange={setSub} items={[["postes", `Carte et postes (${ev.posts.length})`], ["benevoles", `Bénévoles (${ev.volunteers.length})`], ["passages", "Temps de passage"]]} /></header>
       <div className="mt-4">

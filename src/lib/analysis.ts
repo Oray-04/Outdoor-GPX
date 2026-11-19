@@ -1,5 +1,6 @@
 import type { LL } from "./types";
 import { cumulative, haversine, simplifyIndices } from "./geo";
+import { isTransient, readJson } from "./http";
 
 /**
  * Analyse cadastrale et réglementaire d'un tracé (aide à la préparation d'un événement).
@@ -114,14 +115,23 @@ const CARTO = "https://apicarto.ign.fr/api/cadastre/parcelle";
 const WFS = "https://data.geopf.fr/wfs/ows";
 const wkt = (l: LL[]) => `SRID=4326;LINESTRING(${l.map((p) => `${p[0].toFixed(6)} ${p[1].toFixed(6)}`).join(",")})`;
 
+/** Nom lisible du service interrogé, pour les messages. */
+const serviceName = (url: string) => (url.includes("apicarto") ? "Le service du cadastre (API Carto)" : url.includes("geopf") ? "Le service de la Géoplateforme (IGN)" : url.includes("waymarked") ? "Le service des itinéraires balisés" : "Le service");
+
+/**
+ * Appel JSON avec trois essais. Une réponse qui n'est pas des données (page de métriques « # HELP jmx… », page HTML d'erreur…)
+ * est traitée comme une panne passagère : nouvel essai, puis erreur claire (jamais « Unexpected token … is not valid JSON »).
+ */
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
+  let last: Error | null = null;
   for (let a = 0; a < 3; a++) {
+    if (a) await new Promise((ok) => setTimeout(ok, 700 * a));
     const r = await fetch(url, { signal });
-    if (r.ok) return (await r.json()) as T;
-    if (r.status === 429 || r.status >= 500) { await new Promise((ok) => setTimeout(ok, 700 * (a + 1))); continue; }
-    throw new Error(`Service indisponible (${r.status})`);
+    if (r.ok) { try { return await readJson<T>(r, serviceName(url)); } catch (e) { last = e as Error; continue; } }
+    if (isTransient(null, r.status)) { last = new Error(`${serviceName(url)} est momentanément indisponible (${r.status}).`); continue; }
+    throw new Error(`${serviceName(url)} a refusé la requête (${r.status}).`);
   }
-  throw new Error("Service indisponible : réessayez dans un instant.");
+  throw last ?? new Error("Service indisponible : réessayez dans un instant.");
 }
 
 /**
