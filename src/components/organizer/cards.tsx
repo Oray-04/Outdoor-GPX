@@ -1,5 +1,5 @@
 "use client";
-import { ChevronDown, Check, Lock, CircleDashed, Sparkles, FileText, ScanSearch, CalendarClock, ClipboardList, FileDown, Signpost, ShieldCheck, CircleAlert } from "lucide-react";
+import { ChevronDown, Check, Lock, CircleDashed, Sparkles, FileText, ScanSearch, CalendarClock, ClipboardList, FileDown, ShieldCheck, CircleAlert } from "lucide-react";
 import clsx from "clsx";
 import { ValidateBox, AnalyseRunner, DocumentsRunner, type Save } from "./flow";
 import type { Flow, FlowItem, FlowStep } from "@/lib/trail-flow";
@@ -92,10 +92,8 @@ export function GenerationPanel({ ev, save, flow, onOpen }: { ev: EventModel; sa
   const setMode = (m: "site" | "propres" | undefined) => save((e) => ({ ...e, prep: { ...(e.prep ?? {}), docMode: m } }));
   const file = adminFile(ev, prep), fileOk = file.filter((f) => f.ok).length, ph = placeholders(ev.rules);
   const late = /^\d{4}-\d{2}-\d{2}$/.test(ev.date) ? timeline(ev.date, !!prep.multiDept).length : 0;
-  const signals = ev.posts.filter((p) => p.kind === "signaleur").length;
   const rows: { id: string; icon: typeof Check; title: string; what: string; state: Gen; detail?: string }[] = [
     { id: "analyse", icon: ScanSearch, title: "Analyse des parcours", what: "Goudron, chemins, traversées de routes, départements traversés", state: prep.analysedAt ? "genere" : "a-generer", detail: prep.analysedAt ? `le ${new Date(prep.analysedAt).toLocaleDateString("fr-FR")}${prep.departments?.length ? ` · départements ${prep.departments.join(", ")}` : ""}` : undefined },
-    { id: "signaleurs", icon: Signpost, title: "Signaleurs aux traversées", what: "Postes proposés sur la carte de la logistique", state: !prep.analysedAt ? "indisponible" : signals ? "genere" : "a-generer", detail: !prep.analysedAt ? "après l'analyse des parcours" : signals ? `${signals} poste(s) de signaleur` : undefined },
     { id: "reglement", icon: FileText, title: "Règlement", what: "Rédigé à partir de vos courses et de l'analyse", state: ev.rules.trim().length < 40 ? "a-generer" : ph ? "a-completer" : "genere", detail: ev.rules.trim().length >= 40 && ph ? `${ph} mention(s) entre crochets à compléter` : undefined },
     { id: "dossier", icon: ClipboardList, title: "Dossier administratif", what: "Pièces à réunir pour la mairie ou la préfecture", state: !prep.docsAt ? "a-generer" : fileOk < file.length ? "a-completer" : "genere", detail: prep.docsAt ? `${fileOk}/${file.length} pièce(s) prête(s)` : undefined },
     { id: "echeancier", icon: CalendarClock, title: "Échéancier", what: "Les échéances datées jusqu'au jour J", state: !/^\d{4}-\d{2}-\d{2}$/.test(ev.date) ? "a-completer" : prep.docsAt ? "genere" : "a-generer", detail: /^\d{4}-\d{2}-\d{2}$/.test(ev.date) ? `${late} échéance(s)` : "date de l'événement à renseigner" },

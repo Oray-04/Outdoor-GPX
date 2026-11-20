@@ -56,7 +56,7 @@ export function trailFlow(ev: EventModel, routeIds: string[], today: string): Fl
     trail: [
       item("trail", "t:course", "Au moins une course", ev.races.length > 0, "Ajoutez une course en choisissant son parcours."),
       item("trail", "t:liees", "Chaque course a son parcours", allLinked, ev.races.length ? "Une course n'a pas ou plus de parcours : choisissez-en un." : undefined),
-      item("trail", "t:effectif", "Nombre de participants attendus", (prep.participants ?? 0) > 0, "Il dimensionne les secours et le dossier administratif."),
+      item("trail", "t:effectif", "Participants prévus pour chaque course", ev.races.length > 0 && (ev.races.every((r) => (r.participants ?? 0) > 0) || (!ev.races.some((r) => r.participants) && (prep.participants ?? 0) > 0)), "Indiquez l'effectif de chaque course : il dimensionne les secours, le dossier administratif et les besoins de chaque poste."),
     ],
     analyse: opt([
       item("analyse", "a:lancee", "Analyse des parcours lancée", !!prep.analysedAt, "Un clic : le site mesure goudron, routes traversées et départements."),

@@ -1,6 +1,6 @@
 "use client";
 import type { StyleSpecification } from "maplibre-gl";
-import { POST_KINDS, POST_STATUS, postNumbers, postRaceIds, postStatus, postsOfRace, staffing, volunteersAt, type EventModel, type PassageRow, type Post, type PostKind, type Race, type Volunteer } from "./events";
+import { POST_KINDS, POST_STATUS, postNumbers, postRaceIds, postStatus, postsOfRace, runnersAt, staffing, volunteersAt, type EventModel, type PassageRow, type Post, type PostKind, type Race, type Volunteer } from "./events";
 import type { Pt } from "./types";
 import { snapshotMap } from "./map-snapshot";
 import { C, T, footers, header, newDoc, numBadge, pageH, pageW, pinIcon, pinIconRotated, placePin, placePinRotated, rgb, rotateAt, sectionTitle, statusDot, table, type Cell } from "./pdf-kit";
@@ -13,7 +13,7 @@ const SOURCE = "Fond de carte : © IGN – Géoplateforme · © contributeurs Op
 const dateFr = (d: string) => (/^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(`${d}T12:00:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "Date à préciser");
 const kmFr = (k: number) => k.toFixed(1).replace(".", ",");
 const hh = (h: number) => `${Math.floor(h)}h${String(Math.round((h % 1) * 60)).padStart(2, "0")}`;
-const raceLine = (r: Race) => `${kmFr(r.distanceKm)} km · ${r.gainM} m D+ · départ ${r.startTime}`;
+const raceLine = (r: Race) => `${kmFr(r.distanceKm)} km · ${r.gainM} m D+ · départ ${r.startTime}${r.participants ? ` · ${r.participants} coureurs` : ""}`;
 const raceLabels = (ev: EventModel, p: Post) => postRaceIds(p).map((id) => ev.races.find((r) => r.id === id)?.label ?? "?");
 const kmOn = (p: Post, raceId: string) => (p.raceId === raceId ? p.km : p.shared?.find((s) => s.raceId === raceId)?.km ?? p.km);
 const ROUTE_COLOR = "#f0612b";
@@ -148,7 +148,7 @@ export async function volunteersPdf(ev: EventModel, vols: Volunteer[], routes: R
       d.setFontSize(9); const races = postRaceIds(p);
       d.text(T(races.map((r) => `${ev.races.find((x) => x.id === r)?.label ?? "?"} : km ${kmFr(kmOn(p, r))}`).join("   ·   ")), 32, y + 19.5);
       d.text(T([`Horaires : ${v.from || "?"} – ${v.to || "?"}`, p.cutoffH != null ? `Barrière horaire : ${hh(p.cutoffH)} après le départ` : "", p.lat != null ? `GPS : ${p.lat.toFixed(5)}, ${p.lng!.toFixed(5)}` : ""].filter(Boolean).join("   ·   ")), 32, y + 25.5);
-      d.setFontSize(7.5); d.setTextColor(...rgb(status!.color)); d.text(T(`Équipe : ${volunteersAt(ev, p.id).length}/${p.staffNeeded} — ${status!.label}`), 32, y + 30.5); d.setTextColor(...rgb(C.ink));
+      d.setFontSize(7.5); d.setTextColor(...rgb(status!.color)); d.text(T(`Équipe : ${volunteersAt(ev, p.id).length}/${p.staffNeeded} — ${status!.label}${runnersAt(ev, p) ? `   ·   environ ${runnersAt(ev, p)} coureurs attendus` : ""}`), 32, y + 30.5); d.setTextColor(...rgb(C.ink));
     } else { d.setFontSize(12); d.text(T("Non affecté à un poste pour l'instant."), 20, y + 15); d.setFontSize(9); d.text(T(`Horaires : ${v.from || "?"} – ${v.to || "?"}`), 20, y + 22); }
     y += boxH + 6;
     // mini-carte du poste

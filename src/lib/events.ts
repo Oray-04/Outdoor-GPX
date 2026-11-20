@@ -19,7 +19,7 @@ export const POST_KINDS: Record<PostKind, { label: string; color: string; letter
 export const POST_ICON: Record<PostKind, import("./types").PoiType | "start" | "finish"> = { depart: "start", arrivee: "finish", ravito: "ravito", eau: "eau", controle: "controle", secours: "secours", signaleur: "danger", parking: "parking", vue: "vue" };
 export const POST_COLOR: Record<PostKind, string> = { depart: "#1e7a58", arrivee: "#0d1b17", ravito: "#d9622b", eau: "#1f8fbf", controle: "#6b4bc4", secours: "#cf2a35", signaleur: "#b8862b", parking: "#2b4a8c", vue: "#1d7a5a" };
 
-export interface Race { id: string; label: string; sport: Sport; distanceKm: number; gainM: number; startTime: string; maxHours: number; routeId?: string; fee?: string; /** repris du parcours lié */ lossM?: number; minEle?: number; maxEle?: number }
+export interface Race { id: string; label: string; sport: Sport; distanceKm: number; gainM: number; startTime: string; maxHours: number; routeId?: string; fee?: string; /** participants prévus sur cette course */ participants?: number; /** repris du parcours lié */ lossM?: number; minEle?: number; maxEle?: number }
 
 /** Valeurs d'une course reprises du parcours lié (jamais saisies à la main) : distance, dénivelés, altitudes. */
 export function raceFactsFromRoute(coords: Pt[]): Pick<Race, "distanceKm" | "gainM" | "lossM" | "minEle" | "maxEle"> {
@@ -91,6 +91,26 @@ export function postLabel(ev: Pick<EventModel, "races" | "posts">, p: Post, with
   return `Poste ${x?.n ?? "?"} — ${p.name || POST_KINDS[p.kind].label} (km ${String(+p.km.toFixed(1)).replace(".", ",")})${withRace && x?.race ? ` · ${[x.race.label, ...common].join(" + ")}` : ""}`;
 }
 export const volunteersAt = (ev: Pick<EventModel, "volunteers">, postId: string) => ev.volunteers.filter((v) => v.postId === postId);
+/**
+ * Participants attendus sur l'événement : somme des effectifs saisis par course ; à défaut (anciens événements),
+ * l'effectif global saisi auparavant.
+ */
+export function totalParticipants(ev: Pick<EventModel, "races" | "prep">, prep: { participants?: number } | undefined = ev.prep): number | undefined {
+  const per = ev.races.map((r) => r.participants).filter((n): n is number => n != null && n > 0);
+  return per.length ? per.reduce((s, n) => s + n, 0) : prep?.participants || undefined;
+}
+/** Déplace une course à la position `to` (0 = première) : l'ordre des courses est celui de tout l'espace organisateur. */
+export function moveRace<E extends Pick<EventModel, "races">>(ev: E, raceId: string, to: number): E {
+  const from = ev.races.findIndex((r) => r.id === raceId); if (from < 0) return ev;
+  const t = Math.max(0, Math.min(ev.races.length - 1, to)); if (t === from) return ev;
+  const races = [...ev.races]; const [r] = races.splice(from, 1); races.splice(t, 0, r);
+  return { ...ev, races };
+}
+/** Coureurs attendus à un poste : somme des effectifs des courses qui y passent (poste commun compris) ; null si aucun effectif n'est connu. */
+export function runnersAt(ev: Pick<EventModel, "races">, p: Post): number | null {
+  const ns = postRaceIds(p).map((id) => ev.races.find((r) => r.id === id)?.participants).filter((n): n is number => n != null && n > 0);
+  return ns.length ? ns.reduce((s, n) => s + n, 0) : null;
+}
 /** État d'un poste : complet, partiellement pourvu, à pourvoir, ou sans besoin de bénévoles. */
 export type PostStatus = "complet" | "partiel" | "vide" | "aucun";
 export const POST_STATUS: Record<PostStatus, { label: string; color: string; tone: string }> = {

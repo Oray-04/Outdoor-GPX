@@ -1,11 +1,11 @@
-import { POST_KINDS, postNumbers, postRaceIds, postStatus, POST_STATUS, type EventModel } from "./events";
+import { POST_KINDS, postNumbers, postRaceIds, postStatus, POST_STATUS, runnersAt, type EventModel } from "./events";
 
 /**
  * Liste des bénévoles au format CSV, prête pour Excel (version française) :
  * séparateur « ; », encodage UTF-8 avec BOM (accents corrects), fins de ligne CRLF, champs entre guillemets si besoin.
  * Une ligne par bénévole ; un poste commun à plusieurs courses liste toutes ses courses (le bénévole n'est compté qu'une fois).
  */
-export const CSV_COLUMNS = ["Nom", "Téléphone", "E-mail", "Horaires (début)", "Horaires (fin)", "Poste n°", "Poste", "Type de poste", "Course(s)", "Km", "Barrière horaire", "Consignes du bénévole", "Consignes du poste", "État du poste", "Latitude", "Longitude"] as const;
+export const CSV_COLUMNS = ["Nom", "Téléphone", "E-mail", "Horaires (début)", "Horaires (fin)", "Poste n°", "Poste", "Type de poste", "Course(s)", "Km", "Barrière horaire", "Coureurs attendus au poste", "Consignes du bénévole", "Consignes du poste", "État du poste", "Latitude", "Longitude"] as const;
 
 const cell = (v: string | number | undefined | null) => {
   const s = v == null ? "" : String(v);
@@ -25,9 +25,9 @@ export function volunteersCsv(ev: EventModel): string {
     return a.name.localeCompare(b.name, "fr");
   }).map((v) => {
     const p = ev.posts.find((x) => x.id === v.postId);
-    if (!p) return [v.name, v.phone, v.email ?? "", v.from, v.to, "", "Non affecté", "", "", "", "", v.instructions, "", "", "", ""];
+    if (!p) return [v.name, v.phone, v.email ?? "", v.from, v.to, "", "Non affecté", "", "", "", "", "", v.instructions, "", "", "", ""];
     const races = postRaceIds(p), kms = races.map((rid) => (rid === p.raceId ? p.km : p.shared?.find((s) => s.raceId === rid)?.km));
-    return [v.name, v.phone, v.email ?? "", v.from, v.to, nums.get(p.id)?.n ?? "", p.name, POST_KINDS[p.kind].label, races.map(raceLabel).join(" + "), races.length > 1 ? kms.map((k) => num(k)).join(" / ") : num(p.km), hours(p.cutoffH), v.instructions, p.note, POST_STATUS[postStatus(ev, p)].label, p.lat != null ? p.lat.toFixed(6) : "", p.lng != null ? p.lng.toFixed(6) : ""];
+    return [v.name, v.phone, v.email ?? "", v.from, v.to, nums.get(p.id)?.n ?? "", p.name, POST_KINDS[p.kind].label, races.map(raceLabel).join(" + "), races.length > 1 ? kms.map((k) => num(k)).join(" / ") : num(p.km), hours(p.cutoffH), runnersAt(ev, p) ?? "", v.instructions, p.note, POST_STATUS[postStatus(ev, p)].label, p.lat != null ? p.lat.toFixed(6) : "", p.lng != null ? p.lng.toFixed(6) : ""];
   });
   return "﻿" + [CSV_COLUMNS as readonly string[], ...rows].map((r) => r.map(cell).join(";")).join("\r\n") + "\r\n";
 }

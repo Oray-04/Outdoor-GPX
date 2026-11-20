@@ -97,3 +97,36 @@ describe("orientation d'un marqueur de poste", () => {
     expect(e2.posts.find((p) => p.kind === "depart" && p.raceId === "10")!.rotation).toBe(30);
   });
 });
+
+import { moveRace, totalParticipants, runnersAt } from "../src/lib/events";
+import { trailFlow } from "../src/lib/trail-flow";
+import { adminFile } from "../src/lib/race-prep";
+describe("ordre des courses et effectifs par course", () => {
+  it("réordonner : le 40 km en premier, le 20 km ensuite, le 10 km en dernier ; bornes respectées", () => {
+    const ev = base(); expect(ev.races.map((r) => r.id)).toEqual(["10", "20", "40"]);
+    const e1 = moveRace(moveRace(ev, "40", 0), "20", 1); expect(e1.races.map((r) => r.id)).toEqual(["40", "20", "10"]);
+    expect(moveRace(ev, "10", -3).races.map((r) => r.id)).toEqual(["10", "20", "40"]); expect(moveRace(ev, "10", 99).races.map((r) => r.id)).toEqual(["20", "40", "10"]);
+    expect(moveRace(ev, "inconnu", 0)).toBe(ev);
+  });
+  it("total = somme des courses ; à défaut, l'ancien effectif global", () => {
+    const ev = base(); expect(totalParticipants({ ...ev, prep: { participants: 300 } })).toBe(300);
+    const per = { ...ev, races: ev.races.map((r, i) => ({ ...r, participants: [120, 200, 80][i] })), prep: { participants: 999 } };
+    expect(totalParticipants(per)).toBe(400);
+    expect(adminFile(per, per.prep).find((f) => f.id === "participants")!.detail).toMatch(/400 attendus/);
+  });
+  it("coureurs attendus à un poste : somme des courses qui y passent (poste commun compris)", () => {
+    let ev = syncEvent({ ...base(), races: base().races.map((r, i) => ({ ...r, participants: [120, 200, 80][i] })) }, routes).ev;
+    const ids = commonCandidates(ev)[0].map((p) => p.id); ev = syncEvent(mergeEndpoints(ev, ids), routes).ev;
+    const dep = ev.posts.find((p) => p.kind === "depart")!, arr40 = ev.posts.find((p) => p.kind === "arrivee" && p.raceId === "40")!;
+    expect(runnersAt(ev, dep)).toBe(400); expect(runnersAt(ev, arr40)).toBe(80);
+    expect(runnersAt(base(), { ...dep, raceId: "10", shared: undefined })).toBeNull();
+    expect(volunteersCsv({ ...ev, volunteers: [vol("a", "Ana", dep.id)] })).toMatch(/Départ;[^\r\n]*;400;/);
+  });
+  it("rubrique « Votre trail » : terminée quand chaque course a son effectif", () => {
+    const ev = { ...base(), races: base().races.map((r) => ({ ...r, participants: 100 })) }, ids = ["R10", "R20", "R40"];
+    const done = (e: EventModel) => trailFlow(e, ids, "2026-11-20").steps.find((s) => s.id === "trail")!.items.find((x) => x.id === "t:effectif")!.state;
+    expect(done(ev)).toBe("done");
+    expect(done({ ...ev, races: ev.races.map((r, i) => (i === 1 ? { ...r, participants: undefined } : r)) })).toBe("todo");
+    expect(done({ ...base(), prep: { participants: 300 } })).toBe("done"); // ancien événement : effectif global
+  });
+});

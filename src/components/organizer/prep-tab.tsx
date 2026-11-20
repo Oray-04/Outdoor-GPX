@@ -7,7 +7,7 @@ import { routesRepo } from "@/lib/repo";
 import { ROAD_CLASS_LABEL } from "@/lib/routing";
 import { download, safeName } from "@/lib/formats";
 import { prepPdf } from "@/lib/pdf";
-import type { EventModel } from "@/lib/events";
+import { totalParticipants, type EventModel } from "@/lib/events";
 import type { LL } from "@/lib/types";
 import { BUDGET_LINES, EMERGENCY_NUMBERS, EMERGENCY_PROCEDURE, PREP_NOTICE, SITE_SIGNS, adminFile, ageCategories, budgetTotal, classify, departmentsAlong, logisticsChecks, mandatoryGear, medicalPlan, prepReport, raceDay, rulesDraft, timeline, type Prep } from "@/lib/race-prep";
 
@@ -31,7 +31,8 @@ export function PrepTab({ ev, save, part }: { ev: EventModel; save: (fn: (e: Eve
   const tasks = useMemo(() => timeline(ev.date, !!prep.multiDept), [ev.date, prep.multiDept]);
   const file = adminFile(ev, prep);
   const draft = useMemo(() => rulesDraft(ev, prep), [ev, prep]); // eslint-disable-line react-hooks/exhaustive-deps
-  const med = prep.participants ? medicalPlan(prep.participants, maxKm) : null;
+  const total = totalParticipants(ev), perRace = ev.races.some((r) => (r.participants ?? 0) > 0);
+  const med = total ? medicalPlan(total, maxKm) : null;
   const today = todayISO();
   const linked = ev.races.filter((r) => r.routeId && routes.some((x) => x.id === r.routeId));
 
@@ -46,9 +47,10 @@ export function PrepTab({ ev, save, part }: { ev: EventModel; save: (fn: (e: Eve
 
       {part === "params" && (
       <section className={card} aria-labelledby="prep-params">
-        <h2 id="prep-params" className="text-lg font-bold">Effectifs et conditions</h2><p className="text-sm text-ink-500">Quatre informations que le site ne peut pas deviner. Elles dimensionnent les secours, le matériel et le dossier administratif.</p>
+        <h2 id="prep-params" className="text-lg font-bold">Effectifs et conditions</h2><p className="text-sm text-ink-500">Les informations que le site ne peut pas deviner. Elles dimensionnent les secours, le matériel et le dossier administratif.</p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <label className="grid gap-1 text-sm font-medium"><span>Participants attendus <span className="text-danger" aria-hidden="true">*</span></span><input type="number" min={0} required className={inp} value={prep.participants ?? ""} onChange={(e) => set({ participants: e.target.value === "" ? undefined : Math.max(0, +e.target.value) })} placeholder="ex. 300" /></label>
+          {perRace ? <div className="grid gap-1 text-sm font-medium"><span>Participants attendus</span><span className="flex h-10 items-center rounded-lg bg-ink-50 px-3 font-display text-base font-bold" data-total-participants>{total}</span><span className="text-xs font-normal text-ink-500">Somme des effectifs des courses ({ev.races.filter((r) => r.participants).map((r) => `${r.label} ${r.participants}`).join(" + ")})</span></div>
+            : <label className="grid gap-1 text-sm font-medium"><span>Participants attendus <span className="text-danger" aria-hidden="true">*</span></span><input type="number" min={0} required className={inp} value={prep.participants ?? ""} onChange={(e) => set({ participants: e.target.value === "" ? undefined : Math.max(0, +e.target.value) })} placeholder="ex. 300" /><span className="text-xs font-normal text-ink-500">Ou indiquez l&apos;effectif de chaque course ci-dessus : le total se calcule seul.</span></label>}
           <label className="grid gap-1 text-sm font-medium">Spectateurs attendus<input type="number" min={0} className={inp} value={prep.spectators ?? ""} onChange={(e) => set({ spectators: e.target.value === "" ? undefined : Math.max(0, +e.target.value) })} placeholder="ex. 200" /></label>
           <label className="flex items-center gap-2 self-end rounded-lg border border-ink-200 px-3 py-2.5 text-sm"><input type="checkbox" className="size-4 accent-[var(--color-pine-600)]" checked={!!prep.night} onChange={(e) => set({ night: e.target.checked })} />Une partie se court de nuit</label>
           <label className="flex items-center gap-2 self-end rounded-lg border border-ink-200 px-3 py-2.5 text-sm"><input type="checkbox" className="size-4 accent-[var(--color-pine-600)]" checked={!!prep.multiDept} onChange={(e) => set({ multiDept: e.target.checked })} />Traverse plusieurs départements{prep.departments?.length ? <span className="text-xs text-ink-500">(détecté : {prep.departments.join(", ")})</span> : null}</label>

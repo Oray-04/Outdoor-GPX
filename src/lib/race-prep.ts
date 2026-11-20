@@ -1,5 +1,5 @@
 import type { EventModel, Post, Race } from "./events";
-import { clockAt, postsOfRace } from "./events";
+import { clockAt, postsOfRace, totalParticipants } from "./events";
 import { estimateMinutes } from "./sports";
 import type { LL } from "./types";
 import { readJson } from "./http";
@@ -173,7 +173,7 @@ export function adminFile(ev: EventModel, prep: Prep): FileItem[] {
   return [
     auto("date", "Date et lieu de l'épreuve", Boolean(ev.date && ev.place), ev.date && ev.place ? `${ev.date} · ${ev.place}` : "À saisir dans l'onglet Infos"),
     auto("nature", "Nature de l'épreuve", ev.races.length > 0, ev.races.length ? ev.races.map((r) => `${r.label} : ${classify(r.distanceKm).label}`).join(" · ") : "Ajoutez au moins une course"),
-    auto("participants", "Nombre de participants", (prep.participants ?? 0) > 0, prep.participants ? `${prep.participants} attendus` : "À indiquer ci-dessus"),
+    auto("participants", "Nombre de participants", (totalParticipants(ev, prep) ?? 0) > 0, totalParticipants(ev, prep) ? `${totalParticipants(ev, prep)} attendus${ev.races.some((r) => r.participants) ? ` (${ev.races.filter((r) => r.participants).map((r) => `${r.label} : ${r.participants}`).join(", ")})` : ""}` : "À indiquer pour chaque course"),
     auto("spectateurs", "Nombre de spectateurs", prep.spectators != null, prep.spectators != null ? `${prep.spectators} attendus` : "À indiquer ci-dessus"),
     auto("association", "Nom de la structure organisatrice", Boolean(ev.organizer), ev.organizer || "À saisir dans l'onglet Infos"),
     manual("coordonnees", "Coordonnées de l'organisateur (adresse, téléphone, courriel)"),
@@ -265,7 +265,7 @@ export function prepReport(ev: EventModel, prep: Prep): ReportSection[] {
       ...logisticsChecks(ev, r, c).map((k) => `${k.level === "warn" ? "À traiter" : k.level === "ok" ? "OK" : "Note"} : ${k.text}`),
     ] });
   }
-  if (prep.participants) { const m = medicalPlan(prep.participants, maxKm); out.push({ title: `Dispositif médical — ${m.level}`, lines: [...m.items, "Composition conseillée de l'équipe : " + m.team.join(" ; ") + "."] }); }
+  const tot = totalParticipants(ev, prep); if (tot) { const m = medicalPlan(tot, maxKm); out.push({ title: `Dispositif médical — ${m.level}`, lines: [...m.items, "Composition conseillée de l'équipe : " + m.team.join(" ; ") + "."] }); }
   out.push({ title: "Échéancier", lines: timeline(ev.date, !!prep.multiDept).map((t) => `${t.due ? frDate(t.due) : t.when}${t.indicative ? " (indicatif)" : ""} — ${t.label}${(prep.done ?? []).includes(`t:${t.id}`) ? " [fait]" : ""}`) });
   out.push({ title: "Dossier administratif", lines: adminFile(ev, prep).map((f) => `[${f.ok ? "x" : " "}] ${f.label}${f.detail ? ` — ${f.detail}` : ""}`) });
   if (budgetTotal(prep.budget) > 0) out.push({ title: "Budget prévisionnel", lines: [...BUDGET_LINES.filter((l) => prep.budget?.[l.id]).map((l) => `${l.label} : ${prep.budget![l.id]} €`), `Total : ${budgetTotal(prep.budget)} €`] });

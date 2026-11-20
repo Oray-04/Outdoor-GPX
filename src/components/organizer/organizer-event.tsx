@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { collectionsRepo, eventsRepo, routesRepo } from "@/lib/repo";
 import { cloudEnabled } from "@/lib/cloud";
 import { collectionHref, editorHref } from "@/lib/url";
-import { ROLES, raceFactsFromRoute, staffing, type EventModel, type Member, type Race, type Role } from "@/lib/events";
+import { ROLES, moveRace, raceFactsFromRoute, staffing, totalParticipants, type EventModel, type Member, type Race, type Role } from "@/lib/events";
 import { SPORTS, estimateMinutes, type Sport } from "@/lib/sports";
 import { fmtDuration } from "@/lib/geo";
 import { uid } from "@/lib/types";
@@ -83,7 +83,7 @@ function Workspace({ ev }: { ev: EventModel }) {
           <div className="rounded-2xl bg-white p-4 ring-1 ring-ink-100 sm:p-5"><h3 className="mb-3 text-base font-bold">Équipe et rôles</h3><Team ev={ev} save={save} /></div>
         </SectionCard>
         {card("parcours", <StepParcours ev={ev} />, [`${routes.length} parcours enregistré(s)`, `${linkedRoutes.length} utilisé(s) par vos courses`])}
-        {card("trail", <><div><h3 className="mb-3 text-base font-bold">Les courses</h3><Races ev={ev} save={save} /></div><PrepTab ev={ev} save={save} part="params" /></>, [...ev.races.map((r) => `${r.label} · ${r.distanceKm} km`), prep.participants ? `${prep.participants} participants attendus` : "Participants à indiquer"], "Une course par parcours : distance, dénivelé et altitudes sont repris du parcours choisi.")}
+        {card("trail", <><div><h3 className="mb-3 text-base font-bold">Les courses</h3><Races ev={ev} save={save} /></div><PrepTab ev={ev} save={save} part="params" /></>, [...ev.races.map((r) => `${r.label} · ${String(r.distanceKm).replace(".", ",")} km${r.participants ? ` · ${r.participants} part.` : ""}`), totalParticipants(ev) ? `${totalParticipants(ev)} participants au total` : "Participants à indiquer"], "Une course par parcours : distance, dénivelé et altitudes sont repris du parcours choisi.")}
         {card("logistique", <LogisticsSummary ev={ev} />, [`${st.posts} poste(s)`, `Bénévoles ${st.covered}/${st.need}`, st.common ? `${st.common} poste(s) commun(s)` : null, ev.posts.some((p) => p.auto) ? `${ev.posts.filter((p) => p.auto).length} proposé(s) à vérifier` : null], "Départ, arrivée, ravitaillements, secours, parkings et bénévoles : placés et ajustés par vous sur la carte.", true)}
         {card("analyse", <><GenerationPanel ev={ev} save={save} flow={flow} onOpen={goTo} /><PrepTab ev={ev} save={save} part="analyse" /><Fold title="Analyse cadastrale et réglementaire" hint="Parcelles traversées, statut des chemins, forêts publiques et zones protégées : pour préparer les demandes d'accord."><AnalysisTab ev={ev} /></Fold></>, [prep.docMode === "site" ? "Génération choisie" : prep.docMode === "propres" ? "Documents fournis par vous" : "Génération non choisie", prep.analysedAt ? `Analysé le ${new Date(prep.analysedAt).toLocaleDateString("fr-FR")}` : "Pas encore analysé", prep.departments?.length ? `Départements ${prep.departments.join(", ")}` : null], "Facultatif : le site lit vos parcours et peut générer vos documents. Les organisateurs qui ont déjà les leurs passent directement à la logistique.")}
         {card("documents", <>{prep.docMode === "propres" ? <p className="rounded-2xl bg-white p-4 text-sm text-ink-700 ring-1 ring-ink-100">Vous utilisez vos propres documents : confirmez simplement ci-dessous qu&apos;ils sont prêts. Les outils ci-dessous restent disponibles si vous voulez vous en servir.<br /><button type="button" className="mt-2 font-semibold text-pine-700 underline" onClick={() => goTo("analyse")}>Faire générer quand même</button></p> : null}<PrepTab ev={ev} save={save} part="documents" /></>, [ev.rules.trim().length > 40 ? "Règlement rédigé" : "Règlement à rédiger", `Dossier ${fileOk}/${fileN}`, prep.docsAt ? "Documents générés" : null], prep.docMode === "propres" ? "Vos propres documents : vous confirmez qu'ils sont prêts." : undefined)}
@@ -165,14 +165,36 @@ function Races({ ev, save }: P) {
     setRouteId(""); setLabel(""); setTried(false);
   };
   const link = (raceId: string, id: string) => { const r = routes.find((x) => x.id === id); if (r) upd(raceId, { routeId: id, sport: r.sport, ...raceFactsFromRoute(r.coords) }); };
+  // ordre des courses : flèches ou glisser-déposer (poignée), enregistré dans l'événement
+  const move = (id: string, to: number) => save((e) => moveRace(e, id, to));
+  const [armed, setArmed] = useState<string | null>(null); const [over, setOver] = useState<string | null>(null);
+  /** Glisser-déposer par la poignée (souris et doigt) : la course est déposée à la place de celle survolée. */
+  const startDrag = (e: React.PointerEvent, id: string) => {
+    e.preventDefault(); setArmed(id); let target: string | null = null;
+    // défilement automatique près des bords de la fenêtre : on peut déposer sur une course hors de l'écran
+    let lastY = 0, raf = 0;
+    const scroll = () => { const edge = 70, v = lastY < edge ? -(edge - lastY) / 3 : lastY > innerHeight - edge ? (lastY - (innerHeight - edge)) / 3 : 0; if (v) window.scrollBy(0, v); raf = requestAnimationFrame(scroll); };
+    raf = requestAnimationFrame(scroll);
+    const onMove = (m: PointerEvent) => { lastY = m.clientY; const a = (document.elementFromPoint(m.clientX, m.clientY) as HTMLElement | null)?.closest<HTMLElement>("article[data-race]"); target = a?.dataset.race && a.dataset.race !== id ? a.dataset.race : null; setOver(target); };
+    const onUp = () => { cancelAnimationFrame(raf); window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); window.removeEventListener("pointercancel", onUp); if (target) { const to = (eventsRepo.get(ev.id) ?? ev).races.findIndex((r) => r.id === target); if (to >= 0) move(id, to); } setArmed(null); setOver(null); };
+    window.addEventListener("pointermove", onMove); window.addEventListener("pointerup", onUp); window.addEventListener("pointercancel", onUp);
+  };
   const stat = (l: string, v: string) => <div><dt className="text-[11px] font-semibold uppercase tracking-wide text-ink-500">{l}</dt><dd className="font-display text-base font-bold">{v}</dd></div>;
   const facts = (f: Pick<Race, "distanceKm" | "gainM" | "lossM" | "minEle" | "maxEle">, sport: Sport) => <dl className="flex flex-wrap gap-x-6 gap-y-2">{stat("Distance", `${String(f.distanceKm).replace(".", ",")} km`)}{stat("D+", `${f.gainM} m`)}{f.lossM != null && stat("D−", `${f.lossM} m`)}{f.minEle != null && stat("Alt. min", `${f.minEle} m`)}{f.maxEle != null && stat("Alt. max", `${f.maxEle} m`)}{stat("Durée médiane estimée", fmtDuration(estimateMinutes(sport, f.distanceKm * 1000, f.gainM)))}</dl>;
   return (
     <div className="grid gap-4">
-      {ev.races.map((r) => {
+      {ev.races.length > 1 && <p className="text-xs text-ink-500">L&apos;ordre des courses ci-dessous est repris dans toute l&apos;organisation (logistique, bénévoles, documents). Changez-le avec les flèches ou en glissant la poignée ⠿.</p>}
+      {ev.races.map((r, idx) => {
         const rt = r.routeId ? routes.find((x) => x.id === r.routeId) : undefined, legacy = !r.routeId, missing = !!r.routeId && !rt;
         return (
-        <article key={r.id} aria-label={`Course ${r.label}`} className="grid gap-3 rounded-2xl bg-white p-4 ring-1 ring-ink-100 sm:grid-cols-6">
+        <article key={r.id} aria-label={`Course ${r.label}`} data-race={r.id}
+          className={clsx("grid gap-3 rounded-2xl bg-white p-4 ring-1 sm:grid-cols-6", over === r.id ? "ring-2 ring-pine-600" : "ring-ink-100", armed === r.id && "opacity-60")}>
+          <div className="flex flex-wrap items-center gap-2 border-b border-ink-100 pb-3 sm:col-span-6" data-race-head>
+            {ev.races.length > 1 && <button type="button" aria-label={`Glisser pour déplacer ${r.label}`} title="Glisser pour changer l'ordre" onPointerDown={(e) => startDrag(e, r.id)} style={{ touchAction: "none" }} className="grid h-9 w-7 cursor-grab place-items-center rounded-lg text-lg leading-none text-ink-400 hover:bg-ink-50 hover:text-ink-700 active:cursor-grabbing">⠿</button>}
+            <span className="grid size-7 shrink-0 place-items-center rounded-full bg-ink-950 font-display text-xs font-bold text-white" aria-label={`Position ${idx + 1}`}>{idx + 1}</span>
+            <p className="min-w-0 flex-1"><b className="text-base">{r.label}</b> <span className="text-sm text-ink-500">· {String(r.distanceKm).replace(".", ",")} km · </span><span className={clsx("text-sm font-semibold", r.participants ? "text-pine-700" : "text-warn")}>{r.participants ? `${r.participants} participants` : "effectif à indiquer"}</span></p>
+            {ev.races.length > 1 && <span className="flex gap-1"><button type="button" aria-label={`Monter ${r.label}`} disabled={idx === 0} onClick={() => move(r.id, idx - 1)} className="grid size-9 place-items-center rounded-lg border border-ink-200 text-ink-700 hover:bg-ink-50 disabled:opacity-30">↑</button><button type="button" aria-label={`Descendre ${r.label}`} disabled={idx === ev.races.length - 1} onClick={() => move(r.id, idx + 1)} className="grid size-9 place-items-center rounded-lg border border-ink-200 text-ink-700 hover:bg-ink-50 disabled:opacity-30">↓</button></span>}
+          </div>
           <div className="sm:col-span-3"><Field l="Nom du format"><input className={inp} value={r.label} onChange={(e) => upd(r.id, { label: e.target.value })} /></Field></div>
           <div className="sm:col-span-3"><Field l="Parcours" required><select className={inp} aria-invalid={legacy || missing} value={rt ? r.routeId : ""} onChange={(e) => link(r.id, e.target.value)}>{!rt && <option value="">{missing ? "Parcours introuvable — choisissez-en un" : "Choisissez un parcours"}</option>}{routes.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></Field></div>
           {legacy || missing ? (<>
@@ -183,6 +205,11 @@ function Races({ ev, save }: P) {
           <div className="sm:col-span-2"><Field l="Discipline"><select className={inp} value={r.sport} onChange={(e) => upd(r.id, { sport: e.target.value as Sport })}>{Object.entries(SPORTS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></Field></div>
           <Field l="Départ"><input type="time" className={inp} value={r.startTime} onChange={(e) => upd(r.id, { startTime: e.target.value })} /></Field>
           <Field l="Temps limite (h)"><input type="number" min={0} step="0.5" className={inp} value={r.maxHours} onChange={(e) => upd(r.id, { maxHours: +e.target.value || 0 })} /></Field>
+          <div className="sm:col-span-2"><Field l="Participants prévus"><div className="flex h-10 items-center overflow-hidden rounded-lg border border-ink-200 bg-white" role="group" aria-label={`Participants prévus sur ${r.label}`}>
+            <button type="button" aria-label={`10 participants de moins sur ${r.label}`} className="grid h-full w-10 place-items-center font-bold text-ink-700 hover:bg-ink-50 disabled:opacity-30" disabled={!r.participants} onClick={() => upd(r.id, { participants: Math.max(0, (r.participants ?? 0) - 10) || undefined })}>−</button>
+            <input type="number" min={0} inputMode="numeric" aria-label={`Nombre de participants prévus sur ${r.label}`} placeholder="ex. 250" className="h-full min-w-0 flex-1 border-x border-ink-200 text-center text-sm font-semibold" value={r.participants ?? ""} onChange={(e) => upd(r.id, { participants: e.target.value === "" ? undefined : Math.max(0, Math.round(+e.target.value)) || undefined })} />
+            <button type="button" aria-label={`10 participants de plus sur ${r.label}`} className="grid h-full w-10 place-items-center font-bold text-ink-700 hover:bg-ink-50" onClick={() => upd(r.id, { participants: (r.participants ?? 0) + 10 })}>+</button>
+          </div></Field></div>
           <div className="sm:col-span-2"><Field l="Tarif / note"><input className={inp} value={r.fee ?? ""} onChange={(e) => upd(r.id, { fee: e.target.value })} /></Field></div>
           <div className="flex justify-end sm:col-span-6"><Button variant="ghost" size="sm" onClick={() => confirm(`Supprimer la course « ${r.label} » et ses postes ?`) && save((e) => ({ ...e, races: e.races.filter((x) => x.id !== r.id), posts: e.posts.filter((p) => p.raceId !== r.id), volunteers: e.volunteers.map((v) => (e.posts.some((p) => p.id === v.postId && p.raceId === r.id) ? { ...v, postId: "" } : v)) }))}><Trash2 className="size-4" />Supprimer la course</Button></div>
         </article>); })}

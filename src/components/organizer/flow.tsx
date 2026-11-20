@@ -169,13 +169,13 @@ export function DocumentsRunner({ ev, save }: { ev: EventModel; save: Save }) {
     }
     save((e) => ({ ...e, posts: [...e.posts.filter((p) => !add.some((a) => a.id === p.id)), ...add], rules: e.rules.trim() ? e.rules : rulesDraft(e, e.prep ?? {}), prep: { ...(e.prep ?? {}), docsAt: Date.now() } }));
     for (const [rid, pois] of poisBy) { const rt = routesRepo.get(rid); if (rt) routesRepo.upsert({ ...rt, pois: [...rt.pois, ...pois.filter((q) => !rt.pois.some((x) => x.id === q.id))], updatedAt: Date.now() }); }
-    setMsg(`${wroteRules ? "Règlement rédigé. " : "Règlement existant conservé. "}${nPosts ? `${nPosts} poste(s) ajouté(s) à la logistique sur ${nRaces} course(s) (ravitaillements, secours, signaleurs aux traversées…), repris aussi dans les parcours.` : "Logistique déjà complète : rien à ajouter."} Dossier administratif, échéancier et dossier de préparation sont à jour.`);
+    setMsg(`${wroteRules ? "Règlement rédigé. " : "Règlement existant conservé. "}${nPosts ? `${nPosts} poste(s) ajouté(s) à la logistique sur ${nRaces} course(s), repris aussi dans les parcours.` : "Logistique déjà complète : rien à ajouter."} Dossier administratif, échéancier et dossier de préparation sont à jour.`);
   };
   const pdf = async () => download(`${safeName(ev.name)}-preparation.pdf`, await prepPdf(ev.name, `${ev.organizer || "Organisateur à préciser"} · ${ev.date || "date à préciser"} · ${ev.place || "lieu à préciser"}`, PREP_NOTICE, prepReport(ev, prep)), "application/pdf");
   return (
     <div className="rounded-2xl bg-ink-950 p-5 text-white shadow-lift">
       <div className="flex flex-wrap items-center justify-between gap-4"><div className="min-w-0"><p className="eyebrow !text-brass-400">Second clic</p><h3 className="mt-1 text-xl font-bold">{prep.docsAt ? "Documents générés" : "Générer les documents"}</h3>
-        <p className="mt-1 max-w-xl text-sm text-white/70">Règlement, dossier administratif, échéancier et dossier de préparation ; la logistique est complétée avec ce que l&apos;analyse a révélé (signaleurs aux traversées de routes…). Ce que vous avez déjà saisi n&apos;est jamais écrasé.</p></div>
+        <p className="mt-1 max-w-xl text-sm text-white/70">Règlement, dossier administratif, échéancier et dossier de préparation. Ce que vous avez déjà saisi n&apos;est jamais écrasé.</p></div>
         <div className="flex flex-wrap gap-2"><Button size="lg" onClick={run} data-action="generer"><Sparkles className="size-5" />{prep.docsAt ? "Régénérer ce qui manque" : "Tout générer"}</Button>{prep.docsAt && <Button size="lg" variant="onDark" onClick={pdf}><FileDown className="size-5" />PDF</Button>}</div></div>
       {msg && <p role="status" className="mt-3 rounded-lg bg-pine-600/30 px-3 py-2 text-sm">{msg}</p>}
     </div>
