@@ -27,6 +27,20 @@ export interface SnapOptions {
 }
 export interface SnapResult { dataUrl: string; width: number; height: number; points: { x: number; y: number }[] }
 
+/**
+ * Fond de carte seul : le style repris de la carte à l'écran contient aussi ses calques de travail
+ * (tracé de la course affichée, postes, sélection…), qui se retrouveraient sur l'image d'une autre course.
+ * On ne garde que les sources de fond (tuiles raster / vectorielles, relief) et les calques qui en dépendent.
+ */
+export function basemapOnly(style: StyleSpecification): StyleSpecification {
+  const keep = new Set(Object.entries(style.sources ?? {}).filter(([, src]) => src.type === "raster" || src.type === "vector" || src.type === "raster-dem").map(([id]) => id));
+  return {
+    ...style,
+    sources: Object.fromEntries(Object.entries(style.sources ?? {}).filter(([id]) => keep.has(id))),
+    layers: (style.layers ?? []).filter((l) => !("source" in l) || (typeof l.source === "string" && keep.has(l.source))),
+  };
+}
+
 export async function snapshotMap(o: SnapOptions): Promise<SnapResult> {
   const ml = await import("maplibre-gl");
   ml.setWorkerUrl(`${location.origin}${BASE}/maplibre/maplibre-gl-worker.mjs`);
@@ -34,7 +48,7 @@ export async function snapshotMap(o: SnapOptions): Promise<SnapResult> {
   box.style.cssText = `position:fixed;left:-20000px;top:0;width:${o.width}px;height:${o.height}px;pointer-events:none;`;
   box.setAttribute("aria-hidden", "true");
   document.body.appendChild(box);
-  const m = new ml.Map({ container: box, style: o.style ?? buildStyle(), interactive: false, attributionControl: false, fadeDuration: 0, pixelRatio: o.ratio ?? Math.min(2, Math.sqrt(2_400_000 / (o.width * o.height))), canvasContextAttributes: { preserveDrawingBuffer: true }, center: o.fit[0] ?? [2.5, 46.6], zoom: 10 });
+  const m = new ml.Map({ container: box, style: o.style ? basemapOnly(o.style) : buildStyle(), interactive: false, attributionControl: false, fadeDuration: 0, pixelRatio: o.ratio ?? Math.min(2, Math.sqrt(2_400_000 / (o.width * o.height))), canvasContextAttributes: { preserveDrawingBuffer: true }, center: o.fit[0] ?? [2.5, 46.6], zoom: 10 });
   try {
     await new Promise<void>((res, rej) => { const t = setTimeout(() => rej(new Error("La carte n'a pas pu être chargée.")), o.timeoutMs ?? 20000); m.once("load", () => { clearTimeout(t); res(); }); });
     o.lines.forEach((l, i) => {
