@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { resample, inGeometry, lengthInside, distToLine, windows, parcelRef, isGR, classify, summarize, fetchParcels, fetchTroncons, fetchZones, analyzeRoute, parcelsCsv, queryLine, sliceByDistance, type Ring, type Troncon } from "../src/lib/analysis";
+import { resample, inGeometry, lengthInside, distToLine, windows, parcelRef, isGR, classify, summarize, fetchParcels, setRetryDelay, setRetryBase, intervalsInside, intervalsLength, overlapLength, ZONE_KINDS, fetchTroncons, fetchZones, analyzeRoute, parcelsCsv, queryLine, sliceByDistance, type Ring, type Troncon } from "../src/lib/analysis";
 import type { LL } from "../src/lib/types";
 import { cumulative } from "../src/lib/geo";
 
 afterEach(() => vi.unstubAllGlobals());
+setRetryBase(0);
 const sq = (x0: number, y0: number, x1: number, y1: number): Ring => ({ type: "Polygon", coordinates: [[[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]]] });
 // tracé vers l'est, ~1,1 km (0,014° de longitude à 45°N ≈ 1,1 km)
 const line: LL[] = [[6.00, 45.0], [6.014, 45.0]];
@@ -85,16 +86,39 @@ describe("accès aux services (simulés)", () => {
     expect(dec).toContain("DWITHIN(geometrie,SRID=4326;LINESTRING(6.000000 45.000000"); expect(dec).toContain("PROPERTYNAME=geometrie,cleabs,nature"); expect(dec).toContain("15,meters");
     expect(t.map((x) => x.id)).toEqual(["T1", "T2"]); expect(t[0].itineraire).toBe("GR 5"); expect(t[1].itineraire).toBe(""); expect(t[1].prive).toBeNull();
   });
-  it("zones : forêt publique et parc, longueur par zone, zones sans passage écartées", async () => {
+  it("zones : forêt publique (BD TOPO) + espaces protégés INPN, statut prudent, longueur exacte, zones frôlées écartées", async () => {
+    const urls: string[] = [];
     vi.stubGlobal("fetch", vi.fn(async (u: string) => {
-      const f = u.includes("foret_publique") ? [{ properties: { cleabs: "F1", toponyme: "Forêt Communale de Test", nature: "Autre forêt publique" }, geometry: sq(5.99, 44.99, 6.007, 45.01) }, { properties: { cleabs: "F2", toponyme: "Loin", nature: "" }, geometry: sq(9, 9, 10, 10) }]
-        : [{ properties: { cleabs: "P1", toponyme: "Site Natura Test", nature: "Site Natura 2000" }, geometry: sq(5.99, 44.99, 6.02, 45.01) }];
+      urls.push(decodeURIComponent(u));
+      const f = u.includes("foret_publique") ? [{ properties: { cleabs: "F1", toponyme: "Forêt Communale de Test", nature: "Forêt communale" }, geometry: sq(5.99, 44.99, 6.007, 45.01) }, { properties: { cleabs: "F2", toponyme: "Loin", nature: "" }, geometry: sq(9, 9, 10, 10) }]
+        : u.includes("patrinat_sic") ? [{ properties: { id_local: "FR8201", nom_site: "Site Natura Test", url_fiche: "https://inpn.mnhn.fr/site/natura2000/FR8201", gest_site: "DDT", operateur: null }, geometry: sq(5.99, 44.99, 6.02, 45.01) }]
+        : decodeURIComponent(u).includes("patrinat_pn:") ? [{ properties: { id_local: "PN1", nom_site: "Ecrins [Aire D'Adhésion]", url_fiche: null, gest_site: null, operateur: null, zone: "Adhesion" }, geometry: sq(6.01, 44.99, 6.02, 45.01) }]
+        : [];
       return new Response(JSON.stringify({ features: f }), { status: 200 });
     }));
     const z = await fetchZones(line, resample(line, 5), 5);
-    expect(z.map((x) => `${x.kind}:${x.name}`)).toEqual(["parc:Site Natura Test", "foret:Forêt Communale de Test"]); // trié par longueur
-    expect(z[0].lengthM).toBeGreaterThan(z[1].lengthM); expect(z.find((x) => x.name === "Loin")).toBeUndefined();
+    expect(z.map((x) => `${x.kind}:${x.name}`)).toEqual(["n2000-habitats:Site Natura Test", "foret:Forêt Communale de Test", "pn-adhesion:Ecrins"]); // trié par longueur
+    const total = cumulative(line).at(-1)!;
+    expect(z[0].lengthM).toBeCloseTo(total, 3); // zone couvrant tout le tracé : longueur exacte
+    expect(z[1].lengthM + z[2].lengthM).toBeCloseTo(total * (0.007 + 0.004) / 0.014, 0);
+    expect(z[0]).toMatchObject({ status: "procedure", url: "https://inpn.mnhn.fr/site/natura2000/FR8201", source: expect.stringMatching(/INPN/) });
+    expect(z[2].status).toBe("vigilance"); expect(z.find((x) => x.name === "Loin")).toBeUndefined();
+    expect(urls.some((u) => u.includes("patrinat_znieff1:znieff1") && u.includes("DWITHIN(geom,SRID=4326;LINESTRING("))).toBe(true);
+    // aucun libellé ne présente une zone comme une interdiction
+    expect(Object.values(ZONE_KINDS).map((k) => k.note + k.label).join(" ")).not.toMatch(/interdi/i);
   });
+  it("zones : une couche indisponible est signalée, l'analyse continue", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (u: string) => (u.includes("patrinat_apb") ? new Response("<html/>", { status: 500 }) : new Response(JSON.stringify({ features: [] }), { status: 200 }))));
+    setRetryDelay(1); const failed: string[] = []; const z = await fetchZones(line, [], 5, { failed });
+    expect(z).toEqual([]); expect(failed).toEqual(["Arrêté de protection de biotope"]);
+  }, 20000);
+  it("zones : une panne passagère d'une couche est rattrapée par la seconde tentative", async () => {
+    setRetryDelay(1); let n = 0;
+    vi.stubGlobal("fetch", vi.fn(async (u: string) => { if (u.includes("patrinat_sic") && n++ < 3) return new Response("# HELP jmx", { status: 200 });
+      return new Response(JSON.stringify({ features: u.includes("patrinat_sic") ? [{ properties: { id_local: "FR1", nom_site: "Site", url_fiche: null, gest_site: null, operateur: null }, geometry: sq(5.99, 44.99, 6.02, 45.01) }] : [] }), { status: 200 }); }));
+    const failed: string[] = []; const z = await fetchZones(line, [], 5, { failed });
+    expect(failed).toEqual([]); expect(z.map((x) => x.kind)).toEqual(["n2000-habitats"]);
+  }, 20000);
   it("analyse complète + export CSV ; avertissement si hors couverture", async () => {
     vi.stubGlobal("fetch", vi.fn(async (u: string) => {
       if (u.includes("apicarto")) return new Response(JSON.stringify({ features: [] }), { status: 200 });
@@ -168,5 +192,31 @@ describe("export cadastral : tracé complet, sans coupure (correctifs)", () => {
   it("résultat tronqué par le service : erreur explicite plutôt qu'un export silencieusement incomplet", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ features: [], totalFeatures: 1500 }), { status: 200 })));
     const l = dense(50); await expect(fetchParcels(l, resample(l, 5), 5)).rejects.toThrow(/tronqu/);
+  });
+});
+
+describe("intersections exactes tracé × polygones", () => {
+  const l: LL[] = [[6, 45], [6.014, 45]], cum = cumulative(l), total = cum.at(-1)!;
+  it("parcelle étroite (1 m) traversée perpendiculairement : sa vraie largeur, pas 0 ni 5 m", () => {
+    const w = 1 / (111320 * Math.cos((45 * Math.PI) / 180)); // 1 m en longitude
+    const iv = intervalsInside(l, cum, sq(6.005, 44.99, 6.005 + w, 45.01));
+    expect(intervalsLength(iv)).toBeCloseTo(1, 1);
+  });
+  it("entrées / sorties multiples, trou exclu, portions fusionnées", () => {
+    const holed: Ring = { type: "Polygon", coordinates: [[[6.002, 44.99], [6.012, 44.99], [6.012, 45.01], [6.002, 45.01], [6.002, 44.99]], [[6.006, 44.995], [6.008, 44.995], [6.008, 45.005], [6.006, 45.005], [6.006, 44.995]]] };
+    const iv = intervalsInside(l, cum, holed);
+    expect(iv).toHaveLength(2); expect(intervalsLength(iv)).toBeCloseTo(total * 0.008 / 0.014, 1);
+    // tracé découpé en nombreux sommets : même résultat, morceaux contigus fusionnés
+    const dense: LL[] = Array.from({ length: 141 }, (_, i) => [6 + i * 0.0001, 45]); const iv2 = intervalsInside(dense, cumulative(dense), holed);
+    expect(iv2).toHaveLength(2); expect(intervalsLength(iv2)).toBeCloseTo(intervalsLength(iv), 1);
+  });
+  it("parcelles jointives : somme = longueur du tracé, aucune double comptabilisation", () => {
+    const cuts = [5.99, 6.0031, 6.00577, 6.0111, 6.02]; let sum = 0;
+    for (let i = 1; i < cuts.length; i++) sum += intervalsLength(intervalsInside(l, cum, sq(cuts[i - 1], 44.99, cuts[i], 45.01)));
+    expect(sum).toBeCloseTo(total, 3);
+  });
+  it("tracé qui longe une limite sans la franchir : aucune longueur inventée ; recoupement de portions", () => {
+    expect(intervalsLength(intervalsInside(l, cum, sq(6, 45.0001, 6.014, 45.01)))).toBe(0);
+    expect(overlapLength([[0, 100], [200, 300]], [[50, 250]])).toBe(100);
   });
 });

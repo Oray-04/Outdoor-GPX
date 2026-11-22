@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { readJson, ServiceFormatError } from "../src/lib/http";
-import { fetchWaymarked } from "../src/lib/analysis";
+import { fetchWaymarked, setRetryBase } from "../src/lib/analysis";
+setRetryBase(0);
 
 const METRICS = "# HELP jmx_config_reload_failure_total Number of times configuration have failed to be reloaded.\n# TYPE jmx_config_reload_failure_total counter\n";
 const res = (body: string, ct = "application/json", status = 200) => new Response(body, { status, headers: { "content-type": ct } });
