@@ -15,6 +15,7 @@ describe("synthèse cadastrale de l'événement", () => {
   it("chaque parcelle une seule fois, parcours concernés, distance cumulée", () => {
     expect(s.parcels.map((p) => p.id)).toEqual(["X1", "X2", "X3"]); // contact ponctuel T1 écarté, X1 non dupliquée
     const x1 = s.parcels[0]; expect(x1.byRoute.map((b) => `${b.label}:${b.lengthM}`)).toEqual(["10 km:1200", "20 km:1500"]); expect(x1.totalM).toBe(2700);
+    expect(x1.byRoute.map((b) => b.fromM)).toEqual([0, 0]); // kilomètre d'entrée conservé pour chaque parcours (PDF de synthèse)
     expect(s.totals).toMatchObject({ parcels: 3, shared: 1, communes: 2, cumulM: 5000 });
     expect(s.missing).toEqual([{ routeId: "R40", label: "40 km" }]);
   });

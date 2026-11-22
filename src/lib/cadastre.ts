@@ -42,7 +42,7 @@ export function saveAnalysis(s: StoredAnalysis): boolean { return writeStore(KEY
 export interface SynthRoute { routeId: string; label: string }
 export interface SynthParcel extends Omit<StoredParcel, "lengthM" | "fromM" | "passages" | "zoneIds"> {
   /** distance cumulée : somme des longueurs sur chaque parcours (une portion commune à deux parcours compte deux fois) */
-  totalM: number; byRoute: { routeId: string; label: string; lengthM: number }[]; zoneIds: string[];
+  totalM: number; byRoute: { routeId: string; label: string; lengthM: number; fromM?: number }[]; zoneIds: string[];
 }
 export interface SynthCommune { insee: string; name: string; parcels: number; sharedParcels: number; totalM: number; routes: string[] }
 export interface SynthZone extends StoredZone { byRoute: { routeId: string; label: string; lengthM: number }[]; totalM: number }
@@ -65,11 +65,11 @@ export function synthesize(entries: (SynthRoute & { a: StoredAnalysis | null })[
   for (const r of routes) {
     for (const p of r.a.parcels) {
       if (p.lengthM <= 0.5) continue;
-      const { lengthM, fromM: _f, passages: _p, zoneIds, ...base } = p; void _f; void _p;
+      const { lengthM, fromM, passages: _p, zoneIds, ...base } = p; void _p;
       const cur = P.get(p.id) ?? { ...base, totalM: 0, byRoute: [], zoneIds: [] };
       const prev = cur.byRoute.find((b) => b.routeId === r.routeId);
       if (prev) continue; // même tracé fourni deux fois : compté une seule fois
-      cur.byRoute.push({ routeId: r.routeId, label: r.label, lengthM });
+      cur.byRoute.push({ routeId: r.routeId, label: r.label, lengthM, fromM });
       cur.totalM = cur.byRoute.reduce((t, b) => t + b.lengthM, 0);
       for (const z of zoneIds ?? []) if (!cur.zoneIds.includes(z)) cur.zoneIds.push(z);
       P.set(p.id, cur);

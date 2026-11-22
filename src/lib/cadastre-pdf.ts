@@ -38,7 +38,6 @@ function statusLegend(d: jsPDF, y: number): number {
   d.setTextColor(...rgb(C.ink)); return y + 5;
 }
 const zoneTag = (z: StoredZone) => `${ZONE_STATUS[zoneStatus(z)].short} · ${ZONE_KINDS[z.kind]?.label ?? z.nature}`;
-const tagsOf = (ids: string[] | undefined, zones: StoredZone[]) => (ids ?? []).map((id) => zones.find((z) => z.id === id)).filter((z): z is StoredZone => !!z).map((z) => `${ZONE_STATUS[zoneStatus(z)].short} : ${z.name}`).join(" ; ");
 
 function zonesTable(d: jsPDF, y: number, zones: (StoredZone & { byRoute?: { label: string; lengthM: number }[] })[], withRoutes: boolean): number {
   y = room(d, y, 30); y = sectionTitle(d, `Zonages environnementaux et réglementaires (${zones.length})`, 12, y + 2); y = statusLegend(d, y);
@@ -67,8 +66,8 @@ function routeSection(d: jsPDF, evName: string, label: string, a: StoredAnalysis
   y = room(d, y, 30); y = sectionTitle(d, `Communes traversées (${comm.length})`, 12, y + 2);
   y = table(d, [{ h: "Commune", w: 80 }, { h: "Code INSEE", w: 30 }, { h: "Parcelles", w: 34, align: "right" }, { h: "Distance (km)", w: 42, align: "right" }], comm.map((c) => [{ t: c.name, bold: true }, { t: c.insee }, { t: String(c.parcels) }, { t: km(c.lengthM, 3) }]), 12, y, { fontSize: 8, bottom: BOTTOM }) + 6;
   y = room(d, y, 30); y = sectionTitle(d, `Parcelles traversées, dans l'ordre du parcours (${crossed.length})`, 12, y + 2);
-  y = table(d, [{ h: "N°", w: 9, align: "right" }, { h: "Commune", w: 33 }, { h: "Référence cadastrale", w: 34 }, { h: "Surface (m²)", w: 19, align: "right" }, { h: "Entrée km", w: 17, align: "right" }, { h: "Km parcelle", w: 22, align: "right" }, { h: "Zonages traversés sur la parcelle", w: 52 }],
-    crossed.map((p, i) => [{ t: String(i + 1), color: C.mute }, { t: p.commune + (p.comAbs ? ` (anc. ${p.comAbs})` : "") }, { t: `${p.ref}${(p.passages ?? 1) > 1 ? `\n${p.passages} passages` : ""}`, bold: true }, { t: p.areaM2 ? p.areaM2.toLocaleString("fr-FR") : "—" }, { t: p.fromM != null ? km(p.fromM) : "—" }, { t: km(p.lengthM, 3) }, { t: tagsOf(p.zoneIds, a.zones) || "—", color: p.zoneIds?.length ? C.ink : C.mute }]), 12, y, { fontSize: 7.2, bottom: BOTTOM }) + 4;
+  y = table(d, [{ h: "N°", w: 9, align: "right" }, { h: "Commune", w: 46 }, { h: "Référence cadastrale", w: 42 }, { h: "Surface (m²)", w: 23, align: "right" }, { h: "Entrée (km du parcours)", w: 36, align: "right" }, { h: "Km sur la parcelle", w: 30, align: "right" }],
+    crossed.map((p, i) => [{ t: String(i + 1), color: C.mute }, { t: p.commune + (p.comAbs ? ` (anc. ${p.comAbs})` : "") }, { t: `${p.ref}${(p.passages ?? 1) > 1 ? `\n${p.passages} passages` : ""}`, bold: true }, { t: p.areaM2 ? p.areaM2.toLocaleString("fr-FR") : "—" }, { t: p.fromM != null ? km(p.fromM) : "—" }, { t: km(p.lengthM, 3) }]), 12, y, { fontSize: 7.2, bottom: BOTTOM }) + 4;
   d.setFontSize(7.5); d.setTextColor(...rgb(C.mute)); y = room(d, y, 10);
   d.text(T(`Total sur parcelles : ${km(onP, 3)} km ; hors parcelles : ${km(a.nonCadastralM, 3)} km ; somme : ${km(onP + a.nonCadastralM, 3)} km = longueur du parcours.`), 12, y); y += 5; d.setTextColor(...rgb(C.ink));
   if (touched.length) {
@@ -104,9 +103,10 @@ export async function synthesisPdf(evName: string, s: Synthesis, o: { annexes?: 
     s.communes.map((c) => [{ t: c.name, bold: true }, { t: c.insee }, { t: String(c.parcels) }, { t: String(c.sharedParcels) }, { t: km(c.totalM, 3) }, { t: c.routes.join(", ") }]), 12, y, { fontSize: 8, bottom: BOTTOM }) + 6;
   y = zonesTable(d, y, s.zones, true);
   y = room(d, y, 30); y = sectionTitle(d, `Parcelles traversées — chacune une seule fois (${s.parcels.length})`, 12, y + 2);
-  d.setFontSize(7.5); d.setTextColor(...rgb(C.mute)); d.text(T("En gras : parcelle commune à plusieurs parcours. Distance cumulée = somme des distances parcourues sur la parcelle par chaque parcours."), 12, y); d.setTextColor(...rgb(C.ink)); y += 4;
-  table(d, [{ h: "Commune", w: 32 }, { h: "Référence cadastrale", w: 34 }, { h: "Surface (m²)", w: 18, align: "right" }, { h: "Parcours (km)", w: 42 }, { h: "Cumul km", w: 16, align: "right" }, { h: "Zonages", w: 44 }],
-    s.parcels.map((p) => { const sh = p.byRoute.length > 1; return [{ t: p.commune + (p.comAbs ? ` (anc. ${p.comAbs})` : ""), bold: sh }, { t: p.ref, bold: sh }, { t: p.areaM2 ? p.areaM2.toLocaleString("fr-FR") : "—" }, { t: p.byRoute.map((b) => `${b.label} : ${km(b.lengthM, 3)}`).join("\n"), bold: sh, color: sh ? C.pine : C.ink }, { t: km(p.totalM, 3), bold: sh }, { t: tagsOf(p.zoneIds, s.zones) || "—", color: p.zoneIds.length ? C.ink : C.mute }]; }), 12, y, { fontSize: 7.2, bottom: BOTTOM });
+  d.setFontSize(7.5); d.setTextColor(...rgb(C.mute)); d.text(T("En gras : parcelle commune à plusieurs parcours. Entrée = kilomètre du parcours où l'on entre sur la parcelle. Cumul = somme des distances de chaque parcours."), 12, y); d.setTextColor(...rgb(C.ink)); y += 4;
+  table(d, [{ h: "Commune", w: 34 }, { h: "Référence cadastrale", w: 34 }, { h: "Surface (m²)", w: 18, align: "right" }, { h: "Parcours", w: 32 }, { h: "Entrée (km)", w: 24, align: "right" }, { h: "Distance (km)", w: 24, align: "right" }, { h: "Cumul (km)", w: 20, align: "right" }],
+    s.parcels.map((p) => { const sh = p.byRoute.length > 1, col = sh ? C.pine : C.ink; return [{ t: p.commune + (p.comAbs ? ` (anc. ${p.comAbs})` : ""), bold: sh }, { t: p.ref, bold: sh }, { t: p.areaM2 ? p.areaM2.toLocaleString("fr-FR") : "—" },
+      { t: p.byRoute.map((b) => b.label).join("\n"), bold: sh, color: col }, { t: p.byRoute.map((b) => (b.fromM != null ? km(b.fromM) : "—")).join("\n"), color: col }, { t: p.byRoute.map((b) => km(b.lengthM, 3)).join("\n"), color: col }, { t: km(p.totalM, 3), bold: sh }]; }), 12, y, { fontSize: 7.2, bottom: BOTTOM });
   if (o.annexes !== false) for (const r of s.routes) routeSection(d, evName, r.label, r.a, { kicker: `Annexe — détail du parcours`, newPage: true });
   footers(d, `${evName} · ${FOOT}`);
   return d.output("blob");
