@@ -1,4 +1,5 @@
 "use client";
+import { fromDefaults, loadPageDefaults } from "@/lib/event-page";
 import { useState } from "react";
 import Link from "next/link";
 import { Plus, Trash2, ArrowRight, Route as RouteIcon, Flag, ScanSearch, FileText, MapPinned, ClipboardCheck, Sparkles, Lock, Users } from "lucide-react";
@@ -30,6 +31,8 @@ export function OrganizerHome() {
     for (const [k, label] of [["name", "Le nom"], ["organizer", "L'organisateur"], ["date", "La date"], ["place", "Le lieu"]] as const) if (!filled(f[k])) bad[k] = `${label} est obligatoire.`;
     setErrs(bad); if (Object.keys(bad).length) return;
     const ev: EventModel = { id: uid(), ...f, name: f.name.trim(), description: "", rules: "", practical: "", registrationUrl: "", races: [], posts: [], volunteers: [], team: [], origin: "mine", createdAt: Date.now() };
+    // réglages par défaut de la page publique, si l'organisateur l'a demandé
+    const defaults = loadPageDefaults(); if (defaults?.autoApply) ev.page = fromDefaults(defaults);
     eventsRepo.upsert(ev); location.assign(withBase(manageHref(ev.id)));
   };
   const ids = routes.map((r) => r.id), today = todayISO();

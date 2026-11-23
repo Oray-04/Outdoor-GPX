@@ -18,6 +18,8 @@ import { fmtDuration, fmtKm, fmtM } from "@/lib/geo";
 import { useAuth } from "@/lib/auth";
 import { canEditEventPage, normalizeDesign } from "@/lib/event-page";
 import { DesignedEventPage } from "./designed-page";
+import { runnerMap, poisOf, type PublicPoint } from "@/lib/public-map";
+import type { Poi } from "@/lib/types";
 
 const safeUrl = (u: string) => { try { const x = new URL(u); return x.protocol === "https:" || x.protocol === "http:" ? x.href : null; } catch { return null; } };
 
@@ -49,8 +51,9 @@ export function EventPage({ id }: { id: string }) {
   const mine = ev.origin === "mine";
   const dl = (v: RouteVM, f: GpsFormat) => download(`${safeName(v.name)}.${FORMATS[f].ext}`, serialize(f, { name: v.name, description: v.description, coords: v.coords, pois: v.pois }), FORMATS[f].mime);
   // page personnalisée par l'organisateur ; sinon page standard, inchangée
+  const rm = runnerMap(ev, (rid) => routeOf(rid)?.pois ?? []);
   const design = normalizeDesign(ev.page);
-  if (design) return <DesignedEventPage ev={ev} design={design} routeOf={routeOf} url={url} collectionId={collection?.id ?? ev.collectionId} canEdit={canEditEventPage(ev, user ? { id: user.id, email: user.email } : null)} dl={dl} loadingRoutes={cloudEnabled} />;
+  if (design) return <DesignedEventPage runner={rm} ev={ev} design={design} routeOf={routeOf} url={url} collectionId={collection?.id ?? ev.collectionId} canEdit={canEditEventPage(ev, user ? { id: user.id, email: user.email } : null)} dl={dl} loadingRoutes={cloudEnabled} />;
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
@@ -80,7 +83,8 @@ export function EventPage({ id }: { id: string }) {
         </section>
       )}
 
-      <div className="mt-6 grid gap-4">{ev.races.map((r) => <RaceCard key={r.id} race={r} route={routeOf(r.routeId)} mine={mine} eventId={ev.id} posts={ev.posts.filter((p) => p.raceId === r.id && ["ravito", "eau", "controle"].includes(p.kind))} dl={dl} />)}</div>
+      {rm.image && <RunnerMapImage image={rm.image} caption={rm.caption} />}
+      <div className="mt-6 grid gap-4">{ev.races.map((r) => <RaceCard key={r.id} race={r} route={routeOf(r.routeId)} mine={mine} eventId={ev.id} points={rm.points.filter((p) => p.raceId === r.id)} pois={poisOf(rm, r.id)} interactive={rm.interactive} dl={dl} />)}</div>
 
       <div className="mt-8 grid gap-4 md:grid-cols-2">
         <section className="rounded-2xl bg-white p-5 ring-1 ring-ink-100"><h2 className="text-lg font-bold">Informations pratiques</h2><p className="mt-2 whitespace-pre-line text-sm text-ink-700">{ev.practical || "Non renseignées."}</p></section>
@@ -90,14 +94,19 @@ export function EventPage({ id }: { id: string }) {
   );
 }
 
-function RaceCard({ race: r, route: v, mine, eventId, posts, dl }: { race: Race; route: RouteVM | null | undefined; mine: boolean; eventId: string; posts: EventModel["posts"]; dl: (v: RouteVM, f: GpsFormat) => void }) {
+/** Carte importée par l'organisateur pour les coureurs (cliquable : taille réelle). */
+export function RunnerMapImage({ image, caption, className = "mt-6" }: { image: string; caption?: string; className?: string }) {
+  return <figure className={className} data-runner-map-image><a href={image} target="_blank" rel="noopener" title="Ouvrir la carte en grand"><img src={image} alt={caption || "Carte de l'événement"} className="w-full rounded-2xl ring-1 ring-ink-100" /></a>{caption && <figcaption className="mt-1.5 text-sm opacity-75">{caption}</figcaption>}</figure>;
+}
+
+function RaceCard({ race: r, route: v, mine, eventId, points, pois, interactive, dl }: { race: Race; route: RouteVM | null | undefined; mine: boolean; eventId: string; points: PublicPoint[]; pois: Poi[]; interactive: boolean; dl: (v: RouteVM, f: GpsFormat) => void }) {
   return (
     <article id={`course-${r.id}`} className="scroll-mt-24 rounded-2xl bg-white p-5 ring-1 ring-ink-100">
       <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-lg font-bold">{r.label}</h3><Badge tone="pine">{SPORTS[r.sport].label}</Badge></div>
       <p className="mt-1 text-sm text-ink-700">{r.distanceKm} km · {r.gainM} m D+ · départ {r.startTime} · temps limite {r.maxHours} h{r.fee ? ` · ${r.fee}` : ""}</p>
       {v ? (
         <div className="mt-3">
-          <RouteMap coords={v.coords} pois={v.pois} className="h-72" title={`${r.label} — ${v.name}`} />
+          {interactive && <RouteMap coords={v.coords} pois={pois} className="h-72" title={`${r.label} — ${v.name}`} />}
           <p className="mt-2 text-sm text-ink-600">Tracé mesuré : <b>{fmtKm(v.stats.distanceM)}</b> · D+ <b>{fmtM(v.stats.gainM)}</b> · D− <b>{fmtM(v.stats.lossM)}</b> · durée estimée {fmtDuration(v.durationMin)}</p>
           <div className="mt-2 flex flex-wrap items-center gap-2"><Link href={routeHref(v.id)} className="text-sm font-semibold text-pine-700 underline">Fiche complète et profil altimétrique</Link>
             {(Object.keys(FORMATS) as GpsFormat[]).map((f) => <Button key={f} size="sm" variant="secondary" onClick={() => dl(v, f)}><Download className="size-3.5" />{FORMATS[f].label}</Button>)}</div>
@@ -107,7 +116,7 @@ function RaceCard({ race: r, route: v, mine, eventId, posts, dl }: { race: Race;
           {!r.routeId ? (mine ? <>Aucun tracé n'est lié à cette course. <Link className="font-semibold text-pine-700 underline" href={manageHref(eventId)}>Liez un parcours dans l'espace organisateur</Link>.</> : "Aucun tracé n'a été associé à cette course.")
             : v === undefined && cloudEnabled ? "Chargement du tracé…" : mine ? "Le parcours lié est introuvable sur cet appareil (supprimé ?)." : "L'organisateur n'a pas publié ce tracé."}</p>
       )}
-      {posts.length > 0 && <ul className="mt-3 flex flex-wrap gap-2 text-xs">{[...posts].sort((a, b) => a.km - b.km).map((p) => <li key={p.id} className="rounded-full bg-ink-50 px-2.5 py-1">{POST_KINDS[p.kind].label} · km {p.km.toFixed(1)}{p.cutoffH != null ? ` · barrière ${p.cutoffH} h` : ""}</li>)}</ul>}
+      {points.length > 0 && <ul className="mt-3 flex flex-wrap gap-2 text-xs" data-runner-points>{[...points].sort((a, b) => a.km - b.km).map((p) => <li key={p.id} className="rounded-full bg-ink-50 px-2.5 py-1">{POST_KINDS[p.kind].label}{p.km ? ` · km ${p.km.toFixed(1)}` : ""}{p.cutoffH != null ? ` · barrière ${p.cutoffH} h` : ""}</li>)}</ul>}
     </article>
   );
 }

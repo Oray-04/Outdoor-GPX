@@ -1,16 +1,18 @@
 import type { EventModel } from "./events";
+import { readStore, writeStore, useStore } from "./store";
 
 /**
  * Page publique personnalisée d'un événement : identité visuelle (bandeau, fond, couleurs) et blocs ordonnés.
  * Un événement sans personnalisation garde la page standard, inchangée : rien n'est imposé aux autres événements.
  */
-export type BlockKind = "presentation" | "chiffres" | "compte" | "inscription" | "courses" | "cartes" | "pratique" | "reglement" | "texte";
+export type BlockKind = "presentation" | "chiffres" | "compte" | "inscription" | "courses" | "plan" | "cartes" | "pratique" | "reglement" | "texte";
 export const BLOCKS: Record<BlockKind, { label: string; hint: string; multiple?: boolean }> = {
   presentation: { label: "Présentation", hint: "Le texte de présentation de l'événement." },
   chiffres: { label: "Chiffres clés", hint: "Nombre de courses, distances, dénivelé, date et lieu." },
   compte: { label: "Compte à rebours", hint: "Jours restants avant le départ." },
   inscription: { label: "Inscription", hint: "Bouton vers votre page d'inscription." },
   courses: { label: "Liste des courses", hint: "Chaque course, avec son GPX." },
+  plan: { label: "Carte des coureurs", hint: "La carte que vous avez importée (Logistique › Carte des coureurs)." },
   cartes: { label: "Cartes des parcours", hint: "Carte et chiffres de chaque course." },
   pratique: { label: "Informations pratiques", hint: "Accès, horaires, parkings…" },
   reglement: { label: "Règlement", hint: "Le règlement de l'épreuve." },
@@ -129,3 +131,24 @@ export function daysUntil(date: string, now = new Date()): number | null {
   const a = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()), [y, m, d] = date.split("-").map(Number);
   return Math.round((Date.UTC(y, m - 1, d) - a) / 86400000);
 }
+
+// ── Réglages par défaut de l'organisateur : modèle de page réutilisable ──
+export interface PageDefaults { design: EventPageDesign; /** appliqués d'office aux nouveaux événements */ autoApply: boolean; savedAt: number }
+const DEFAULTS_KEY = "event-page-defaults";
+/** Réglages par défaut, mis à jour à chaque enregistrement (composants). */
+export function usePageDefaults(): PageDefaults | null { const r = useStore<PageDefaults | null>(DEFAULTS_KEY, null); const design = normalizeDesign(r?.design); return r && design ? { design, autoApply: !!r.autoApply, savedAt: r.savedAt ?? 0 } : null; }
+export function loadPageDefaults(): PageDefaults | null {
+  const r = readStore<PageDefaults | null>(DEFAULTS_KEY, null); const design = normalizeDesign(r?.design);
+  return r && design ? { design, autoApply: !!r.autoApply, savedAt: r.savedAt ?? 0 } : null;
+}
+export function savePageDefaults(design: EventPageDesign, autoApply: boolean): boolean {
+  const d = normalizeDesign(design); if (!d) return false;
+  return writeStore(DEFAULTS_KEY, { design: { ...d, updatedAt: undefined }, autoApply, savedAt: Date.now() }).ok;
+}
+export const clearPageDefaults = () => writeStore(DEFAULTS_KEY, null).ok;
+/** Copie du modèle pour un événement : nouveaux identifiants de blocs (aucun lien entre deux pages). */
+export function fromDefaults(d: PageDefaults): EventPageDesign {
+  return { ...d.design, blocks: d.design.blocks.map((b) => ({ ...b, id: blockId() })), updatedAt: Date.now() };
+}
+/** Page de départ d'une personnalisation : vos réglages par défaut s'ils existent, sinon ceux du site. */
+export const startingDesign = () => { const d = loadPageDefaults(); return d ? fromDefaults(d) : defaultDesign(); };

@@ -31,11 +31,12 @@ export async function communityRoute(id: string): Promise<RouteVM | null> {
 // ── Événements, collections et pages d'organisateur publiés par les membres ──
 import type { EventModel, Race } from "./events";
 import { normalizeDesign } from "./event-page";
+import { normalizeRunnerMap } from "./public-map";
 
-export interface EventRow { id: string; owner_id: string; name: string; organizer: string; date: string; place: string; region: string; description: string; rules: string; practical: string; registration_url: string; races: Race[]; collection_id: string | null; page?: unknown }
+export interface EventRow { id: string; owner_id: string; name: string; organizer: string; date: string; place: string; region: string; description: string; rules: string; practical: string; registration_url: string; races: Race[]; collection_id: string | null; page?: unknown; runner_map?: unknown }
 export const eventFromRow = (r: EventRow): EventModel => ({
   id: r.id, name: r.name, organizer: r.organizer, date: r.date, place: r.place, region: r.region, description: r.description, rules: r.rules, practical: r.practical,
-  registrationUrl: r.registration_url, races: Array.isArray(r.races) ? r.races : [], posts: [], volunteers: [], team: [], origin: "community", createdAt: 0, visibility: "public", collectionId: r.collection_id ?? undefined, ownerId: r.owner_id, page: normalizeDesign(r.page),
+  registrationUrl: r.registration_url, races: Array.isArray(r.races) ? r.races : [], posts: [], volunteers: [], team: [], origin: "community", createdAt: 0, visibility: "public", collectionId: r.collection_id ?? undefined, ownerId: r.owner_id, page: normalizeDesign(r.page), runnerMap: normalizeRunnerMap(r.runner_map),
 });
 
 /** Événements publiés à venir. */

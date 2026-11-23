@@ -73,6 +73,10 @@ export interface EventModel {
   prep?: import("./race-prep").Prep;
   /** Page publique personnalisée (absente : page standard) */
   page?: import("./event-page").EventPageDesign;
+  /** Carte des coureurs : ce qui est montré aux participants (réglages ; les postes de la logistique ne sont jamais modifiés) */
+  publicMap?: import("./public-map").PublicMapSettings;
+  /** Carte des coureurs reçue, déjà filtrée (événements publiés par d'autres) */
+  runnerMap?: import("./public-map").RunnerMap;
 }
 
 // ── Postes et bénévoles : une seule source (le poste noté sur la fiche du bénévole), lue par la carte comme par les fiches ──

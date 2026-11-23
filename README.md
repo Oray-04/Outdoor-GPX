@@ -356,3 +356,14 @@ Chaque poste placé sur la carte peut être tourné, pour dégager deux postes p
 ### Survol du parcours
 
 Sur les cartes de parcours (fiche parcours, page événement, éditeur), un repère glisse le long du tracé sous le curseur, avec le kilomètre et l'altitude (`nearestOnLine` : projection sur les segments) ; le profil altimétrique suit.
+
+### Carte des coureurs (Logistique › Carte des coureurs)
+
+- **Deux cartes indépendantes** : la logistique garde tous ses postes (signaleurs, chronométrage, bénévoles…). La carte des coureurs n'est qu'une vue : réglages `EventModel.publicMap` (types montrés, exceptions poste par poste, carte importée, carte interactive oui/non) ; `publicPoints` lit les postes sans jamais les modifier.
+- **Par défaut** : ravitaillements, points d'eau, secours, parkings et points de vue ; signaleurs et points de contrôle (chronométrage) masqués, marqués « interne ». Départ et arrivée : drapeaux du tracé. Effectifs, bénévoles et consignes ne sont jamais affichés ni publiés.
+- **Carte importée** : image JPEG/PNG/WebP réduite dans le navigateur (2000 px max), avec légende, affichée sur la page publique (bloc « Carte des coureurs » des pages personnalisées, ajouté d'office avant les cartes des parcours s'il manque).
+- **Publication** : seule la carte des coureurs déjà filtrée quitte l'appareil (colonne `runner_map` de `public_events`, migration `20261124000000_runner_map.sql`), nettoyée à la lecture (`normalizeRunnerMap`).
+
+### Réglages par défaut de la page événement
+
+Dans « Page de l'événement » : enregistrer la page comme réglages par défaut, les appliquer à une autre page, les appliquer d'office aux nouveaux événements, les effacer. Une nouvelle personnalisation part de ces réglages.

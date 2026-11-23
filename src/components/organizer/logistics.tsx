@@ -1,9 +1,10 @@
 "use client";
+import { RunnerMapPanel } from "./runner-map";
 import { Field, RequiredLegend, filled } from "@/components/ui/field";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { GeoJSONSource, Marker, Popup } from "maplibre-gl";
-import { ArrowLeft, Plus, Trash2, FileDown, Printer, Users, X, UserPlus, Check, Flag, FlagTriangleRight, MapPinned, ArrowRight, CircleAlert, CircleDashed, ChevronDown, Loader2, Sheet } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, FileDown, Printer, Users, X, UserPlus, Check, Flag, FlagTriangleRight, MapPinned, ArrowRight, CircleAlert, CircleDashed, ChevronDown, Loader2, Sheet, Eye } from "lucide-react";
 import clsx from "clsx";
 import { useMap } from "@/components/map/use-map";
 import { LayerControl } from "@/components/map/layer-control";
@@ -503,7 +504,8 @@ export function LogisticsSummary({ ev }: { ev: EventModel }) {
     <div className="rounded-2xl bg-ink-950 p-5 text-white shadow-lift">
       <div className="flex flex-wrap items-center justify-between gap-4"><div className="min-w-0"><p className="eyebrow !text-brass-400">Page dédiée</p><h3 className="mt-1 text-xl font-bold">Préparation logistique</h3>
         <p className="mt-1 max-w-xl text-sm text-white/70">Grande carte, placement au clic, glisser-déposer, bénévoles et temps de passage. Les POI des parcours y sont repris, et inversement.</p></div>
-        <ButtonLink href={logisticsHref(ev.id)} size="lg" data-action="ouvrir-logistique"><MapPinned className="size-5" />Ouvrir la logistique<ArrowRight className="size-4" /></ButtonLink></div>
+        <div className="flex flex-wrap gap-2"><ButtonLink href={logisticsHref(ev.id)} size="lg" data-action="ouvrir-logistique"><MapPinned className="size-5" />Ouvrir la logistique<ArrowRight className="size-4" /></ButtonLink>
+          <Link href={`${logisticsHref(ev.id)}#carte-coureurs`} className="inline-flex h-12 items-center gap-1.5 rounded-xl bg-white/10 px-4 text-sm font-semibold hover:bg-white/20" data-action="ouvrir-carte-coureurs"><Eye className="size-4" />Carte des coureurs</Link></div></div>
       <ul className="mt-4 grid gap-2 sm:grid-cols-2">{ev.races.map((r) => { const ps = postsOfRace(ev.posts, r.id), rt = routes.find((x) => x.id === r.routeId), need = ps.reduce((s, p) => s + p.staffNeeded, 0), got = ps.reduce((s, p) => s + Math.min(p.staffNeeded, volunteersAt(ev, p.id).length), 0), auto = ps.filter((p) => p.auto).length; return (
         <li key={r.id} className="rounded-xl bg-white/10 p-3 text-sm"><p className="font-semibold">{r.label}{r.participants ? <span className="font-normal text-white/80"> · {r.participants} coureurs</span> : null}{rt ? <span className="font-normal text-white/60"> · {rt.name}</span> : <span className="text-warn"> · sans parcours</span>}</p>
           <p className="mt-1 flex flex-wrap gap-1.5">{(Object.keys(POST_KINDS) as PostKind[]).map((k) => [k, ps.filter((p) => p.kind === k).length] as const).filter(([, n]) => n).map(([k, n]) => <span key={k} className="inline-flex items-center gap-1 rounded-full bg-white/90 py-0.5 pl-0.5 pr-2 text-xs font-semibold text-ink-800"><PostIcon kind={k} size={16} />{n}</span>)}</p>
@@ -516,7 +518,7 @@ export function LogisticsSummary({ ev }: { ev: EventModel }) {
 /** Page dédiée à la préparation logistique d'un événement. */
 export function LogisticsPage({ id }: { id: string }) {
   const ev = eventsRepo.useAll().find((e) => e.id === id);
-  const [sub, setSub] = useState<"postes" | "benevoles" | "passages">("postes");
+  const [sub, setSub] = useState<"postes" | "benevoles" | "passages" | "coureurs">(() => (typeof window !== "undefined" && location.hash === "#carte-coureurs" ? "coureurs" : "postes"));
   if (!ev) return <div className="mx-auto max-w-xl px-4 py-24 text-center"><h1 className="text-3xl font-bold">Événement introuvable</h1><p className="mt-2 text-ink-600">Les événements sont enregistrés sur cet appareil.</p><Link href="/organisateurs" className="mt-6 inline-block font-semibold text-pine-700 underline">Retour</Link></div>;
   const save = (fn: (e: EventModel) => EventModel) => { eventsRepo.upsert(fn(eventsRepo.get(ev.id) ?? ev)); };
   return (
@@ -525,11 +527,12 @@ export function LogisticsPage({ id }: { id: string }) {
       <Link href={`${manageHref(ev.id)}#rubrique-logistique`} className="inline-flex items-center gap-1.5 text-sm text-ink-500 hover:text-ink-900"><ArrowLeft className="size-4" />{ev.name} — organisation</Link>
       <header className="mt-2 flex flex-wrap items-end justify-between gap-3"><div className="min-w-0"><p className="eyebrow">Organisation Trail · Logistique</p><h1 className="text-3xl sm:text-4xl">Préparation logistique</h1>
         <p className="mt-1 max-w-3xl text-sm text-ink-600">Départ et arrivée : extrémités des parcours. Les POI des parcours sont repris ; toute modification ici met le parcours à jour.</p></div>
-        <Tabs label="Logistique" value={sub} onChange={setSub} items={[["postes", `Carte et postes (${ev.posts.length})`], ["benevoles", `Bénévoles (${ev.volunteers.length})`], ["passages", "Temps de passage"]]} /></header>
+        <Tabs label="Logistique" value={sub} onChange={setSub} items={[["postes", `Carte et postes (${ev.posts.length})`], ["benevoles", `Bénévoles (${ev.volunteers.length})`], ["passages", "Temps de passage"], ["coureurs", "Carte des coureurs"]]} /></header>
       <div className="mt-4">
         {sub === "postes" && <Logistics ev={ev} save={save} />}
         {sub === "benevoles" && <Volunteers ev={ev} save={save} />}
         {sub === "passages" && <Passages ev={ev} />}
+        {sub === "coureurs" && <RunnerMapPanel ev={ev} save={save} />}
       </div>
     </div>
   );

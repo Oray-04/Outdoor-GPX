@@ -2,30 +2,16 @@
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
-import { ArrowDown, ArrowUp, Eye, EyeOff, ImagePlus, Lock, Monitor, Plus, RotateCcw, Smartphone, Trash2, ExternalLink } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, EyeOff, ImagePlus, Lock, Monitor, Plus, RotateCcw, Smartphone, Trash2, ExternalLink, Save, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { useAllRoutes } from "@/lib/route-vm";
 import { eventHref } from "@/lib/url";
 import type { EventModel } from "@/lib/events";
-import { BLOCKS, PRESETS, MAX_IMAGE_CHARS, addBlock, addable, canEditEventPage, defaultDesign, moveBlock, normalizeDesign, patchBlock, removeBlock, type BlockKind, type EventPageDesign, type PageTheme } from "@/lib/event-page";
+import { BLOCKS, PRESETS, MAX_IMAGE_CHARS, addBlock, addable, canEditEventPage, startingDesign, usePageDefaults, savePageDefaults, clearPageDefaults, fromDefaults, moveBlock, normalizeDesign, patchBlock, removeBlock, type BlockKind, type EventPageDesign, type PageTheme } from "@/lib/event-page";
 import { DesignedEventPage } from "@/components/events/designed-page";
-
-/** Réduit une image (bandeau) : 1600 px de large au plus, JPEG, sous la taille admise par la page. */
-async function bannerFromFile(f: File): Promise<string> {
-  if (!/^image\/(jpeg|png|webp)$/.test(f.type)) throw new Error("Format accepté : JPEG, PNG ou WebP.");
-  if (f.size > 15 * 1024 * 1024) throw new Error("Image trop lourde (15 Mo au plus).");
-  const url = URL.createObjectURL(f);
-  try {
-    const img = new Image(); await new Promise<void>((ok, ko) => { img.onload = () => ok(); img.onerror = () => ko(new Error("Image illisible.")); img.src = url; });
-    for (const [w, q] of [[1600, 0.82], [1400, 0.75], [1200, 0.7], [1000, 0.65]] as const) {
-      const k = Math.min(1, w / img.naturalWidth), c = document.createElement("canvas"); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
-      c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height); const data = c.toDataURL("image/jpeg", q);
-      if (data.length <= MAX_IMAGE_CHARS) return data;
-    }
-    throw new Error("Image trop détaillée : essayez une image plus petite.");
-  } finally { URL.revokeObjectURL(url); }
-}
+import { runnerMap } from "@/lib/public-map";
+import { imageToDataUrl } from "@/lib/image-resize";
 
 export function PageDesigner({ ev, save }: { ev: EventModel; save: (fn: (e: EventModel) => EventModel) => void }) {
   const { user } = useAuth();
@@ -36,14 +22,16 @@ export function PageDesigner({ ev, save }: { ev: EventModel; save: (fn: (e: Even
   const [err, setErr] = useState<string | null>(null);
   const file = useRef<HTMLInputElement>(null);
   const [adding, setAdding] = useState<BlockKind | "">("");
+  const defaults = usePageDefaults();
+  const [note, setNote] = useState<string | null>(null);
 
   if (!allowed) return <p className="flex items-start gap-2 rounded-2xl bg-white p-4 text-sm text-ink-700 ring-1 ring-ink-100" data-page-locked><Lock className="mt-0.5 size-4 shrink-0" />Réservé aux administrateurs du trail.</p>;
-  const set = (fn: (d: EventPageDesign) => EventPageDesign) => save((e) => ({ ...e, page: { ...fn(normalizeDesign(e.page) ?? defaultDesign()), updatedAt: Date.now() } }));
+  const set = (fn: (d: EventPageDesign) => EventPageDesign) => save((e) => ({ ...e, page: { ...fn(normalizeDesign(e.page) ?? startingDesign()), updatedAt: Date.now() } }));
   const theme = (p: Partial<PageTheme>) => set((d) => ({ ...d, theme: { ...d.theme, ...p } }));
 
   if (!design) return (
     <div className="grid gap-3 rounded-2xl bg-white p-5 ring-1 ring-ink-100" data-page-designer="off">
-      <p className="text-sm text-ink-700">Votre page utilise la mise en page standard. Personnalisez-la : couleurs, bandeau, blocs et leur ordre. Elle sera propre à cet événement.</p>
+      <p className="text-sm text-ink-700">Votre page utilise la mise en page standard. Personnalisez-la : couleurs, bandeau, blocs et leur ordre. Elle sera propre à cet événement.{defaults ? " Elle partira de vos réglages par défaut." : ""}</p>
       <div className="flex flex-wrap gap-2"><Button variant="brand" onClick={() => set((d) => d)} data-action="personnaliser"><Plus className="size-4" />Personnaliser la page</Button><Link href={eventHref(ev.id)} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-ink-200 px-4 text-sm font-semibold hover:bg-ink-50"><ExternalLink className="size-4" />Voir la page actuelle</Link></div>
     </div>
   );
@@ -51,7 +39,7 @@ export function PageDesigner({ ev, save }: { ev: EventModel; save: (fn: (e: Even
   const t = design.theme;
   const seg = (on: boolean) => clsx("flex-1 rounded-lg px-2 py-1.5 text-sm font-semibold transition", on ? "bg-white text-ink-900 shadow" : "text-ink-600 hover:text-ink-900");
   const routeOf = (rid?: string) => (rid ? routes.find((r) => r.id === rid) ?? null : null);
-  const upload = async (f: File | undefined) => { if (!f) return; setErr(null); try { const data = await bannerFromFile(f); theme({ bannerImage: data, banner: "image" }); } catch (e) { setErr((e as Error).message); } finally { if (file.current) file.current.value = ""; } };
+  const upload = async (f: File | undefined) => { if (!f) return; setErr(null); try { const data = await imageToDataUrl(f, { maxChars: MAX_IMAGE_CHARS }); theme({ bannerImage: data, banner: "image" }); } catch (e) { setErr((e as Error).message); } finally { if (file.current) file.current.value = ""; } };
 
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[22rem_minmax(0,1fr)]" data-page-designer="on">
@@ -95,6 +83,18 @@ export function PageDesigner({ ev, save }: { ev: EventModel; save: (fn: (e: Even
           {addable(design).length > 0 && <div className="mt-1 flex gap-2"><select aria-label="Bloc à ajouter" value={adding} onChange={(e) => setAdding(e.target.value as BlockKind)} className="h-10 w-0 min-w-0 flex-1 rounded-lg border border-ink-200 bg-white px-2 text-sm"><option value="">Ajouter un bloc…</option>{addable(design).map((k) => <option key={k} value={k} title={BLOCKS[k].hint}>{BLOCKS[k].label}</option>)}</select><Button variant="secondary" disabled={!adding} onClick={() => { if (adding) { set((d) => addBlock(d, adding)); setAdding(""); } }} data-action="ajouter-bloc"><Plus className="size-4" />Ajouter</Button></div>}
           {adding && <p className="text-[11px] text-ink-500">{BLOCKS[adding].hint}</p>}
         </section>
+        {/* Réglages par défaut : modèle réutilisable pour vos autres événements */}
+        <section className="grid gap-2 rounded-2xl bg-white p-4 ring-1 ring-ink-100" data-page-defaults>
+          <h3 className="font-bold">Réglages par défaut</h3>
+          <p className="text-xs text-ink-500">{defaults ? `Enregistrés le ${new Date(defaults.savedAt).toLocaleDateString("fr-FR")} : couleurs, fond, bandeau et blocs.` : "Enregistrez cette mise en page comme modèle pour vos autres événements."}</p>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="secondary" onClick={() => { setNote(savePageDefaults(design, defaults?.autoApply ?? false) ? "Réglages par défaut enregistrés." : "Enregistrement impossible (stockage plein ?)."); }} data-action="defaut-enregistrer"><Save className="size-4" />{defaults ? "Remplacer par cette page" : "Enregistrer comme réglages par défaut"}</Button>
+            {defaults && <Button size="sm" variant="secondary" onClick={() => { if (confirm("Appliquer vos réglages par défaut à cette page ? Ses couleurs, son bandeau et ses blocs seront remplacés.")) { save((e) => ({ ...e, page: fromDefaults(defaults) })); setNote("Réglages par défaut appliqués."); } }} data-action="defaut-appliquer"><Wand2 className="size-4" />Appliquer à cette page</Button>}
+          </div>
+          {defaults && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={defaults.autoApply} onChange={(e) => savePageDefaults(defaults.design, e.target.checked)} data-action="defaut-auto" />Appliquer à mes nouveaux événements</label>}
+          {defaults && <button type="button" className="w-fit text-xs font-semibold text-ink-500 underline" onClick={() => { if (confirm("Effacer vos réglages par défaut ? Les pages déjà personnalisées ne changent pas.")) { clearPageDefaults(); setNote("Réglages par défaut effacés."); } }}>Effacer mes réglages par défaut</button>}
+          {note && <p role="status" className="text-xs text-pine-700">{note}</p>}
+        </section>
         <div className="flex flex-wrap gap-2">
           <Link href={eventHref(ev.id)} className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-ink-950 px-4 text-sm font-semibold text-white hover:bg-ink-800"><ExternalLink className="size-4" />Voir la page publique</Link>
           <Button variant="ghost" onClick={() => { if (confirm("Revenir à la page standard ? Vos couleurs, image et blocs seront retirés.")) save((e) => { const { page: _p, ...rest } = e; void _p; return rest as EventModel; }); }} data-action="page-standard"><RotateCcw className="size-4" />Page standard</Button>
@@ -107,7 +107,7 @@ export function PageDesigner({ ev, save }: { ev: EventModel; save: (fn: (e: Even
           <div className="flex gap-1 rounded-xl bg-ink-100 p-1" role="group" aria-label="Taille de l'aperçu">{([["ordinateur", Monitor], ["mobile", Smartphone]] as const).map(([k, I]) => <button key={k} type="button" aria-pressed={device === k} aria-label={`Aperçu ${k}`} onClick={() => setDevice(k)} className={clsx("grid h-8 w-10 place-items-center rounded-lg", device === k ? "bg-white shadow" : "text-ink-500")}><I className="size-4" /></button>)}</div></div>
         <div className="overflow-hidden rounded-2xl bg-ink-200/60 p-2 ring-1 ring-ink-100">
           <div className={clsx("mx-auto max-h-[44rem] overflow-y-auto overflow-x-hidden rounded-xl bg-white shadow", device === "mobile" ? "w-[23rem] max-w-full" : "w-full")} data-page-preview>
-            <DesignedEventPage ev={ev} design={design} routeOf={routeOf} url={/^https?:\/\//i.test(ev.registrationUrl) ? ev.registrationUrl : null} collectionId={ev.collectionId} canEdit dl={() => {}} preview />
+            <DesignedEventPage ev={ev} design={design} routeOf={routeOf} url={/^https?:\/\//i.test(ev.registrationUrl) ? ev.registrationUrl : null} collectionId={ev.collectionId} canEdit dl={() => {}} preview runner={runnerMap(ev, (rid) => routeOf(rid)?.pois ?? [])} />
           </div>
         </div>
       </div>

@@ -87,7 +87,7 @@ const placeholders = (t: string) => (t.match(/\[[^\]]*(compléter|préciser)[^\]
  * Génération automatique — facultative. L'organisateur choisit : le site prépare ses documents, ou il a déjà les siens
  * et passe directement à la logistique. Tout ce que le site sait générer est listé avec son état.
  */
-export function GenerationPanel({ ev, save, flow, onOpen }: { ev: EventModel; save: Save; flow: Flow; onOpen: (id: string) => void }) {
+export function GenerationPanel({ ev, save, flow, onOpen, afterRunners }: { ev: EventModel; save: Save; flow: Flow; onOpen: (id: string) => void; /** affiché juste sous les bandeaux « Analyse effectuée / Documents générés » */ afterRunners?: React.ReactNode }) {
   const prep = ev.prep ?? {}, mode = prep.docMode;
   const setMode = (m: "site" | "propres" | undefined) => save((e) => ({ ...e, prep: { ...(e.prep ?? {}), docMode: m } }));
   const file = adminFile(ev, prep), fileOk = file.filter((f) => f.ok).length, ph = placeholders(ev.rules);
@@ -123,6 +123,7 @@ export function GenerationPanel({ ev, save, flow, onOpen }: { ev: EventModel; sa
           {r.id === "reglement" && ev.rules.trim().length >= 40 ? <button type="button" onClick={() => onOpen("documents")} className="text-sm font-semibold text-pine-700 underline">Voir</button> : null}
         </li>))}</ul>
       <div className="grid gap-3 lg:grid-cols-2 [&>*]:min-w-0"><AnalyseRunner ev={ev} save={save} /><DocumentsRunner ev={ev} save={save} /></div>
+      {afterRunners}
       <p className="text-xs text-ink-500">{flow.percent} % de l&apos;organisation est prêt. {mode === "site" ? "Les éléments générés comptent dans ce pourcentage." : "L'analyse et les documents générés n'entrent pas dans ce pourcentage tant que vous ne choisissez pas « Le site prépare mes documents »."}</p>
     </section>
   );
