@@ -54,7 +54,7 @@ export type Role = "admin" | "logistique" | "benevoles" | "lecture";
 export interface Member { id: string; name: string; email: string; role: Role }
 
 export const ROLES: Record<Role, { label: string; can: string[] }> = {
-  admin: { label: "Administrateur", can: ["Modifier l'événement", "Gérer les courses et parcours", "Gérer la logistique", "Gérer les bénévoles", "Gérer l'équipe", "Exporter"] },
+  admin: { label: "Administrateur", can: ["Modifier l'événement", "Personnaliser la page de l'événement", "Gérer les courses et parcours", "Gérer la logistique", "Gérer les bénévoles", "Gérer l'équipe", "Exporter"] },
   logistique: { label: "Responsable logistique", can: ["Gérer la logistique", "Gérer les bénévoles", "Exporter"] },
   benevoles: { label: "Responsable bénévoles", can: ["Gérer les bénévoles", "Exporter les fiches bénévoles"] },
   lecture: { label: "Lecture seule", can: ["Consulter"] },
@@ -71,6 +71,8 @@ export interface EventModel {
   ownerId?: string;
   /** Préparation de l'épreuve (effectifs, points cochés, budget) : reste sur cet appareil */
   prep?: import("./race-prep").Prep;
+  /** Page publique personnalisée (absente : page standard) */
+  page?: import("./event-page").EventPageDesign;
 }
 
 // ── Postes et bénévoles : une seule source (le poste noté sur la fiche du bénévole), lue par la carte comme par les fiches ──

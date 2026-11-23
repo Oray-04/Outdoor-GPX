@@ -52,7 +52,7 @@ export function Community() {
         <Card title="Records personnels" icon={<Trophy className="size-5 text-ember-500" />}>
           {acts.length ? <ul className="grid gap-2 text-sm"><li className="flex justify-between rounded-lg bg-ink-50 p-3"><span>Sortie la plus longue</span><b>{longest.name} · {fmtKm(longest.distanceM)}</b></li><li className="flex justify-between rounded-lg bg-ink-50 p-3"><span>Plus gros dénivelé</span><b>{climb.name} · {fmtM(climb.gainM)}</b></li>{speeds.map((s) => <li key={s.s} className="flex justify-between rounded-lg bg-ink-50 p-3"><span>Meilleure vitesse moyenne · {SPORTS[s.s as keyof typeof SPORTS].label}</span><b>{s.v.toFixed(1).replace(".", ",")} km/h</b></li>)}</ul> : <p className="text-sm text-ink-500">Enregistrez des sorties avec le <Link className="font-semibold text-pine-700 underline" href="/suivi">suivi GPS</Link> pour établir vos records.</p>}
           <p className="mt-3 text-xs text-ink-400">Historique complet dans <Link className="underline" href="/compte#activites">Mon espace</Link>.</p></Card>
-        <Card id="collections" title="Collections" icon={<Plus className="size-5 text-pine-600" />}><p className="mb-3 text-sm text-ink-600">Regroupez des parcours (par exemple tous les formats d'un événement : 5, 10, 20, 40 km), rendez la collection publique pour la partager, et laissez les visiteurs consulter et télécharger les tracés.</p><CollectionsCard /></Card>
+        <Card id="collections" title="Collections" icon={<Plus className="size-5 text-pine-600" />}><p className="mb-3 text-sm text-ink-600">Regroupez des parcours (ex. les formats d'un événement) et rendez la collection publique pour la partager et la faire télécharger.</p><CollectionsCard /></Card>
       </div>
     </div>
   );

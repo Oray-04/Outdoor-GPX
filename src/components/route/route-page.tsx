@@ -133,15 +133,15 @@ export function RoutePage({ id }: { id: string }) {
       <section className="mt-6 rounded-2xl bg-white p-4 ring-1 ring-ink-100" aria-label="Profil altimétrique">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-bold">Profil altimétrique</h2>
           <div className="flex gap-2"><Button size="sm" variant="secondary" onClick={() => exportChart("png")}><ImageDown className="size-4" />Image</Button><Button size="sm" variant="secondary" onClick={() => exportChart("pdf")}><FileText className="size-4" />PDF</Button></div></div>
-        <ElevationChart ref={chartRef} points={profile} markers={markers} onHover={setHover} height={260} coords={route.coords} selection={zone} onSelect={setZone} />
-        <p className="mt-1 text-xs text-ink-400">Survolez le profil ou la trace pour voir la position correspondante. Pente calculée sur environ 100 m.</p>
+        <ElevationChart ref={chartRef} points={profile} markers={markers} onHover={setHover} activeIndex={hover} height={260} coords={route.coords} selection={zone} onSelect={setZone} />
+        <p className="mt-1 text-xs text-ink-400">Survolez le profil ou la trace : la position suit. Pente calculée sur 100 m environ.</p>
       </section>
 
       <WeatherPanel route={route} onOverlay={setWx} />
 
       <section id="itinerance" className="frost-panel mt-6 scroll-mt-24 p-5" aria-labelledby="iti-title">
         <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><h2 id="iti-title" className="flex items-center gap-2 text-lg font-bold"><Store className="size-5 text-ember-500" />Itinérance : ravitaillement le long du parcours</h2>
-          <p className="mt-0.5 max-w-2xl text-sm text-ink-600">Boulangeries, épiceries, supermarchés, restaurants, points d&apos;eau et sources, calculés sur ce tracé, avec la distance et le détour, regroupés par étapes.</p></div>
+          <p className="mt-0.5 max-w-2xl text-sm text-ink-600">Commerces, points d&apos;eau et restaurants sur ce tracé, avec distance et détour, par étape.</p></div>
           {!iti && <Button onClick={() => setIti(true)} data-action="itinerance"><Store className="size-4" />Préparer l&apos;itinérance</Button>}</div>
         {iti && <div className="mt-4"><RouteResupply route={route} editable={!!saved} /></div>}
       </section>

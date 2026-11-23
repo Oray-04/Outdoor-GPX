@@ -108,14 +108,14 @@ export function ReferencePanel({ map, ml, ready, visible, setVisible, initialId,
         <label className="flex items-center justify-between gap-3 rounded-xl border border-ink-100 bg-ink-50/60 p-3 text-sm font-semibold"><span>Afficher les itinéraires sur la carte<span className="block text-xs font-normal text-ink-500">Repères de départ et tracé sélectionné, visibles aussi depuis les autres onglets.</span></span>
           <input type="checkbox" role="switch" aria-label="Afficher les itinéraires de référence sur la carte" checked={visible} onChange={(e) => setVisible(e.target.checked)} className="size-5 shrink-0 accent-[var(--color-pine-600)]" /></label>
         <h2 className="mt-4 font-display text-base font-bold">Itinéraires de référence</h2>
-        <p className="mt-1 text-sm text-ink-500">GR, grandes traversées et véloroutes : tracés ouverts (OpenStreetMap, ODbL) avec distance, D+/D− et profil calculés. Sélectionnez un itinéraire pour le voir sur la carte, le télécharger ou l'utiliser dans l'éditeur.</p>
+        <p className="mt-1 text-sm text-ink-500">GR, grandes traversées et véloroutes (OpenStreetMap, ODbL) avec distance, dénivelé et profil. Sélectionnez-en un pour le voir, le télécharger ou l'éditer.</p>
 
         <label className="relative mt-3 block"><span className="sr-only">Rechercher un itinéraire</span><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-400" /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="GR 20, ViaRhôna, Loire…" className="h-10 w-full rounded-lg border border-ink-200 bg-white pl-9 pr-3 text-sm" /></label>
         <div role="group" aria-label="Catégories" className="mt-3 flex flex-wrap gap-1.5">
           <button type="button" aria-pressed={cat === "all"} onClick={() => setCat("all")} className={chip(cat === "all")}>Tous{entries ? ` (${entries.length})` : ""}</button>
           {CATEGORIES.map((c) => <button key={c.id} type="button" aria-pressed={cat === c.id} onClick={() => setCat(c.id)} title={c.hint} className={chip(cat === c.id)}>{c.label} ({counts[c.id] ?? 0})</button>)}
         </div>
-        {cat !== "all" && !(counts[cat] ?? 0) && <p className="mt-3 rounded-lg bg-ink-50 px-3 py-2 text-sm text-ink-600">Aucun itinéraire dans cette catégorie pour l'instant : seuls des tracés dont la licence permet la réutilisation sont intégrés (voir « Ajouter des itinéraires » dans la documentation).</p>}
+        {cat !== "all" && !(counts[cat] ?? 0) && <p className="mt-3 rounded-lg bg-ink-50 px-3 py-2 text-sm text-ink-600">Aucun itinéraire dans cette catégorie : seuls les tracés sous licence réutilisable sont intégrés.</p>}
 
         {error && <p role="alert" className="mt-3 rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
         {!entries && !error && <p className="mt-4 flex items-center gap-2 text-sm text-ink-500"><Loader2 className="size-4 animate-spin" />Chargement…</p>}
@@ -155,7 +155,7 @@ export function ReferencePanel({ map, ml, ready, visible, setVisible, initialId,
               <p className="font-semibold text-ink-800">Source et licence</p>
               <p className="mt-1">{selected.source.attribution}, licence {selected.source.license} (réutilisation avec attribution ; les bases dérivées restent sous la même licence). <a className="inline-flex items-center gap-0.5 font-medium underline" href={selected.source.url} target="_blank" rel="noreferrer noopener">Relation OSM {selected.source.relation}<ExternalLink className="size-3" /></a></p>
               <p className="mt-1">Altitudes : {selected.source.elevation}. Données du {selected.source.retrieved}.</p>
-              <p className="mt-1">Itinéraire non officiel : le balisage, les déviations et les règles d'accès peuvent différer. Consultez l'organisme gestionnaire avant de partir.</p>
+              <p className="mt-1">Itinéraire non officiel : balisage, déviations et accès peuvent différer. Renseignez-vous auprès du gestionnaire.</p>
             </div>
           </section>
         )}

@@ -35,7 +35,7 @@ export function UpcomingEvents() {
   const events = useAllEvents().filter((e) => e.date >= today).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 4);
   if (!events.length) return (
     <div className="flex flex-col items-start gap-4 rounded-[var(--radius-card)] frost-panel border-dashed p-8 sm:flex-row sm:items-center sm:justify-between">
-      <div><h3 className="flex items-center gap-2 text-lg font-semibold"><CalendarDays className="size-5 text-pine-600" />Aucun événement à venir pour l'instant</h3><p className="mt-1 max-w-xl text-sm text-ink-500">Le calendrier affiche uniquement les événements réellement créés par des organisateurs. Vous organisez un trail, une randonnée ou une course cycliste ?</p></div>
+      <div><h3 className="flex items-center gap-2 text-lg font-semibold"><CalendarDays className="size-5 text-pine-600" />Aucun événement à venir pour l'instant</h3><p className="mt-1 max-w-xl text-sm text-ink-500">Le calendrier n'affiche que les événements créés par des organisateurs. Vous organisez une épreuve ?</p></div>
       <ButtonLink href="/organisateurs" variant="brand"><Plus className="size-4" />Créer un événement</ButtonLink>
     </div>
   );

@@ -58,7 +58,7 @@ export function NutritionPlanner() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
-        <div><p className="eyebrow">Nutrition</p><h1 className="text-3xl sm:text-4xl">Planificateur nutritionnel</h1><p className="mt-1 max-w-2xl text-ink-600">Quoi manger et boire pendant votre course, et quand : un plan simple, prise par prise, avec vos propres produits.</p></div>
+        <div><p className="eyebrow">Nutrition</p><h1 className="text-3xl sm:text-4xl">Planificateur nutritionnel</h1><p className="mt-1 max-w-2xl text-ink-600">Quoi manger et boire pendant la course, et quand : un plan prise par prise, avec vos produits.</p></div>
         <Button variant="secondary" onClick={refresh} data-action="actualiser" title="Recharger vos produits, vos plans et les données du parcours lié, puis recalculer"><RefreshCw className="size-4" />Actualiser</Button>
       </header>
       {note && <p role="status" className="mt-3 rounded-xl bg-pine-50 px-3 py-2 text-sm text-pine-800">{note}</p>}
@@ -87,7 +87,7 @@ export function NutritionPlanner() {
                 <li className="flex gap-2"><span className="grid size-6 shrink-0 place-items-center rounded-full bg-ink-950 text-xs font-bold text-white">2</span>Vous cochez ce que vous emporterez : gels, barres, boisson…</li>
                 <li className="flex gap-2"><span className="grid size-6 shrink-0 place-items-center rounded-full bg-ink-950 text-xs font-bold text-white">3</span>Le site calcule quoi prendre et à quelle fréquence, prise par prise.</li>
               </ol>
-              <p className="mt-2 text-xs text-ink-600">Les quantités dépendent de la durée, de l&apos;intensité et de votre habitude : ce sont des repères à tester à l&apos;entraînement, pas une règle universelle. Dans le doute, laissez les réglages par défaut.</p>
+              <p className="mt-2 text-xs text-ink-600">Repères selon la durée, l&apos;intensité et votre habitude, à tester à l&apos;entraînement. Dans le doute, gardez les réglages par défaut.</p>
             </section>}
             {step === 1 && <StepProfile v={v} set={set} errors={vis(errsOf(1), 1)} />}
             {step === 2 && <StepRace v={v} set={set} errors={vis(errsOf(2), 2)} />}

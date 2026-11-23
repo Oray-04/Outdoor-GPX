@@ -376,7 +376,7 @@ export function Logistics({ ev, save }: P) {
         <div className="min-w-0">
           {/* carte de travail : la molette zoome directement (sans clic) ; sur écran tactile, deux doigts pour la déplacer, la page reste défilable */}
           <div data-workspace="touch" className="relative h-[min(72vh,44rem)] min-h-[22rem] overflow-hidden rounded-2xl shadow-card ring-1 ring-ink-100"><div className="absolute inset-0"><div ref={el} className="size-full" role="application" aria-label="Carte logistique : molette pour zoomer, cliquez pour placer un poste, glissez un poste pour le déplacer" /></div><LayerControl map={map} ready={ready} /></div>
-          <p className="mt-1.5 text-[11px] text-ink-500"><span className="hidden [@media(pointer:fine)]:inline">Molette : zoomer · glisser : déplacer · clic droit + glisser : tourner et incliner · boussole : revenir au nord · poste sélectionné : poignée ⟳ pour orienter son marqueur.</span><span className="[@media(pointer:fine)]:hidden">Deux doigts : déplacer et zoomer · pincer-tourner : orienter · boussole : revenir au nord · touchez un poste puis faites glisser sa poignée ⟳ pour l'orienter.</span></p>
+          <p className="mt-1.5 text-[11px] text-ink-500"><span className="hidden [@media(pointer:fine)]:inline">Molette : zoom · glisser : déplacer · clic droit + glisser : tourner · boussole : nord · poignée ⟳ : orienter le poste.</span><span className="[@media(pointer:fine)]:hidden">Deux doigts : déplacer, zoomer, tourner · boussole : nord · poignée ⟳ : orienter le poste.</span></p>
           <p className="mt-1 text-xs text-ink-500" aria-live="polite">{busy ? <span className="inline-flex items-center gap-1.5 font-semibold text-pine-700"><Loader2 className="size-3.5 animate-spin" />{busy}</span> : hint}</p>
           <div className="mt-2">{actions}</div>
         </div>
@@ -463,7 +463,7 @@ function CoverageSummary({ ev }: { ev: EventModel }) {
               <span className={clsx("min-w-[4.5rem] text-right text-sm font-bold", s === "complet" ? "text-pine-700" : s === "partiel" ? "text-[#8a5a00]" : s === "vide" ? "text-danger" : "text-ink-400")} aria-label={`${n} sur ${p.staffNeeded} places pourvues`}>{p.staffNeeded > 0 ? `${n} / ${p.staffNeeded}` : "—"}</span>
             </div>
           </li>); })}</ul>
-      <p className="mt-2 text-xs text-ink-500">Chaque poste n&apos;apparaît qu&apos;une fois : un poste commun à plusieurs parcours a une seule équipe, comptée une seule fois dans le total.</p>
+      <p className="mt-2 text-xs text-ink-500">Un poste commun à plusieurs parcours n&apos;apparaît qu&apos;une fois : une seule équipe, comptée une fois.</p>
     </section>
   );
 }
@@ -502,7 +502,7 @@ export function LogisticsSummary({ ev }: { ev: EventModel }) {
   return (
     <div className="rounded-2xl bg-ink-950 p-5 text-white shadow-lift">
       <div className="flex flex-wrap items-center justify-between gap-4"><div className="min-w-0"><p className="eyebrow !text-brass-400">Page dédiée</p><h3 className="mt-1 text-xl font-bold">Préparation logistique</h3>
-        <p className="mt-1 max-w-xl text-sm text-white/70">Grande carte (molette pour zoomer), placement au clic, déplacement par glisser-déposer, bénévoles et temps de passage. Les points d&apos;intérêt des parcours y apparaissent d&apos;eux-mêmes ; ce que vous y ajoutez est repris dans les parcours.</p></div>
+        <p className="mt-1 max-w-xl text-sm text-white/70">Grande carte, placement au clic, glisser-déposer, bénévoles et temps de passage. Les POI des parcours y sont repris, et inversement.</p></div>
         <ButtonLink href={logisticsHref(ev.id)} size="lg" data-action="ouvrir-logistique"><MapPinned className="size-5" />Ouvrir la logistique<ArrowRight className="size-4" /></ButtonLink></div>
       <ul className="mt-4 grid gap-2 sm:grid-cols-2">{ev.races.map((r) => { const ps = postsOfRace(ev.posts, r.id), rt = routes.find((x) => x.id === r.routeId), need = ps.reduce((s, p) => s + p.staffNeeded, 0), got = ps.reduce((s, p) => s + Math.min(p.staffNeeded, volunteersAt(ev, p.id).length), 0), auto = ps.filter((p) => p.auto).length; return (
         <li key={r.id} className="rounded-xl bg-white/10 p-3 text-sm"><p className="font-semibold">{r.label}{r.participants ? <span className="font-normal text-white/80"> · {r.participants} coureurs</span> : null}{rt ? <span className="font-normal text-white/60"> · {rt.name}</span> : <span className="text-warn"> · sans parcours</span>}</p>
@@ -524,7 +524,7 @@ export function LogisticsPage({ id }: { id: string }) {
       <Consistency ev={ev} save={save} />
       <Link href={`${manageHref(ev.id)}#rubrique-logistique`} className="inline-flex items-center gap-1.5 text-sm text-ink-500 hover:text-ink-900"><ArrowLeft className="size-4" />{ev.name} — organisation</Link>
       <header className="mt-2 flex flex-wrap items-end justify-between gap-3"><div className="min-w-0"><p className="eyebrow">Organisation Trail · Logistique</p><h1 className="text-3xl sm:text-4xl">Préparation logistique</h1>
-        <p className="mt-1 max-w-3xl text-sm text-ink-600">Départ et arrivée sont pris aux extrémités de chaque parcours ; les points d&apos;intérêt du parcours (ravitaillements, eau, secours, parkings, passages…) sont repris d&apos;eux-mêmes. Ajoutez, déplacez ou supprimez : le parcours est mis à jour en même temps.</p></div>
+        <p className="mt-1 max-w-3xl text-sm text-ink-600">Départ et arrivée : extrémités des parcours. Les POI des parcours sont repris ; toute modification ici met le parcours à jour.</p></div>
         <Tabs label="Logistique" value={sub} onChange={setSub} items={[["postes", `Carte et postes (${ev.posts.length})`], ["benevoles", `Bénévoles (${ev.volunteers.length})`], ["passages", "Temps de passage"]]} /></header>
       <div className="mt-4">
         {sub === "postes" && <Logistics ev={ev} save={save} />}

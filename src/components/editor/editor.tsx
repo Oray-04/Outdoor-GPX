@@ -20,7 +20,7 @@ import { setEnginePref, useEnginePref } from "@/lib/map-prefs";
 import { eventsRepo, routesRepo, useLayers, useTerrains } from "@/lib/repo";
 import { POI_TYPES, normalizePois, uid, type LL, type Poi, type PoiType, type Pt, type SavedRoute, type Visibility } from "@/lib/types";
 import { SPORTS, DIFFICULTY_LABEL, difficultyOf, estimateMinutes, type Sport } from "@/lib/sports";
-import { haversine, trackStats, rangeStats, fmtKm, fmtM, fmtDuration, bboxOf, cumulative } from "@/lib/geo";
+import { haversine, trackStats, rangeStats, fmtKm, fmtM, fmtDuration, bboxOf, cumulative, nearestOnLine } from "@/lib/geo";
 import { buildProfile, distanceAlong } from "@/lib/profile";
 import { FORMATS, parseAny, serialize, download, safeName, GpsFileError, MAX_BYTES, type GpsFormat } from "@/lib/formats";
 import { editorHref, routeHref, withBase } from "@/lib/url";
@@ -61,6 +61,8 @@ export function Editor({ routeId }: { routeId?: string }) {
   const [elev, setElev] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [saved, setSaved] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [hoverPos, setHoverPos] = useState<{ pt: [number, number]; label: string } | null>(null);
+  const chartHover = useCallback((i: number | null) => { setHoverPos(null); setHoverIdx(i); }, []);
   const [loaded, setLoaded] = useState(!routeId);
   const markers = useRef<Marker[]>([]);
   const poiMarkers = useRef<Marker[]>([]);
@@ -384,10 +386,31 @@ export function Editor({ routeId }: { routeId?: string }) {
   useEffect(() => {
     const m = map.current, lib = ml.current; if (!m || !lib || !ready) return;
     if (hoverIdx == null || !coords[hoverIdx]) { hoverMarker.current?.remove(); hoverMarker.current = null; return; }
-    const c = coords[hoverIdx];
-    if (!hoverMarker.current) { const d = document.createElement("div"); d.className = "size-4 rounded-full border-2 border-white bg-glacier-500 shadow-[0_0_0_5px_rgb(59_166_201/0.35)]"; hoverMarker.current = new lib.Marker({ element: d }).setLngLat([c[0], c[1]]).addTo(m); }
+    // survol de la carte : position glissante exacte sur le tracé ; survol du profil : sommet correspondant
+    const c = hoverPos?.pt ?? [coords[hoverIdx][0], coords[hoverIdx][1]];
+    if (!hoverMarker.current) { const d = document.createElement("div"); d.className = "pointer-events-none relative size-4 rounded-full border-2 border-white bg-glacier-500 shadow-[0_0_0_5px_rgb(59_166_201/0.35)]"; d.dataset.trackHover = ""; const t = document.createElement("span"); t.className = "absolute bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-ink-950/90 px-1.5 py-0.5 text-[11px] font-semibold text-white shadow empty:hidden"; d.append(t); hoverMarker.current = new lib.Marker({ element: d }).setLngLat([c[0], c[1]]).addTo(m); }
     else hoverMarker.current.setLngLat([c[0], c[1]]);
-  }, [hoverIdx, coords, ready, map, ml]);
+    (hoverMarker.current.getElement().firstChild as HTMLElement).textContent = hoverPos?.label ?? "";
+  }, [hoverIdx, hoverPos, coords, ready, map, ml]);
+
+  // Survol de la carte : un repère suit le curseur le long du tracé (km, altitude), le profil suit aussi
+  const coordsRef = useRef(coords); coordsRef.current = coords;
+  const cumRef = useRef(cum); cumRef.current = cum;
+  useEffect(() => {
+    const m = map.current; if (!m || !ready) return;
+    let raf = 0, last: { lng: number; lat: number; x: number; y: number } | null = null, on = false;
+    const off = () => { if (on) { on = false; setHoverPos(null); setHoverIdx(null); } };
+    const update = () => {
+      raf = 0; if (!last || dragRef.current) return off();
+      const n = nearestOnLine(coordsRef.current, [last.lng, last.lat], cumRef.current); if (!n) return off();
+      const px = m.project(n.pt); if (Math.hypot(px.x - last.x, px.y - last.y) > 18) return off();
+      on = true; setHoverPos({ pt: n.pt, label: `${(n.distM / 1000).toFixed(n.distM < 10000 ? 2 : 1).replace(".", ",")} km${n.alt != null ? ` · ${Math.round(n.alt)} m` : ""}` }); setHoverIdx(n.i);
+    };
+    const mv = (e: { lngLat: { lng: number; lat: number }; point: { x: number; y: number } }) => { last = { lng: e.lngLat.lng, lat: e.lngLat.lat, x: e.point.x, y: e.point.y }; if (!raf) raf = requestAnimationFrame(update); };
+    const leave = () => { last = null; off(); };
+    m.on("mousemove", mv); m.getCanvas().addEventListener("mouseleave", leave);
+    return () => { m.off("mousemove", mv); m.getCanvas().removeEventListener("mouseleave", leave); if (raf) cancelAnimationFrame(raf); };
+  }, [ready, map]);
 
   // Clavier
   useEffect(() => {
@@ -597,7 +620,7 @@ export function Editor({ routeId }: { routeId?: string }) {
           {confirmStart && (
             <div role="alertdialog" aria-label="Confirmer le nouveau départ" className="glass absolute left-1/2 top-16 z-30 w-[min(24rem,calc(100%-1.5rem))] -translate-x-1/2 rounded-2xl p-4 text-sm">
               <p className="font-semibold">Partir du point {confirmStart.wi + 1} ?</p>
-              <p className="mt-1 text-ink-600">Ce parcours n'est pas une boucle : les <b>{fmtKm(confirmStart.km)}</b> situés avant ce point seront retirés du tracé. La suite et l'arrivée ne changent pas, les POI restent en place. Vous pourrez annuler (Ctrl+Z).</p>
+              <p className="mt-1 text-ink-600">Ce parcours n'est pas une boucle : les <b>{fmtKm(confirmStart.km)}</b> situés avant ce point seront retirés ; la suite, l'arrivée et les POI ne changent pas. Annulable (Ctrl+Z).</p>
               <div className="mt-3 flex flex-wrap gap-2"><Button size="sm" onClick={() => newStart(confirmStart.wi, true)}>Retirer le début et partir d'ici</Button><Button size="sm" variant="secondary" onClick={() => setConfirmStart(null)}>Garder le tracé</Button></div>
             </div>)}
         </MapFrame>
@@ -606,7 +629,7 @@ export function Editor({ routeId }: { routeId?: string }) {
             <span className="font-semibold text-ink-700">Profil altimétrique</span>
             <span aria-live="polite">{elev === "loading" ? "Altitudes en cours de calcul…" : elev === "error" ? "Altitudes IGN indisponibles : profil à plat" : "Altitudes IGN (RGE ALTI)"}</span>
           </div>
-          <ElevationChart ref={chartRef} points={profile} markers={chartMarkers} onHover={setHoverIdx} height={170} coords={coords} selection={zone} onSelect={onZone} selectionActions={zoneActions} />
+          <ElevationChart ref={chartRef} points={profile} markers={chartMarkers} onHover={chartHover} activeIndex={hoverIdx} height={170} coords={coords} selection={zone} onSelect={onZone} selectionActions={zoneActions} />
         </div>
       </div>
 
@@ -634,7 +657,7 @@ export function Editor({ routeId }: { routeId?: string }) {
               {others.length ? <>
                 <select aria-label="Parcours à afficher en arrière-plan" className={field} value={refId ?? ""} onChange={(e) => { setRefId(e.target.value || null); if (e.target.value) setTimeout(() => { const r = others.find((x) => x.id === e.target.value); if (r && r.coords.length > 1 && !stRef.current.waypoints.length) { const b = bboxOf(r.coords); map.current?.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 70, maxZoom: 15 }); } }, 0); }}><option value="">Aucun</option>{others.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select>
                 {refRoute ? <div className="mt-2 flex flex-wrap gap-2"><Button size="sm" variant="secondary" className="!h-8 !px-3 !text-xs" onClick={() => setRefShown((v) => !v)}>{refShown ? <><EyeOff className="size-3.5" />Masquer</> : <><Eye className="size-3.5" />Afficher</>}</Button><Button size="sm" variant="secondary" className="!h-8 !px-3 !text-xs" onClick={fitRef}>Centrer</Button><Button size="sm" variant="ghost" className="!h-8 !px-3 !text-xs" onClick={() => setRefId(null)}><X className="size-3.5" />Retirer</Button></div> : null}
-                <p className="mt-1.5 text-xs text-ink-500">Affiché en bleu transparent sous votre tracé pour le recalquer ; il n&apos;est jamais modifié. Pour suivre exactement sa ligne, passez en mode « Libre ».</p>
+                <p className="mt-1.5 text-xs text-ink-500">Affiché en bleu transparent sous votre tracé, jamais modifié. Pour suivre sa ligne exactement : mode « Libre ».</p>
               </> : <p className="text-xs text-ink-500">Enregistrez d&apos;abord un autre parcours pour pouvoir l&apos;afficher en arrière-plan.</p>}
             </div>
             <div>
@@ -644,7 +667,7 @@ export function Editor({ routeId }: { routeId?: string }) {
               </div>
               <p className="mt-1.5 text-xs text-ink-500">{SPORTS[meta.sport].label} : le tracé privilégie les <b>{PROFILE_HINT[routeProfile]}</b>. S'applique aux prochains tronçons tracés{st.segs.length ? " ; les tronçons existants ne changent pas" : ""}.</p>
             </div>
-            <div className="lg:hidden"><ElevationChart points={profile} markers={chartMarkers} onHover={setHoverIdx} height={150} coords={coords} selection={zone} onSelect={onZone} /></div>
+            <div className="lg:hidden"><ElevationChart points={profile} markers={chartMarkers} onHover={chartHover} activeIndex={hoverIdx} height={150} coords={coords} selection={zone} onSelect={onZone} /></div>
             <dl className="grid grid-cols-2 gap-3">
               {[["Distance", stats ? fmtKm(stats.distanceM) : "—"], ["Durée estimée", stats ? fmtDuration(durationMin) : "—"], ["D+", stats ? fmtM(stats.gainM) : "—"], ["D−", stats ? fmtM(stats.lossM) : "—"], ["Altitude min", stats ? fmtM(stats.minEle) : "—"], ["Altitude max", stats ? fmtM(stats.maxEle) : "—"]].map(([l, v]) => (
                 <div key={l} className="rounded-xl bg-ink-50 p-3"><dt className="text-[11px] font-medium uppercase tracking-wide text-ink-400">{l}</dt><dd className="font-display text-lg font-bold">{v}</dd></div>
@@ -683,7 +706,7 @@ export function Editor({ routeId }: { routeId?: string }) {
             </div>
             <div id="sect-tool" className="rounded-xl border border-ink-100 p-3">
               <p className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-400">Extraire une section (étape)</p>
-              <p className="text-xs text-ink-500">Placez un point A puis un point B directement sur le tracé : la portion comprise entre les deux devient une trace à part, exportable. Géométrie et altitudes d'origine conservées ; le parcours n'est pas modifié.</p>
+              <p className="text-xs text-ink-500">Placez A puis B sur le tracé : la portion devient une trace exportable. Le parcours ne change pas.</p>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <Button size="sm" variant={sectMode ? "brand" : "secondary"} aria-pressed={sectMode} disabled={coords.length < 2} onClick={() => { setSectMode((v) => !v); setCutMode(false); setPoiMode(null); }}><Scissors className="size-4" />{sectMode ? "Sélection active" : "Choisir A et B"}</Button>
                 {(sect.a != null || sect.b != null) && <Button size="sm" variant="ghost" onClick={() => { setSect({ a: null, b: null }); setSectName(""); }}>Recommencer</Button>}
@@ -699,7 +722,7 @@ export function Editor({ routeId }: { routeId?: string }) {
             </div>
             <div className="rounded-xl border border-ink-100 p-3">
               <p className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-400">Découper en plusieurs parcours</p>
-              <p className="text-xs text-ink-500">Activez le mode découpe (ciseaux sur la carte), cliquez sur le tracé aux endroits voulus, puis créez les parcours. Géométrie, altitudes et profil sont conservés ; l'original n'est pas modifié.</p>
+              <p className="text-xs text-ink-500">Mode découpe (ciseaux), cliquez sur le tracé aux points de coupe, puis créez les parcours. L'original ne change pas.</p>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <Button size="sm" variant={cutMode ? "primary" : "secondary"} aria-pressed={cutMode} disabled={st.segs.length === 0} onClick={() => setCutMode((v) => !v)}><Scissors className="size-4" />{cutMode ? "Découpe active" : "Mode découpe"}</Button>
                 <Button size="sm" variant="brand" disabled={busy || cutKeys.length === 0} onClick={cutAll}>Créer {cutKeys.length + 1} parcours</Button>

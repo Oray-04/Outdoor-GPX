@@ -107,7 +107,7 @@ export function GenerationPanel({ ev, save, flow, onOpen }: { ev: EventModel; sa
     </label>);
   return (
     <section aria-labelledby="gen-titre" className="grid gap-4 rounded-3xl bg-white p-4 ring-1 ring-ink-100 sm:p-5" data-generation>
-      <div><p className="eyebrow">Facultatif</p><h3 id="gen-titre" className="text-xl font-bold">Génération automatique</h3><p className="text-sm text-ink-600">Le site peut préparer pour vous l&apos;analyse des parcours et les documents. Vous n&apos;êtes pas obligé de passer par là : si vous avez déjà vos documents, passez directement à la logistique.</p></div>
+      <div><p className="eyebrow">Facultatif</p><h3 id="gen-titre" className="text-xl font-bold">Génération automatique</h3><p className="text-sm text-ink-600">Le site peut préparer l&apos;analyse et les documents. Facultatif : si vous avez déjà les vôtres, passez à la logistique.</p></div>
       <div className="grid gap-3 md:grid-cols-2" role="radiogroup" aria-label="Préparation des documents">
         {choice("site", "Le site prépare mes documents", "Analyse des parcours, règlement, dossier administratif, échéancier et PDF. Ces éléments comptent alors dans votre progression.", Sparkles)}
         {choice("propres", "J'ai déjà mes documents", "Vous confirmez seulement qu'ils sont prêts. L'analyse et la génération restent disponibles si besoin, sans être demandées.", FileText)}

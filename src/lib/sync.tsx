@@ -1,4 +1,5 @@
 "use client";
+import { normalizeDesign } from "./event-page";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { cloud } from "./cloud";
 import { useAuth } from "./auth";
@@ -94,7 +95,7 @@ export function toPublicEvent(uid: string, ev: EventModel) {
     description: ev.description.slice(0, 5000), rules: ev.rules.slice(0, 10000), practical: ev.practical.slice(0, 5000),
     registration_url: /^https?:\/\//i.test(ev.registrationUrl) ? ev.registrationUrl : "",
     races: ev.races.slice(0, 30).map((r) => ({ id: r.id, label: r.label, sport: r.sport, distanceKm: r.distanceKm, gainM: r.gainM, startTime: r.startTime, maxHours: r.maxHours, routeId: r.routeId, fee: r.fee })),
-    collection_id: ev.collectionId ?? null, updated_at: iso(Date.now()),
+    collection_id: ev.collectionId ?? null, page: normalizeDesign(ev.page) ?? null, updated_at: iso(Date.now()),
   };
 }
 export function toPublicCollection(uid: string, c: Collection) {

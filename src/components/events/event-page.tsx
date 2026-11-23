@@ -15,11 +15,15 @@ import type { RouteVM } from "@/lib/route-model";
 import { FORMATS, download, safeName, serialize, type GpsFormat } from "@/lib/formats";
 import { collectionHref, manageHref, ownerHref, routeHref } from "@/lib/url";
 import { fmtDuration, fmtKm, fmtM } from "@/lib/geo";
+import { useAuth } from "@/lib/auth";
+import { canEditEventPage, normalizeDesign } from "@/lib/event-page";
+import { DesignedEventPage } from "./designed-page";
 
 const safeUrl = (u: string) => { try { const x = new URL(u); return x.protocol === "https:" || x.protocol === "http:" ? x.href : null; } catch { return null; } };
 
 export function EventPage({ id }: { id: string }) {
   const local = useAllEvents().find((e) => e.id === id);
+  const { user } = useAuth();
   const [cloudEv, setCloudEv] = useState<EventModel | null | undefined>(undefined);
   useEffect(() => {
     if (!cloudEnabled || local || !id) return;
@@ -44,6 +48,9 @@ export function EventPage({ id }: { id: string }) {
 
   const mine = ev.origin === "mine";
   const dl = (v: RouteVM, f: GpsFormat) => download(`${safeName(v.name)}.${FORMATS[f].ext}`, serialize(f, { name: v.name, description: v.description, coords: v.coords, pois: v.pois }), FORMATS[f].mime);
+  // page personnalisée par l'organisateur ; sinon page standard, inchangée
+  const design = normalizeDesign(ev.page);
+  if (design) return <DesignedEventPage ev={ev} design={design} routeOf={routeOf} url={url} collectionId={collection?.id ?? ev.collectionId} canEdit={canEditEventPage(ev, user ? { id: user.id, email: user.email } : null)} dl={dl} loadingRoutes={cloudEnabled} />;
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">

@@ -89,7 +89,7 @@ export function StepRace({ v, set, errors }: { v: V; set: SetV; errors: FieldErr
       {suggestion != null && <p className="-mt-2 text-xs text-ink-500">Estimation à partir de la distance, du dénivelé (km-effort) et du niveau : à remplacer par votre temps réel si vous le connaissez.</p>}
       <Choice label="Intensité" value={r.intensity} options={INTENSITY_LABEL} onChange={(x) => up({ intensity: x })} hint="Facile : conversation aisée. Soutenue : allure de course sur une distance longue. Élevée : effort court et intense." />
     </Card>
-    <Card title="Ravitaillements" hint="Facultatif : indiquez le kilomètre ou l'heure de passage (l'heure manquante est estimée au prorata de la distance). Les quantités sont regroupées par tronçon.">
+    <Card title="Ravitaillements" hint="Facultatif : km ou heure de passage (l'heure manquante est estimée). Quantités regroupées par tronçon.">
       {!v.aid.length && <p className="text-sm text-ink-500">Aucun ravitaillement : le plan prévoit que vous emportez tout dès le départ.</p>}
       <ul className="grid gap-2">{v.aid.map((a, k) => (
         <li key={a.id} className="grid grid-cols-2 items-end gap-2 rounded-xl border border-ink-100 bg-white/60 p-2.5 sm:grid-cols-[1.4fr_0.7fr_0.8fr_auto_auto]">
@@ -180,7 +180,7 @@ export function StepPrefs({ v, set, errors, result }: { v: V; set: SetV; errors:
     <details className="frost-panel group p-5" open={!!test || !!p.sweatSodium?.value}>
       <summary className="flex cursor-pointer list-none items-center gap-2"><ChevronDown className="size-4 text-ink-400 transition group-open:rotate-180" /><span><span className="block font-bold">Mesures personnelles (facultatif)</span><span className="block text-sm text-ink-500">Un test de sudation remplace les estimations et rend le plan bien plus fiable.</span></span></summary>
       <div className="mt-4 grid gap-4">
-        <p className="text-xs text-ink-500">Sortie d&apos;au moins 30 min à l&apos;intensité et dans des conditions proches de la course. Pesez-vous nu, séché, avant et après. Débit = (poids avant − poids après + liquide bu − urines) / durée.</p>
+        <p className="text-xs text-ink-500">Sortie d&apos;au moins 30 min proche des conditions de course ; pesez-vous nu avant et après. Débit = (poids avant − poids après + liquide bu − urines) / durée.</p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           {([["preKg", "Poids avant", "kg"], ["postKg", "Poids après", "kg"], ["fluidL", "Liquide bu", "L"], ["urineL", "Urines", "L"], ["durationMin", "Durée", "min"]] as const).map(([k, l, u]) => <Num key={k} label={l} unit={u} value={test?.[k] ?? null} onChange={(n) => up({ sweatTest: { preKg: null, postKg: null, fluidL: null, urineL: null, durationMin: null, ...test, [k]: n } })} />)}
         </div>

@@ -99,7 +99,7 @@ export function AnalysisTab({ ev }: { ev: EventModel }) {
       {/* Parcours de l'événement : analyse individuelle ou globale */}
       <section className="rounded-2xl bg-white p-4 ring-1 ring-ink-100">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><h4 className="font-semibold">Parcours de l&apos;événement</h4><p className="text-xs text-ink-500">Parcelles cadastrales, Natura 2000, parcs, réserves, arrêtés de protection, ZNIEFF et forêts publiques — sources officielles IGN et INPN.</p></div>
+          <div><h4 className="font-semibold">Parcours de l&apos;événement</h4><p className="text-xs text-ink-500">Parcelles, Natura 2000, parcs, réserves, ZNIEFF, forêts publiques — sources IGN et INPN.</p></div>
           <div className="flex flex-wrap gap-2">
             {busy ? <Button variant="secondary" onClick={() => ctrl.current?.abort()}><Square className="size-4" />Arrêter</Button>
               : <Button variant="brand" onClick={runAll} disabled={!entries.length} data-action="cadastre-tous"><Layers className="size-4" />Analyser tous les parcours</Button>}
@@ -207,7 +207,7 @@ function RouteView({ route, label, a, stale }: { route: SavedRoute | undefined; 
           {([["parcelles", "Parcelles", Landmark, crossed.length], ["communes", "Communes", Building2, comm.length], ["zones", "Zonages", Trees, a?.zones.length ?? 0], ["chemins", "Chemins", Footprints, s?.itineraires.length ?? 0]] as const).map(([k, l, I, n]) => <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={clsx("flex flex-1 items-center justify-center gap-1 whitespace-nowrap px-2 py-3", tab === k ? "border-b-2 border-pine-600 text-pine-700" : "text-ink-500")}><I className="hidden size-4 sm:block" />{l}{a && <Badge tone="neutral">{n}</Badge>}</button>)}
         </div>
         <div className="max-h-[32rem] overflow-y-auto p-3 text-sm">
-          {!a ? <p className="p-3 text-ink-500">Lancez l&apos;analyse de ce parcours : parcelles traversées (référence, commune, distance), communes, zonages environnementaux et réglementaires, chemins.</p>
+          {!a ? <p className="p-3 text-ink-500">Lancez l&apos;analyse : parcelles traversées, communes, zonages et chemins.</p>
           : tab === "parcelles" ? (<>
             {stale && <p className="mb-2 rounded-lg bg-ember-100 px-2 py-1.5 text-xs text-ember-600">Le parcours a été modifié depuis cette analyse : relancez-la.</p>}
             <div className="mb-2 flex gap-2"><input aria-label="Filtrer les parcelles" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filtrer (commune, section, numéro…)" className="h-9 min-w-0 flex-1 rounded-lg border border-ink-200 px-3" /><Button size="sm" variant="secondary" onClick={copyRefs}><Copy className="size-4" />Copier</Button></div>
@@ -280,7 +280,7 @@ function SynthesisView({ entries, synth }: { entries: Entry[]; synth: ReturnType
           <li className="flex items-center gap-1.5"><i className="inline-block size-3 border border-purple-800 bg-purple-200" />Parcelle commune à plusieurs parcours</li></ul>
       </MapFrame>
       <div className="min-w-0 rounded-2xl bg-white ring-1 ring-ink-100">
-        {!synth.routes.length ? <p className="p-4 text-sm text-ink-500">Analysez les parcours (un par un ou « Analyser tous les parcours ») : la synthèse regroupe alors toutes les parcelles traversées, chacune une seule fois, avec les parcours concernés.</p> : <>
+        {!synth.routes.length ? <p className="p-4 text-sm text-ink-500">Analysez les parcours : la synthèse regroupe chaque parcelle une seule fois, avec ses parcours.</p> : <>
           {synth.missing.length > 0 && <p className="m-3 mb-0 rounded-lg bg-ember-100 px-3 py-2 text-xs text-ember-600" data-cadastre-missing>Pas encore analysé(s), absent(s) de la synthèse : {synth.missing.map((m) => m.label).join(", ")}.</p>}
           <div className="flex border-b border-ink-100 text-sm font-semibold" role="tablist">
             {([["parcelles", "Parcelles", Landmark, t.parcels], ["communes", "Communes", Building2, t.communes], ["zones", "Zonages", Trees, synth.zones.length]] as const).map(([k, l, I, n]) => <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={clsx("flex flex-1 items-center justify-center gap-1.5 py-3", tab === k ? "border-b-2 border-pine-600 text-pine-700" : "text-ink-500")}><I className="hidden size-4 sm:block" />{l}<Badge tone="neutral">{n}</Badge></button>)}

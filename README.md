@@ -345,3 +345,14 @@ Chaque poste placé sur la carte peut être tourné, pour dégager deux postes p
 - **Synthèse de l'événement** (`synthesize`) : chaque parcelle une seule fois (clé IDU), parcours concernés et distance de chacun, distance cumulée, parcelles communes à plusieurs parcours, communes, zonages fusionnés.
 - **Exports** : CSV et PDF détaillés par parcours (PDF : kilomètre d'entrée et distance sur chaque parcelle, sans colonne de zonage — les zonages ont leur propre tableau) ; CSV de synthèse (une colonne par parcours) et PDF de synthèse avec le détail de chaque parcours en annexe.
 - **Robustesse** : délai maximal de 30 s par requête, 5 essais espacés (pages de métriques renvoyées par certains nœuds de la Géoplateforme), seconde tentative différée des couches de zonage ; une couche ou la BD TOPO indisponible est signalée sans bloquer le reste.
+
+### Page de l'événement personnalisable (Organisation Trail › Page de l'événement)
+
+- **Identité visuelle** : 6 palettes (dont « Bleu et rose ») ou deux couleurs libres, fond clair / teinté / sombre, bandeau en dégradé, couleur unie ou image (réduite dans le navigateur à 1600 px, JPEG, intégrée à la page — aucune adresse externe). Le texte reste lisible : sa couleur est calculée selon le contraste (`themeVars`, `readable`, `onColor`, seuil AA).
+- **Blocs** : présentation, chiffres clés, compte à rebours, inscription, liste des courses, cartes des parcours, informations pratiques, règlement, blocs de texte libres (plusieurs). Ajouter, retirer, masquer, monter / descendre ; aperçu en direct (ordinateur ou mobile, mises en page par *container queries*). Un bloc vide n'apparaît pas sur la page publique.
+- **Une page par événement** : `EventModel.page` ; sans personnalisation, la page standard reste inchangée. « Page standard » revient à l'existant. La page est publiée avec l'événement (colonne `page` de `public_events`, migration `20261123000000_event_page.sql`, taille bornée) et nettoyée à la lecture (`normalizeDesign`).
+- **Droits** (`canEditEventPage`) : créateur de l'événement (propriétaire s'il est publié) ou membre de l'équipe au rôle « Administrateur » connecté avec la même adresse e-mail. Côté base, seule la personne propriétaire peut modifier l'événement publié (règle existante).
+
+### Survol du parcours
+
+Sur les cartes de parcours (fiche parcours, page événement, éditeur), un repère glisse le long du tracé sous le curseur, avec le kilomètre et l'altitude (`nearestOnLine` : projection sur les segments) ; le profil altimétrique suit.

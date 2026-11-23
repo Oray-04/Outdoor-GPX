@@ -114,7 +114,7 @@ export function StepParcours({ ev }: { ev: EventModel }) {
     <div className="rounded-2xl bg-white p-5 shadow-card ring-1 ring-ink-100">
       <h3 className="text-base font-bold">Vos parcours enregistrés ({routes.length})</h3>
       <p className="text-sm text-ink-500">Un parcours par course. Pensez à cliquer sur « Enregistrer » dans l&apos;éditeur, puis revenez ici.</p>
-      {!routes.length ? <p className="mt-3 rounded-xl border border-dashed border-ink-200 p-5 text-sm text-ink-600">Aucun parcours pour l&apos;instant. Commencez par en tracer ou en importer un : c&apos;est lui qui fournira distance, dénivelé et tracé à tout le reste.</p> : (
+      {!routes.length ? <p className="mt-3 rounded-xl border border-dashed border-ink-200 p-5 text-sm text-ink-600">Aucun parcours. Tracez-en ou importez-en un : il fournit distance, dénivelé et tracé à tout le reste.</p> : (
         <ul className="mt-3 grid gap-2 md:grid-cols-2">{routes.map((r) => { const s = trackStats(r.coords, 3), u = used(r.id); return (
           <li key={r.id} className="flex items-center gap-3 rounded-xl border border-ink-100 p-3"><span className="grid size-9 shrink-0 place-items-center rounded-lg bg-ink-50 text-ink-600"><RouteIcon className="size-4" /></span>
             <span className="min-w-0 flex-1"><span className="block truncate font-semibold">{r.name}</span><span className="block text-xs text-ink-500">{fmtKm(s.distanceM)} · {fmtM(s.gainM)} D+ · {fmtM(s.lossM)} D−{r.pois.length ? ` · ${r.pois.length} point(s) d'intérêt` : ""}</span>{u.length > 0 && <span className="mt-0.5 block text-xs font-medium text-pine-700">Utilisé par : {u.join(", ")}</span>}</span>

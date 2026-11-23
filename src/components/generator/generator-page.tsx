@@ -152,7 +152,7 @@ export function GeneratorPage() {
     <div data-workspace="scroll" className="grid min-h-[calc(100dvh-4rem)] md:h-[calc(100dvh-4rem)] md:grid-cols-[21rem_1fr] lg:grid-cols-[25rem_1fr]">
       <aside className="order-2 min-h-0 overflow-y-auto border-ink-100 bg-white p-4 md:order-1 md:border-r">
         <h1 className="flex items-center gap-2 text-xl font-extrabold"><Sparkles className="size-5 text-ember-500" />Générer des parcours</h1>
-        <p className="mt-1 text-sm text-ink-500">Indiquez un départ et une distance : plusieurs boucles vous sont proposées, avec leur dénivelé réellement mesuré, en privilégiant chemins et sentiers.</p>
+        <p className="mt-1 text-sm text-ink-500">Un départ, une distance : plusieurs boucles proposées, dénivelé mesuré, chemins et sentiers privilégiés.</p>
 
         <section className="mt-4 grid gap-2" aria-label="Point de départ">
           <h2 className="text-xs font-bold uppercase tracking-wider text-ink-400">1 · Départ</h2>
@@ -173,7 +173,7 @@ export function GeneratorPage() {
           <label className={clsx("flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors", maxGain ? "border-pine-600 bg-pine-50" : "border-ink-200 hover:border-ink-300")}>
             <input type="checkbox" checked={maxGain} onChange={(e) => { setMaxGain(e.target.checked); setProps([]); setSel(null); }} className="mt-0.5 size-4 accent-[var(--color-pine-600)]" aria-describedby="maxgain-note" />
             <span><span className="flex items-center gap-1.5 text-sm font-semibold"><Mountain className="size-4" />Maximiser le dénivelé</span>
-              <span id="maxgain-note" className="mt-0.5 block text-xs text-ink-500">Cherche, pour cette distance, les boucles qui montent le plus : le relief est mesuré dans 24 directions et seules les plus montantes sont tracées. Les allers-retours sur une même pente sont déclassés. La distance peut varier de −15 % à +10 %.</span></span>
+              <span id="maxgain-note" className="mt-0.5 block text-xs text-ink-500">Les boucles qui montent le plus pour cette distance (relief sondé dans 24 directions, allers-retours déclassés). Distance : −15 % à +10 %.</span></span>
           </label>
           {busy ? <Button variant="secondary" size="lg" onClick={() => ctrl.current?.abort()}><Square className="size-4" />Arrêter</Button> : <Button size="lg" onClick={run}><Sparkles className="size-5" />Générer 4 propositions</Button>}
           {busy && progress && <div role="status" aria-live="polite"><div className="flex justify-between text-xs text-ink-500"><span className="inline-flex items-center gap-1.5"><Loader2 className="size-3.5 animate-spin" />{PHASE[progress.phase]}…</span><span>{progress.done}/{progress.total}</span></div><div className="mt-1 h-1.5 overflow-hidden rounded-full bg-ink-100"><div className="h-full rounded-full bg-pine-500 transition-all" style={{ width: `${(progress.done / Math.max(1, progress.total)) * 100}%` }} /></div></div>}
@@ -202,7 +202,7 @@ export function GeneratorPage() {
               <div className="flex flex-wrap gap-2"><Button size="sm" onClick={() => saveIt(selected, true)}><Pencil className="size-4" />Modifier dans l'éditeur</Button><Button size="sm" variant="secondary" onClick={() => saveIt(selected, false)}><Save className="size-4" />Enregistrer</Button>
                 <Button size="sm" variant="secondary" onClick={() => download(`${safeName("boucle-generee")}.gpx`, serialize("gpx", { name: toRoute(selected).name, coords: selected.coords, pois: [] }), FORMATS.gpx.mime)}><Download className="size-4" />GPX</Button></div>
             </div>}
-            <p className="text-xs text-ink-500">La part d'aller-retour dépend du réseau de chemins du secteur (forte en vallée ou en montagne, plus faible en forêt) : essayez un autre départ pour d'autres boucles. Calcul sur les données OpenStreetMap ; la distance et le dénivelé sont mesurés, mais aucun résultat n'est garanti : vérifiez toujours le tracé (praticabilité, accès) avant de partir.</p>
+            <p className="text-xs text-ink-500">L'aller-retour dépend du réseau de chemins : essayez un autre départ pour d'autres boucles. Données OpenStreetMap, rien n'est garanti : vérifiez le tracé (praticabilité, accès) avant de partir.</p>
           </section>
         )}
       </aside>

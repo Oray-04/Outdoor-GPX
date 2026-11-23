@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, Play, Square } from "lucide-react";
 import type { GeoJSONSource, Marker } from "maplibre-gl";
 import { useMap } from "./use-map";
-import { bboxOf, cumulative, haversine, trackStats, fmtKm, fmtM } from "@/lib/geo";
+import { bboxOf, cumulative, haversine, trackStats, fmtKm, fmtM, nearestOnLine } from "@/lib/geo";
 import { sliceTrack } from "@/lib/editor-core";
 import { MapFrame, StatBanner } from "./map-frame";
 import { LayerControl } from "./layer-control";
@@ -22,6 +22,8 @@ export function RouteMap({ coords, pois = [], activeIndex, className = "h-80", o
   const active = useRef<Marker | null>(null);
   const hoverCb = useRef(onTrackHover); hoverCb.current = onTrackHover;
   const coordsRef = useRef(coords); coordsRef.current = coords;
+  const hoverDot = useRef<Marker | null>(null);
+  const cumRef = useRef<number[]>([]);
   // clés de contenu : les marqueurs ne sont recréés que si le tracé ou les POI changent vraiment (pas à chaque survol qui re-rend la page)
   const poisKey = pois.map((p) => `${p.id}:${p.type}:${p.name}:${p.lng}:${p.lat}`).join("|");
   const coordsKey = `${coords.length}:${coords[0]?.join(",")}:${coords[coords.length - 1]?.join(",")}`;
@@ -32,13 +34,23 @@ export function RouteMap({ coords, pois = [], activeIndex, className = "h-80", o
       m.addSource("t", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       m.addLayer({ id: "t-casing", type: "line", source: "t", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#fff", "line-width": 8 } });
       m.addLayer({ id: "t-line", type: "line", source: "t", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#f0612b", "line-width": 4.5 } });
-      m.on("mousemove", (e) => {
-        if (!hoverCb.current) return;
-        const c = coordsRef.current; let bi = -1, bd = Infinity;
-        for (let i = 0; i < c.length; i += 1) { const d = (c[i][0] - e.lngLat.lng) ** 2 + (c[i][1] - e.lngLat.lat) ** 2; if (d < bd) { bd = d; bi = i; } }
-        const px = bi >= 0 ? m.project([c[bi][0], c[bi][1]]) : null;
-        hoverCb.current(px && Math.hypot(px.x - e.point.x, px.y - e.point.y) < 14 ? bi : null);
-      });
+      // survol : un repère glisse le long du tracé sous le curseur (projection sur les segments), avec km et altitude
+      let raf = 0, last: { lng: number; lat: number; x: number; y: number } | null = null;
+      const hide = () => { hoverDot.current?.remove(); hoverDot.current = null; m.getCanvas().style.cursor = ""; if (active.current) active.current.getElement().style.opacity = ""; hoverCb.current?.(null); };
+      const update = () => {
+        raf = 0; if (!last || flyRef.current != null) return;
+        const n = nearestOnLine(coordsRef.current, [last.lng, last.lat], cumRef.current); if (!n) return;
+        const px = m.project(n.pt);
+        if (Math.hypot(px.x - last.x, px.y - last.y) > 18) { if (hoverDot.current) hide(); return; }
+        const label = `${(n.distM / 1000).toFixed(n.distM < 10000 ? 2 : 1).replace(".", ",")} km${n.alt != null ? ` · ${Math.round(n.alt)} m` : ""}`;
+        if (!hoverDot.current) { const d = document.createElement("div"); d.className = "pointer-events-none relative size-4 rounded-full border-2 border-white bg-glacier-500 shadow-[0_0_0_5px_rgb(59_166_201/0.35)]"; d.dataset.trackHover = ""; const t = document.createElement("span"); t.className = "absolute bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-ink-950/90 px-1.5 py-0.5 text-[11px] font-semibold text-white shadow"; d.append(t); hoverDot.current = new lib.Marker({ element: d }).setLngLat(n.pt).addTo(m); }
+        else hoverDot.current.setLngLat(n.pt);
+        (hoverDot.current.getElement().firstChild as HTMLElement).textContent = label;
+        m.getCanvas().style.cursor = "pointer"; if (active.current) active.current.getElement().style.opacity = "0";
+        hoverCb.current?.(n.i);
+      };
+      m.on("mousemove", (e) => { last = { lng: e.lngLat.lng, lat: e.lngLat.lat, x: e.point.x, y: e.point.y }; if (!raf) raf = requestAnimationFrame(update); });
+      m.getCanvas().addEventListener("mouseleave", () => { last = null; if (hoverDot.current) hide(); });
     }
     (m.getSource("t") as GeoJSONSource).setData({ type: "FeatureCollection", features: coords.length > 1 ? [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: coords.map((c) => [c[0], c[1]]) } }] : [] });
     marks.current.forEach((x) => x.remove()); marks.current = [];
@@ -78,7 +90,7 @@ export function RouteMap({ coords, pois = [], activeIndex, className = "h-80", o
   }, [overlay, coords, ready, map, ml]);
 
   // Zone sélectionnée sur le profil : portion surlignée + recadrage
-  const cum = useMemo(() => cumulative(coords), [coords]);
+  const cum = useMemo(() => cumulative(coords), [coords]); cumRef.current = cum;
   useEffect(() => {
     const m = map.current; if (!m || !ready || !m.getSource("t")) return;
     if (!m.getSource("zone")) {

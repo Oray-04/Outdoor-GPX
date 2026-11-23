@@ -81,7 +81,7 @@ export function Results({ input, r, onPdf, onSave, saved }: { input: PlanInput; 
         <div className="mt-4 rounded-2xl bg-white/[0.06] p-4 text-sm text-white/85">
           <p className="font-semibold text-white">Pourquoi ces quantités ?</p>
           <p className="mt-1">Repère pour votre durée d&apos;effort : <b>{r.carbs.band.label}</b>. Votre objectif de <b>{r.carbs.gph} g/h</b> tient compte de l&apos;intensité, de votre habitude des glucides et de votre tolérance digestive (plafond personnel {r.carbs.cap} g/h, fixé par {r.carbs.capBy}).{firstShare < 1 ? ` Pour habituer votre ventre, la première heure démarre à environ ${Math.round(firstShare * 100)} % de l'objectif.` : ""}</p>
-          <p className="mt-2 text-white/70">Ce plan n&apos;est pas une règle universelle : chacun digère différemment. Essayez-le d&apos;abord à l&apos;entraînement, avec les mêmes produits ; si votre ventre proteste, prenez un peu moins et augmentez progressivement d&apos;une sortie à l&apos;autre.</p>
+          <p className="mt-2 text-white/70">Chacun digère différemment : testez ce plan à l&apos;entraînement, avec les mêmes produits. Si le ventre proteste, réduisez puis augmentez peu à peu.</p>
         </div>
       </section>
 

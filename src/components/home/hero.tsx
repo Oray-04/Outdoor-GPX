@@ -45,7 +45,7 @@ export function Hero() {
             Chaque sortie commence par <em className="font-normal italic text-brass-400">une trace</em>.
           </h1>
           <p className="rise rise-3 mt-5 max-w-xl text-lg leading-relaxed text-ink-200">
-            Créez vos itinéraires, explorez des parcours de trail, de randonnée et de vélo, et préparez vos événements avec des outils de cartographie pensés pour le terrain.
+            Créez vos itinéraires, explorez des parcours de trail, de randonnée et de vélo, préparez vos événements.
           </p>
 
           <form onSubmit={search} role="search" className="rise rise-3 mt-8 flex max-w-xl flex-col gap-2 sm:flex-row">

@@ -3,10 +3,11 @@ import { Field, RequiredLegend, filled } from "@/components/ui/field";
 import { LocationFields } from "@/components/ui/location-fields";
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, Trash2, Eye, ChevronDown, Flag, Settings2, Route as RouteIcon, Users, MapPinned, ScanSearch, FileText, ClipboardCheck, Lock } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Eye, ChevronDown, Flag, Settings2, Route as RouteIcon, Users, MapPinned, ScanSearch, FileText, ClipboardCheck, Lock, Palette } from "lucide-react";
 import clsx from "clsx";
 import { AnalysisTab } from "./analysis-tab";
 import { PrepTab } from "./prep-tab";
+import { PageDesigner } from "./page-designer";
 import { Consistency, LogisticsSummary } from "./logistics";
 import { StepParcours, FinalCheck, useFlow } from "./flow";
 import { SectionCard, StepChecklist, StepValidations, GenerationPanel } from "./cards";
@@ -72,7 +73,7 @@ function Workspace({ ev }: { ev: EventModel }) {
         <div className="grid gap-3">
           <div role="img" aria-label={`Préparation : ${flow.percent} %`}><p className="flex items-baseline justify-between text-sm font-semibold text-white/80"><span>Préparation</span><span className="font-display text-3xl text-white">{flow.percent} %</span></p><div className="mt-1 h-2.5 overflow-hidden rounded-full bg-white/15"><div className="h-full rounded-full bg-gradient-to-r from-pine-500 to-brass-400 transition-all" style={{ width: `${flow.percent}%` }} /></div></div>
           <div className="flex flex-wrap gap-2"><Link href={eventHref(ev.id)} className="inline-flex h-9 items-center gap-1.5 rounded-full bg-white/10 px-3 text-sm font-semibold hover:bg-white/20"><Eye className="size-4" />Page publique</Link>
-            <button type="button" className="inline-flex h-9 items-center rounded-full bg-white/10 px-3 text-sm font-semibold hover:bg-white/20" onClick={() => setOpen((s) => (s.size > 2 ? new Set() : new Set([...flow.steps.map((x) => x.id), "gerer"])))}>{open.size > 2 ? "Tout réduire" : "Tout développer"}</button></div>
+            <button type="button" className="inline-flex h-9 items-center rounded-full bg-white/10 px-3 text-sm font-semibold hover:bg-white/20" onClick={() => setOpen((s) => (s.size > 2 ? new Set() : new Set([...flow.steps.map((x) => x.id), "gerer", "page"])))}>{open.size > 2 ? "Tout réduire" : "Tout développer"}</button></div>
         </div>
       </header>
       <Consistency ev={ev} save={save} />
@@ -82,11 +83,14 @@ function Workspace({ ev }: { ev: EventModel }) {
           <div className="rounded-2xl bg-white p-4 ring-1 ring-ink-100 sm:p-5"><Publication ev={ev} save={save} /></div>
           <div className="rounded-2xl bg-white p-4 ring-1 ring-ink-100 sm:p-5"><h3 className="mb-3 text-base font-bold">Équipe et rôles</h3><Team ev={ev} save={save} /></div>
         </SectionCard>
+        <SectionCard id="page" title="Page de l'événement" icon={Palette} status="optional" summary="Bandeau, couleurs et blocs de votre page publique : une page à l'image de votre trail." facts={ev.page ? ["Page personnalisée", `${ev.page.blocks.filter((b) => !b.hidden).length} bloc(s) affiché(s)`] : ["Page standard"]} open={open.has("page")} onToggle={() => toggle("page")}>
+          <PageDesigner ev={ev} save={save} />
+        </SectionCard>
         {card("parcours", <StepParcours ev={ev} />, [`${routes.length} parcours enregistré(s)`, `${linkedRoutes.length} utilisé(s) par vos courses`])}
         {card("trail", <><div><h3 className="mb-3 text-base font-bold">Les courses</h3><Races ev={ev} save={save} /></div><PrepTab ev={ev} save={save} part="params" /></>, [...ev.races.map((r) => `${r.label} · ${String(r.distanceKm).replace(".", ",")} km${r.participants ? ` · ${r.participants} part.` : ""}`), totalParticipants(ev) ? `${totalParticipants(ev)} participants au total` : "Participants à indiquer"], "Une course par parcours : distance, dénivelé et altitudes sont repris du parcours choisi.")}
         {card("logistique", <LogisticsSummary ev={ev} />, [`${st.posts} poste(s)`, `Bénévoles ${st.covered}/${st.need}`, st.common ? `${st.common} poste(s) commun(s)` : null, ev.posts.some((p) => p.auto) ? `${ev.posts.filter((p) => p.auto).length} proposé(s) à vérifier` : null], "Départ, arrivée, ravitaillements, secours, parkings et bénévoles : placés et ajustés par vous sur la carte.", true)}
-        {card("analyse", <><GenerationPanel ev={ev} save={save} flow={flow} onOpen={goTo} /><PrepTab ev={ev} save={save} part="analyse" /><Fold title="Analyse cadastrale et réglementaire" hint="Parcours par parcours ou tous ensemble : parcelles traversées (référence, commune, distance), Natura 2000 et autres zonages, synthèse de l'événement et exports CSV / PDF."><AnalysisTab ev={ev} /></Fold></>, [prep.docMode === "site" ? "Génération choisie" : prep.docMode === "propres" ? "Documents fournis par vous" : "Génération non choisie", prep.analysedAt ? `Analysé le ${new Date(prep.analysedAt).toLocaleDateString("fr-FR")}` : "Pas encore analysé", prep.departments?.length ? `Départements ${prep.departments.join(", ")}` : null], "Facultatif : le site lit vos parcours et peut générer vos documents. Les organisateurs qui ont déjà les leurs passent directement à la logistique.")}
-        {card("documents", <>{prep.docMode === "propres" ? <p className="rounded-2xl bg-white p-4 text-sm text-ink-700 ring-1 ring-ink-100">Vous utilisez vos propres documents : confirmez simplement ci-dessous qu&apos;ils sont prêts. Les outils ci-dessous restent disponibles si vous voulez vous en servir.<br /><button type="button" className="mt-2 font-semibold text-pine-700 underline" onClick={() => goTo("analyse")}>Faire générer quand même</button></p> : null}<PrepTab ev={ev} save={save} part="documents" /></>, [ev.rules.trim().length > 40 ? "Règlement rédigé" : "Règlement à rédiger", `Dossier ${fileOk}/${fileN}`, prep.docsAt ? "Documents générés" : null], prep.docMode === "propres" ? "Vos propres documents : vous confirmez qu'ils sont prêts." : undefined)}
+        {card("analyse", <><GenerationPanel ev={ev} save={save} flow={flow} onOpen={goTo} /><PrepTab ev={ev} save={save} part="analyse" /><Fold title="Analyse cadastrale et réglementaire" hint="Un parcours ou tous : parcelles (référence, commune, distance), zonages, synthèse, exports CSV / PDF."><AnalysisTab ev={ev} /></Fold></>, [prep.docMode === "site" ? "Génération choisie" : prep.docMode === "propres" ? "Documents fournis par vous" : "Génération non choisie", prep.analysedAt ? `Analysé le ${new Date(prep.analysedAt).toLocaleDateString("fr-FR")}` : "Pas encore analysé", prep.departments?.length ? `Départements ${prep.departments.join(", ")}` : null], "Facultatif : le site lit vos parcours et peut générer vos documents. Les organisateurs qui ont déjà les leurs passent directement à la logistique.")}
+        {card("documents", <>{prep.docMode === "propres" ? <p className="rounded-2xl bg-white p-4 text-sm text-ink-700 ring-1 ring-ink-100">Vous utilisez vos propres documents : confirmez ci-dessous qu&apos;ils sont prêts. Les outils restent disponibles.<br /><button type="button" className="mt-2 font-semibold text-pine-700 underline" onClick={() => goTo("analyse")}>Faire générer quand même</button></p> : null}<PrepTab ev={ev} save={save} part="documents" /></>, [ev.rules.trim().length > 40 ? "Règlement rédigé" : "Règlement à rédiger", `Dossier ${fileOk}/${fileN}`, prep.docsAt ? "Documents générés" : null], prep.docMode === "propres" ? "Vos propres documents : vous confirmez qu'ils sont prêts." : undefined)}
         {card("verification", <FinalCheck flow={flow} ev={ev} save={save} onPick={(s) => goTo(s)} />, [`${flow.percent} % prêt`, `${flow.todo.length} à compléter`, `${flow.toValidate.length} à valider`])}
       </div>
     </div>
@@ -183,7 +187,7 @@ function Races({ ev, save }: P) {
   const facts = (f: Pick<Race, "distanceKm" | "gainM" | "lossM" | "minEle" | "maxEle">, sport: Sport) => <dl className="flex flex-wrap gap-x-6 gap-y-2">{stat("Distance", `${String(f.distanceKm).replace(".", ",")} km`)}{stat("D+", `${f.gainM} m`)}{f.lossM != null && stat("D−", `${f.lossM} m`)}{f.minEle != null && stat("Alt. min", `${f.minEle} m`)}{f.maxEle != null && stat("Alt. max", `${f.maxEle} m`)}{stat("Durée médiane estimée", fmtDuration(estimateMinutes(sport, f.distanceKm * 1000, f.gainM)))}</dl>;
   return (
     <div className="grid gap-4">
-      {ev.races.length > 1 && <p className="text-xs text-ink-500">L&apos;ordre des courses ci-dessous est repris dans toute l&apos;organisation (logistique, bénévoles, documents). Changez-le avec les flèches ou en glissant la poignée ⠿.</p>}
+      {ev.races.length > 1 && <p className="text-xs text-ink-500">Cet ordre est repris partout (logistique, bénévoles, documents) : flèches ou poignée ⠿ pour le changer.</p>}
       {ev.races.map((r, idx) => {
         const rt = r.routeId ? routes.find((x) => x.id === r.routeId) : undefined, legacy = !r.routeId, missing = !!r.routeId && !rt;
         return (

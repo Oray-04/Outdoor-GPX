@@ -39,10 +39,10 @@ export function OrganizerHome() {
         <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
           <p className="eyebrow !text-brass-400">Organisation Trail</p>
           <h1 className="mt-2 max-w-3xl text-4xl sm:text-5xl">Organisez votre trail, <em className="text-brass-400">étape par étape</em>.</h1>
-          <p className="mt-4 max-w-2xl text-white/70">Même pour une première édition : vous tracez les parcours, le site en tire l&apos;analyse, les documents et une logistique proposée. Vous gardez la main sur ce qui vous engage.</p>
+          <p className="mt-4 max-w-2xl text-white/70">Même pour une première édition : vous tracez, le site prépare analyse, documents et logistique. Vous gardez la main.</p>
           <ol className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-7">{STEP_META.map((s, i) => { const I = ICONS[i]; return (
             <li key={s.id} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"><span className="flex items-center gap-2"><span className="grid size-7 place-items-center rounded-full bg-brass-400 font-display text-xs font-bold text-ink-950">{i + 1}</span><I className="size-4 text-brass-400" /></span><span className="mt-2 block text-sm font-semibold">{s.title}</span><span className="mt-0.5 block text-xs text-white/60">{AUTO[i]}</span></li>); })}</ol>
-          <p className="mt-4 flex items-center gap-2 text-sm text-white/70"><Sparkles className="size-4 text-brass-400" />La génération automatique (analyse, règlement, dossier) est facultative : si vous avez déjà vos documents, passez directement à la logistique.</p>
+          <p className="mt-4 flex items-center gap-2 text-sm text-white/70"><Sparkles className="size-4 text-brass-400" />Génération automatique facultative : si vous avez vos documents, passez à la logistique.</p>
         </div>
       </section>
       <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_24rem]">

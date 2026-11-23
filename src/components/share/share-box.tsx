@@ -30,7 +30,7 @@ export function ShareBox({ route }: { route: SavedRoute }) {
           <button role="tab" aria-selected={tab === "iframe"} onClick={() => setTab("iframe")} className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 ${tab === "iframe" ? "bg-ink-900 text-white" : "text-ink-600 hover:bg-ink-100"}`}><Code2 className="size-4" />Intégrer sur un site Web</button>
         </div>
         {tab === "lien" ? (<div className="mt-3 grid gap-2">
-          <p className="text-sm text-ink-600">Toute personne ayant ce lien peut voir le parcours, télécharger son GPX et en créer une copie. Elle ne peut pas modifier votre original.</p>
+          <p className="text-sm text-ink-600">Avec ce lien : voir, télécharger le GPX, copier. Votre original reste non modifiable.</p>
           <textarea readOnly aria-label="Lien de partage" rows={3} className={ta} value={link} onFocus={(e) => e.currentTarget.select()} />
           <div><Button size="sm" onClick={() => copy(link, "Lien")}><Copy className="size-4" />Copier le lien</Button></div>
         </div>) : (<div className="mt-3 grid gap-2">

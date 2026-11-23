@@ -29,7 +29,7 @@ export function NearYou() {
       </div>
     );
   }
-  if (!sorted.length) return <p className="rounded-[var(--radius-card)] border border-dashed border-ink-200 bg-white p-8 text-sm text-ink-500">Vous n'avez pas encore de parcours enregistré. Créez-en un, importez un GPX ou ajoutez un itinéraire de référence à votre bibliothèque.</p>;
+  if (!sorted.length) return <p className="rounded-[var(--radius-card)] border border-dashed border-ink-200 bg-white p-8 text-sm text-ink-500">Aucun parcours enregistré : créez-en un, importez un GPX ou ajoutez un itinéraire de référence.</p>;
   return (
     <div className="grid gap-5 md:grid-cols-3">
       {sorted.map(({ r, d }) => <RouteCard key={r.id} route={r} note={`à ${Math.round(d / 1000).toLocaleString("fr-FR")} km`} />)}

@@ -13,7 +13,7 @@ export function CloudCard() {
   if (!auth.enabled) return (
     <div className="flex items-start gap-3 rounded-xl bg-ink-50 p-4 text-sm text-ink-700">
       <CloudOff className="mt-0.5 size-5 shrink-0" />
-      <div><p className="font-semibold">Mode local : comptes non activés</p><p className="mt-1">Vos données restent sur cet appareil. Pour les retrouver partout et publier des parcours, connectez le site à une base Supabase : <a className="font-semibold text-pine-700 underline" href={DOC} target="_blank" rel="noopener noreferrer">guide pas à pas</a>.</p></div>
+      <div><p className="font-semibold">Mode local : comptes non activés</p><p className="mt-1">Données sur cet appareil uniquement. Pour les retrouver partout et publier, connectez une base Supabase : <a className="font-semibold text-pine-700 underline" href={DOC} target="_blank" rel="noopener noreferrer">guide pas à pas</a>.</p></div>
     </div>
   );
   if (!auth.ready) return <p className="flex items-center gap-2 text-sm text-ink-500"><Loader2 className="size-4 animate-spin" />Chargement…</p>;
@@ -30,7 +30,7 @@ export function CloudCard() {
         {sync.status === "idle" && "En attente de synchronisation…"}
       </p>
       <div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={() => sync.syncNow()} disabled={sync.status === "syncing"}><RefreshCw className="size-4" />Synchroniser maintenant</Button><Button size="sm" variant="ghost" onClick={() => auth.signOut()}><LogOut className="size-4" />Se déconnecter</Button></div>
-      <p className="text-xs text-ink-500">Synchronisés : parcours, activités, collections, événements, favoris, profil, calques. Non synchronisées : les photos (stockage local uniquement). Les parcours « Public » sont publiés pour tous les visiteurs.</p>
+      <p className="text-xs text-ink-500">Synchronisés : parcours, activités, collections, événements, favoris, profil, calques. Photos : sur cet appareil uniquement. Un parcours « Public » est visible de tous.</p>
     </div>
   );
 }

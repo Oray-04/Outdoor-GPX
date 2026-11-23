@@ -46,7 +46,7 @@ export function Catalog({ selected, onToggle, drinkId, onDrink }: { selected?: s
           {errs.length > 0 && <ul role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{errs.map((x) => <li key={x}>{x}</li>)}</ul>}
           <div className="flex gap-2"><Button type="submit" size="sm"><Check className="size-4" />{editing ? "Enregistrer" : "Ajouter"}</Button><Button type="button" size="sm" variant="ghost" onClick={() => { setOpen(false); setEditing(null); setErrs([]); }}><X className="size-4" />Annuler</Button></div>
         </form>)}
-      {!products.length ? <div className="rounded-2xl border border-dashed border-ink-300 bg-white/50 p-6 text-center text-sm text-ink-600"><Package className="mx-auto size-8 text-ink-400" /><p className="mt-2 font-semibold text-ink-800">Catalogue vide</p><p>Ajoutez les gels, boissons, barres ou capsules que vous utilisez : le plan indiquera alors le nombre exact à emporter.</p></div> : (
+      {!products.length ? <div className="rounded-2xl border border-dashed border-ink-300 bg-white/50 p-6 text-center text-sm text-ink-600"><Package className="mx-auto size-8 text-ink-400" /><p className="mt-2 font-semibold text-ink-800">Catalogue vide</p><p>Ajoutez vos gels, boissons, barres ou capsules : le plan indiquera combien en emporter.</p></div> : (
         <ul className="grid gap-2 md:grid-cols-2">{products.map((p) => { const on = (selected ?? []).includes(p.id); return (
           <li key={p.id} className={clsx("rounded-2xl border bg-white/70 p-3", on ? "border-pine-500 ring-1 ring-pine-500/40" : "border-ink-100")}>
             <div className="flex items-start gap-3">

@@ -323,3 +323,23 @@ export function bearing(a: readonly number[], b: readonly number[]): number {
 /** Écart signé entre deux caps, dans ]-180, 180]. */
 export const angleDiff = (from: number, to: number) => ((to - from + 540) % 360) - 180;
 
+
+/**
+ * Point du tracé le plus proche d'une position (projection sur les segments, pas seulement sur les sommets) :
+ * position glissante pour un repère qui suit le curseur, distance depuis le départ et sommet le plus proche (profil).
+ */
+export function nearestOnLine(coords: readonly (readonly number[])[], p: readonly [number, number], cum?: number[]): { pt: [number, number]; i: number; distM: number; alt: number | null } | null {
+  if (coords.length < 2) return null;
+  const kx = Math.cos((p[1] * Math.PI) / 180);
+  let best = Infinity, bi = 0, bt = 0;
+  for (let i = 0; i < coords.length - 1; i++) {
+    const a = coords[i], b = coords[i + 1];
+    const ax = (a[0] - p[0]) * kx, ay = a[1] - p[1], dx = (b[0] - a[0]) * kx, dy = b[1] - a[1], l2 = dx * dx + dy * dy;
+    const t = l2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / l2)) : 0, ex = ax + t * dx, ey = ay + t * dy, d = ex * ex + ey * ey;
+    if (d < best) { best = d; bi = i; bt = t; }
+  }
+  const a = coords[bi], b = coords[bi + 1], c = cum ?? cumulative(coords);
+  const pt: [number, number] = [a[0] + (b[0] - a[0]) * bt, a[1] + (b[1] - a[1]) * bt];
+  const za = a[2], zb = b[2], alt = typeof za === "number" && typeof zb === "number" ? za + (zb - za) * bt : typeof za === "number" ? za : null;
+  return { pt, i: bt < 0.5 ? bi : bi + 1, distM: c[bi] + (c[bi + 1] - c[bi]) * bt, alt };
+}

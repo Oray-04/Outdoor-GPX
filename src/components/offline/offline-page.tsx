@@ -106,7 +106,7 @@ export function OfflinePage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
       <h1 className="text-3xl font-extrabold sm:text-4xl">Hors ligne</h1>
-      <p className="mt-2 max-w-3xl text-ink-600">Téléchargez à l'avance le fond de carte d'une zone et vos parcours pour les consulter, et suivre votre itinéraire, sans réseau (montagne, zones blanches).</p>
+      <p className="mt-2 max-w-3xl text-ink-600">Téléchargez une zone de carte et vos parcours pour les suivre sans réseau.</p>
 
       <section className={clsx(card, "mt-6")} aria-label="État">
         <h2 className="text-lg font-bold">État de l'appareil</h2>
@@ -143,7 +143,7 @@ export function OfflinePage() {
           {busy && progress ? <div className="mt-3" role="status"><div className="flex justify-between text-xs text-ink-500"><span>Téléchargement…</span><span>{progress.done}/{progress.total}{progress.failed ? ` · ${progress.failed} échec(s)` : ""}</span></div><div className="mt-1 h-2 overflow-hidden rounded-full bg-ink-100"><div className="h-full rounded-full bg-pine-500 transition-all" style={{ width: `${(progress.done / Math.max(1, progress.total)) * 100}%` }} /></div><Button className="mt-2" variant="secondary" size="sm" onClick={() => ctrl.current?.abort()}><Square className="size-4" />Arrêter</Button></div>
             : <Button className="mt-3 w-full" size="lg" onClick={download} disabled={!area || tooBig || !online || sw !== "actif"}><Download className="size-5" />Télécharger</Button>}
           {(!online || sw !== "actif") && <p className="mt-2 text-xs text-ink-500">{!online ? "Connexion requise pour télécharger." : "Le mode hors ligne n'est pas actif sur ce navigateur."}</p>}
-          <p className="mt-3 text-xs text-ink-500">Cartes IGN (Géoplateforme), à usage personnel et raisonnable. Les fonds OpenStreetMap, OpenTopoMap et Thunderforest ne sont pas téléchargeables (leurs conditions l'interdisent ou le déconseillent). Couverture : France.</p>
+          <p className="mt-3 text-xs text-ink-500">Cartes IGN, France, usage personnel et raisonnable. Les autres fonds ne sont pas téléchargeables (conditions d'utilisation).</p>
         </section>
 
         <div className="relative h-[22rem] overflow-hidden rounded-2xl ring-1 ring-ink-100 lg:h-auto lg:min-h-[28rem]"><div className="absolute inset-0"><div ref={el} className="size-full" role="region" aria-label="Carte de cadrage de la zone" /></div></div>
@@ -160,10 +160,10 @@ export function OfflinePage() {
 
       <section className={clsx(card, "mt-6")} aria-label="Parcours prêts pour la sortie">
         <h2 className="text-lg font-bold">Parcours prêts pour la sortie</h2>
-        <p className="mt-1 text-sm text-ink-500">Un parcours est prêt s'il est enregistré sur cet appareil et qu'une zone téléchargée le couvre entièrement (zoom 12 à 14 au moins) : vous pouvez alors le suivre dans « Suivi GPS » sans réseau.</p>
+        <p className="mt-1 text-sm text-ink-500">Prêt = enregistré ici et entièrement couvert par une zone téléchargée (zoom 12 à 14 minimum) : suivez-le alors sans réseau dans « Suivi GPS ».</p>
         {routes.length ? <ul className="mt-3 grid gap-2">{routes.map((r) => { const ok = packsCoverRoute(packs, bboxAround(r.coords, 0)); return (
           <li key={r.id} className="flex flex-wrap items-center gap-3 rounded-xl bg-ink-50 p-3"><span className="min-w-0 flex-1 font-medium">{r.name}</span>
-            {ok ? <Badge tone="pine"><CheckCircle2 className="size-3" />Prêt · {ok.name}</Badge> : <><Badge tone="ember"><CircleAlert className="size-3" />Carte non téléchargée</Badge><Button size="sm" variant="secondary" onClick={() => prepareRoute(r.id)}>Préparer</Button></>}</li>); })}</ul> : <p className="mt-2 text-sm text-ink-500">Aucun parcours enregistré. Créez-en un, importez un GPX, ou enregistrez un parcours de la communauté sur votre appareil.</p>}
+            {ok ? <Badge tone="pine"><CheckCircle2 className="size-3" />Prêt · {ok.name}</Badge> : <><Badge tone="ember"><CircleAlert className="size-3" />Carte non téléchargée</Badge><Button size="sm" variant="secondary" onClick={() => prepareRoute(r.id)}>Préparer</Button></>}</li>); })}</ul> : <p className="mt-2 text-sm text-ink-500">Aucun parcours enregistré : créez-en un, importez un GPX ou enregistrez un parcours de la communauté.</p>}
       </section>
     </div>
   );

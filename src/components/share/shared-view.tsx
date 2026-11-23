@@ -78,7 +78,7 @@ export function SharedView({ embed }: { embed: boolean }) {
         {r && <div className="mt-4 flex flex-wrap gap-2"><Button onClick={gpx}><Download className="size-4" />Télécharger le GPX</Button><Button variant="secondary" disabled={!!savedId} onClick={() => save(false)}>{savedId ? <><Check className="size-4" />Dans ma bibliothèque</> : <><Save className="size-4" />Ajouter à ma bibliothèque</>}</Button><Button variant="secondary" onClick={() => save(true)}><Pencil className="size-4" />Créer mon parcours à partir de celui-ci</Button></div>}
         {msg && <p role="status" className="mt-3 rounded-lg bg-pine-50 px-3 py-2 text-sm text-pine-700">{msg}</p>}
         {r && r.sourcePoints > r.coords.length && <p className="mt-3 flex gap-2 text-xs text-ink-500"><TriangleAlert className="mt-0.5 size-4 shrink-0 text-warn" />Tracé allégé pour tenir dans un lien : {r.coords.length} points sur {r.sourcePoints} (écart maximal {r.maxDevM} m). Distance et dénivelés sont ceux du tracé complet de l'auteur.</p>}
-        <p className="mt-2 text-xs text-ink-500">Vous consultez une copie : vous ne pouvez pas modifier le parcours de l'auteur. Toute modification se fait sur votre propre copie.</p>
+        <p className="mt-2 text-xs text-ink-500">Copie : le parcours de l'auteur reste intact, vos modifications vont dans votre copie.</p>
       </>)}
     </div>
   );

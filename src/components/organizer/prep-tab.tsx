@@ -47,7 +47,7 @@ export function PrepTab({ ev, save, part }: { ev: EventModel; save: (fn: (e: Eve
 
       {part === "params" && (
       <section className={card} aria-labelledby="prep-params">
-        <h2 id="prep-params" className="text-lg font-bold">Effectifs et conditions</h2><p className="text-sm text-ink-500">Les informations que le site ne peut pas deviner. Elles dimensionnent les secours, le matériel et le dossier administratif.</p>
+        <h2 id="prep-params" className="text-lg font-bold">Effectifs et conditions</h2><p className="text-sm text-ink-500">Ce que le site ne peut pas deviner : cela dimensionne secours, matériel et dossier.</p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {perRace ? <div className="grid gap-1 text-sm font-medium"><span>Participants attendus</span><span className="flex h-10 items-center rounded-lg bg-ink-50 px-3 font-display text-base font-bold" data-total-participants>{total}</span><span className="text-xs font-normal text-ink-500">Somme des effectifs des courses ({ev.races.filter((r) => r.participants).map((r) => `${r.label} ${r.participants}`).join(" + ")})</span></div>
             : <label className="grid gap-1 text-sm font-medium"><span>Participants attendus <span className="text-danger" aria-hidden="true">*</span></span><input type="number" min={0} required className={inp} value={prep.participants ?? ""} onChange={(e) => set({ participants: e.target.value === "" ? undefined : Math.max(0, +e.target.value) })} placeholder="ex. 300" /><span className="text-xs font-normal text-ink-500">Ou indiquez l&apos;effectif de chaque course ci-dessus : le total se calcule seul.</span></label>}
@@ -82,7 +82,7 @@ export function PrepTab({ ev, save, part }: { ev: EventModel; save: (fn: (e: Eve
               <div>
                 <h3 className="eyebrow mb-1.5">Horaires du jour J</h3>
                 <ol className="grid gap-1 text-sm">{day.steps.map((s) => <li key={s.label} className="flex gap-3"><span className="w-16 shrink-0 font-display font-bold">{s.clock}</span><span>{s.label}{s.estimate && <span className="text-ink-500"> (estimation)</span>}</span></li>)}</ol>
-                <p className="mt-1.5 text-xs text-ink-500">Arrivées estimées à partir de la distance et du dénivelé : à ajuster selon le niveau du plateau. La veille : accueil et retrait des dossards de 16 h à 20 h.</p>
+                <p className="mt-1.5 text-xs text-ink-500">Arrivées estimées d'après distance et dénivelé, à ajuster. Veille : retrait des dossards de 16 h à 20 h.</p>
                 <h3 className="eyebrow mb-1.5 mt-4">Contrôle de la logistique saisie</h3>
                 <ul className="grid gap-1.5 text-sm">{checks.map((k) => { const { I, c: col } = LEVEL[k.level]; return <li key={k.text} className="flex gap-2"><I className={clsx("mt-0.5 size-4 shrink-0", col)} aria-label={k.level === "warn" ? "À traiter" : k.level === "ok" ? "Conforme" : "Note"} /><span>{k.text}</span></li>; })}</ul>
               </div>
@@ -135,7 +135,7 @@ export function PrepTab({ ev, save, part }: { ev: EventModel; save: (fn: (e: Eve
 
       {part === "documents" && (<>
       <section className={card} aria-labelledby="prep-rules">
-        <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 id="prep-rules" className="text-lg font-bold">Règlement type</h2><p className="text-sm text-ink-500">Projet rédigé à partir de vos courses, barrières horaires et matériel. À relire : les mentions entre crochets restent à compléter.</p></div>
+        <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 id="prep-rules" className="text-lg font-bold">Règlement type</h2><p className="text-sm text-ink-500">Projet tiré de vos courses, barrières et matériel. À relire : complétez les mentions entre crochets.</p></div>
           <div className="flex flex-wrap gap-2"><Button variant="secondary" size="sm" onClick={copyRules}><Copy className="size-4" />{copied ? "Copié" : "Copier"}</Button><Button size="sm" onClick={insertRules}><FilePlus2 className="size-4" />Utiliser comme règlement</Button></div></div>
         {ev.rules.trim() ? <label className="mt-3 grid gap-1 text-sm font-medium">Règlement de l&apos;événement (modifiable, publié sur la page de l&apos;événement)<textarea aria-label="Règlement de l'événement" rows={12} className="rounded-xl border border-ink-200 p-3 font-sans text-xs leading-relaxed" value={ev.rules} onChange={(e) => save((x) => ({ ...x, rules: e.target.value }))} /></label> : null}
         <details className="mt-3" open={!ev.rules.trim()}><summary className="cursor-pointer text-sm font-semibold text-pine-700">Projet généré à partir de vos courses</summary>
