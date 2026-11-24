@@ -67,7 +67,7 @@ export function MapFrame({ className, banner, children }: { className?: string; 
     <div ref={ref} className={clsx("flex flex-col", solo ? "fixed inset-0 z-[80] bg-white" : className)}>
       <div className="relative min-h-0 flex-1">
         {children}
-        <button type="button" onClick={full ? exit : enter} aria-pressed={full} aria-label={full ? "Quitter le plein écran" : "Carte en plein écran"} title={full ? "Quitter le plein écran (Échap)" : "Plein écran"}
+        <button type="button" data-fs-btn onClick={full ? exit : enter} aria-pressed={full} aria-label={full ? "Quitter le plein écran" : "Carte en plein écran"} title={full ? "Quitter le plein écran (Échap)" : "Plein écran"}
           className={clsx("absolute bottom-9 right-2.5 z-10 flex h-10 items-center gap-1.5 rounded-xl text-sm font-semibold shadow-md ring-1 transition-colors", full ? "bg-ink-900 px-3 text-white ring-white/20 hover:bg-ink-800" : "glass w-10 justify-center text-ink-800 ring-black/10 hover:bg-white")}>
           {full ? <><Minimize2 className="size-4" /><span>Quitter</span></> : <Maximize2 className="size-4" />}
         </button>

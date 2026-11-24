@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Marker, GeoJSONSource } from "maplibre-gl";
-import { Eye, EyeOff, X, Undo2, Redo2, Route, Route as RouteIcon, MousePointer2, ArrowLeftRight, Repeat, Trash2, Copy, Scissors, Flag, Upload, Download, MapPin, Loader2, Check, AlertTriangle, Plus, Merge, LocateFixed, Wand2, Save as SaveIcon, Bike, MountainSnow, Zap, Footprints } from "lucide-react";
+import { Eye, EyeOff, X, Undo2, Redo2, Route, Route as RouteIcon, MousePointer2, ArrowLeftRight, Repeat, Trash2, Copy, Scissors, Flag, Upload, Download, MapPin, Loader2, Check, AlertTriangle, Plus, Merge, LocateFixed, Wand2, Save as SaveIcon, Bike, MountainSnow, Zap, Footprints, ChevronDown, Layers } from "lucide-react";
 import clsx from "clsx";
 import { useMap } from "@/components/map/use-map";
 import { LayerControl } from "@/components/map/layer-control";
@@ -48,9 +48,6 @@ export function Editor({ routeId }: { routeId?: string }) {
   const [lastSource, setLastSource] = useState<Source | null>(null);
   const [aligning, setAligning] = useState<string | null>(null);
   const [sheet, setSheet] = useState<SheetState>("peek");
-  const [cutMode, setCutMode] = useState(false);
-  const [cutKeys, setCutKeys] = useState<string[]>([]);
-  const [madeParts, setMadeParts] = useState<{ id: string; name: string }[]>([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "warn" | "err"; text: string } | null>(null);
   const [sel, setSel] = useState<number | null>(null);
@@ -125,7 +122,8 @@ export function Editor({ routeId }: { routeId?: string }) {
   const closed = E.isClosed(st);
   const chartMarkers: ChartMarker[] = useMemo(() => {
     if (coords.length < 2) return [];
-    return st.pois.map((p) => ({ d: distanceAlong(coords, cum, p), label: POI_TYPES[p.type].letter, color: POI_TYPES[p.type].color, title: `${p.name} (${POI_TYPES[p.type].label})` }));
+    // profil épuré : seuls les ravitaillements et les points d'eau y figurent
+    return st.pois.filter((p) => p.type === "ravito" || p.type === "eau").map((p) => ({ d: distanceAlong(coords, cum, p), label: POI_TYPES[p.type].letter, color: POI_TYPES[p.type].color, title: `${p.name} (${POI_TYPES[p.type].label})` }));
   }, [st.pois, coords, cum]);
 
   // ── Enregistrement MANUEL : rien n'est écrit dans la bibliothèque tant que l'utilisateur n'a pas cliqué « Enregistrer » ──
@@ -236,18 +234,6 @@ export function Editor({ routeId }: { routeId?: string }) {
       const poi: Poi = { id: uid(), type: poiMode, name: POI_TYPES[poiMode].label, lng, lat };
       commit({ ...st, pois: [...st.pois, poi] }); return;
     }
-    if (cutMode) {
-      const onTrack = m.queryRenderedFeatures([[px.x - 9, px.y - 9], [px.x + 9, px.y + 9]], { layers: ["track-line"] });
-      if (!onTrack.length || !st.segs.length) { setMsg({ kind: "warn", text: "Cliquez directement sur le tracé pour placer une coupe." }); return; }
-      let b = { s: -1, v: -1, d: Infinity };
-      st.segs.forEach((g, s2) => g.forEach((p, v) => { const d = (p[0] - lng) ** 2 + (p[1] - lat) ** 2; if (d < b.d) b = { s: s2, v, d }; }));
-      const next = E.insertOnSegment(st, b.s, b.v);
-      const wi = next !== st ? b.s + 1 : b.v <= 0 ? b.s : b.s + 1;     // point de coupe : nouveau waypoint ou waypoint existant
-      if (wi <= 0 || wi >= next.waypoints.length - 1) { setMsg({ kind: "warn", text: "Une coupe ne peut pas être au tout début ni à la toute fin." }); return; }
-      if (next !== st) commit(next);
-      const w = next.waypoints[wi]; setCutKeys((k) => (k.includes(`${w.lng},${w.lat}`) ? k : [...k, `${w.lng},${w.lat}`]));
-      return;
-    }
     const hit = m.queryRenderedFeatures([[px.x - 7, px.y - 7], [px.x + 7, px.y + 7]], { layers: ["track-line"] });
     if (hit.length && st.segs.length) {
       let best = { s: -1, v: -1, d: Infinity };
@@ -264,7 +250,7 @@ export function Editor({ routeId }: { routeId?: string }) {
   }, [ready, map]);
 
   // ── Point intermédiaire tiré depuis le tracé (clic maintenu + glisser) ──
-  const modesRef = useRef({ cutMode, poiMode, busy, auto, sectMode: false }); modesRef.current = { cutMode, poiMode, busy, auto, sectMode: sectModeRef.current };
+  const modesRef = useRef({ poiMode, busy, auto, sectMode: false }); modesRef.current = { poiMode, busy, auto, sectMode: sectModeRef.current };
   const commitRef = useRef(commit); commitRef.current = commit;
   const dragRef = useRef<{ seg: number; sx: number; sy: number; moved: boolean; ghost: Marker | null; timer: ReturnType<typeof setTimeout> | null; token: number; pos: [number, number] } | null>(null);
   const suppressClick = useRef(0);
@@ -285,7 +271,7 @@ export function Editor({ routeId }: { routeId?: string }) {
     const m = map.current, lib = ml.current; if (!m || !lib || !ready) return;
     const start = (e: { lngLat: { lng: number; lat: number }; point: { x: number; y: number }; originalEvent: MouseEvent | TouchEvent; preventDefault: () => void }) => {
       const md = modesRef.current; const oe = e.originalEvent;
-      if (md.cutMode || md.poiMode || sectModeRef.current || md.busy || dragRef.current || stRef.current.segs.length === 0) return;
+      if (md.poiMode || sectModeRef.current || md.busy || dragRef.current || stRef.current.segs.length === 0) return;
       if ((oe.target as HTMLElement | null)?.closest?.(".maplibregl-marker")) return; // un marqueur existant gère son propre glissement
       if ("button" in oe && oe.button !== 0) return;
       if ("touches" in oe && oe.touches.length !== 1) return;
@@ -335,12 +321,11 @@ export function Editor({ routeId }: { routeId?: string }) {
     st.waypoints.forEach((w, i) => {
       const first = i === 0, last = i === n - 1 && n > 1 && !closed;
       if (closed && i === n - 1) return; // boucle : un seul marqueur (double drapeau) au départ/arrivée
-      const cut = cutKeys.includes(`${w.lng},${w.lat}`);
-      const flag = !cut && (first || last) ? (first ? (closed ? "loop" : "start") : "finish") : null;
+      const flag = (first || last) ? (first ? (closed ? "loop" : "start") : "finish") : null;
       const d = flag ? routeMarkerEl(flag) : document.createElement("button");
       if (!flag) {
-        d.className = clsx("grid size-6 place-items-center rounded-full border-2 text-[10px] font-bold shadow-md", cut ? "border-white bg-ember-500 text-white" : "border-pine-600 bg-white text-pine-700", sel === i && "ring-4 ring-ember-400/60");
-        d.textContent = cut ? "✂" : String(i);
+        d.className = clsx("grid size-6 place-items-center rounded-full border-2 border-pine-600 bg-white text-[10px] font-bold text-pine-700 shadow-md", sel === i && "ring-4 ring-ember-400/60");
+        d.textContent = String(i);
       } else if (sel === i) (d.firstElementChild as HTMLElement).style.filter = "drop-shadow(0 0 5px #ff8556)";
       d.title = `Point ${i + 1} — glissez pour déplacer, cliquez pour sélectionner`;
       d.setAttribute("aria-label", d.title);
@@ -366,7 +351,7 @@ export function Editor({ routeId }: { routeId?: string }) {
       mk.on("dragend", () => { tok++; if (tmr) clearTimeout(tmr); (map.current?.getSource("drag-prev") as GeoJSONSource | undefined)?.setData({ type: "FeatureCollection", features: [] }); const p = mk.getLngLat(); run(() => E.moveWaypoint(stRef.current, i, p.lng, p.lat, routerRef.current)); });
       markers.current.push(mk);
     });
-  }, [st.waypoints, sel, closed, cutKeys, ready, map, ml, run]);
+  }, [st.waypoints, sel, closed, ready, map, ml, run]);
 
   // Marqueurs de POI
   useEffect(() => {
@@ -420,7 +405,7 @@ export function Editor({ routeId }: { routeId?: string }) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); }
       else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") { e.preventDefault(); redo(); }
       else if ((e.key === "Delete" || e.key === "Backspace") && sel != null) { e.preventDefault(); const i = sel; setSel(null); run(() => E.removeWaypoint(st, i, routerRef.current)); }
-      else if (e.key === "Escape") { setSel(null); setPoiMode(null); setCutMode(false); setSectMode(false); }
+      else if (e.key === "Escape") { setSel(null); setPoiMode(null); setSectMode(false); }
     };
     window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h);
   }, [undo, redo, sel, st, run]);
@@ -527,18 +512,6 @@ export function Editor({ routeId }: { routeId?: string }) {
     try { const nid = await saveSibling(parts[1], `${meta.name || "Parcours"} (2/2)`); setMeta((m) => ({ ...m, name: `${m.name || "Parcours"} (1/2)` })); commit(parts[0]); setSel(null); setMsg({ kind: "ok", text: `Parcours divisé : la 2ᵉ partie est enregistrée à part (${nid.slice(0, 6)}…).` }); }
     catch { setMsg({ kind: "err", text: "Division impossible (altitudes indisponibles)." }); } finally { setBusy(false); }
   };
-  const cutAll = async () => {
-    const idx = st.waypoints.map((w, i) => (cutKeys.includes(`${w.lng},${w.lat}`) ? i : -1)).filter((i) => i > 0 && i < st.waypoints.length - 1);
-    const parts = E.splitMany(st, idx);
-    if (parts.length < 2) { setMsg({ kind: "warn", text: "Placez au moins une coupe sur le tracé." }); return; }
-    setBusy(true); setMsg(null); seedElevations(coords);
-    try {
-      const base = meta.name || "Parcours"; const made: { id: string; name: string }[] = [];
-      for (let k = 0; k < parts.length; k++) { const name = `${base} (${k + 1}/${parts.length})`; made.push({ id: await saveSibling(parts[k], name), name }); }
-      setMadeParts(made); setCutKeys([]); setCutMode(false);
-      setMsg({ kind: "ok", text: `${made.length} parcours créés. Le parcours d'origine est conservé.` });
-    } catch { setMsg({ kind: "err", text: "Découpe impossible pour le moment." }); } finally { setBusy(false); }
-  };
   const mergeWith = (rid2: string) => { const r = routesRepo.get(rid2); if (!r) return; seedElevations(r.coords); commit(E.merge(st, { waypoints: r.waypoints, segs: r.segs, pois: r.pois })); setMsg({ kind: "ok", text: `« ${r.name} » ajouté à la suite du tracé.` }); };
 
   async function importFile(f: File, mode: "replace" | "merge") {
@@ -577,40 +550,47 @@ export function Editor({ routeId }: { routeId?: string }) {
   }, [refRoute?.id, refRoute?.coords.length, refShown, ready, map]); // eslint-disable-line react-hooks/exhaustive-deps
   const fitRef = () => { if (!refRoute || refRoute.coords.length < 2) return; const b = bboxOf(refRoute.coords); map.current?.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 70, maxZoom: 15 }); };
 
-  const tb = "grid size-10 place-items-center lg:size-9 rounded-lg text-ink-700 hover:bg-ink-100 disabled:opacity-35 disabled:hover:bg-transparent";
   const field = "w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm";
+  const card = "rounded-2xl bg-ink-50/70 p-3 ring-1 ring-ink-100";
+  const fold = "group/fold rounded-2xl bg-ink-50/70 ring-1 ring-ink-100 [&_summary::-webkit-details-marker]:hidden";
+  const summary = "flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-sm font-semibold";
+  const chev = <ChevronDown className="ml-auto size-4 text-ink-400 transition group-open/fold:rotate-180" />;
+  const openSection = () => { setTab("trace"); setSheet((x) => (x === "peek" ? "half" : x)); setTimeout(() => document.getElementById("sect-tool")?.scrollIntoView({ behavior: "smooth", block: "center" }), 60); };
 
   return (
-    <div data-workspace className="relative h-[calc(100dvh-4rem-var(--bnav))] overflow-hidden lg:grid lg:min-h-[36rem] lg:grid-cols-[1fr_22rem] lg:grid-rows-[minmax(0,1fr)]">
-      <div className="absolute inset-x-0 top-0 bottom-[8rem] flex flex-col lg:static lg:min-h-0">
+    <div data-workspace className={clsx("relative h-[calc(100dvh-4rem-var(--bnav))] overflow-hidden lg:grid lg:min-h-[36rem] lg:grid-cols-[minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)_auto]",
+      // commandes de la carte (zoom, nord, calques, plein écran, attributions) décalées à gauche du panneau flottant
+      "lg:[&_.maplibregl-ctrl-top-right]:!right-[22.5rem] lg:[&_.maplibregl-ctrl-bottom-right]:!right-[22.5rem] lg:[&_[data-fs-btn]]:!right-[22.75rem]")}>
+      <div className="absolute inset-x-0 top-0 bottom-[8rem] flex flex-col lg:static lg:col-start-1 lg:row-start-1 lg:min-h-0">
         <MapFrame className="min-h-[18rem] flex-1" banner={<StatBanner title={meta.name || "Parcours en cours"} items={[{ label: "Distance", value: stats ? fmtKm(stats.distanceM) : "—" }, { label: "D+", value: stats ? fmtM(stats.gainM) : "—" }, { label: "D−", value: stats ? fmtM(stats.lossM) : "—" }, { label: "Alt. min", value: stats ? fmtM(stats.minEle) : "—" }, { label: "Alt. max", value: stats ? fmtM(stats.maxEle) : "—" }, { label: "Durée est.", value: stats ? fmtDuration(durationMin) : "—" }]} />}>
           <div className="absolute inset-0"><div ref={el} className="size-full" role="application" aria-label="Carte de l'éditeur : cliquez pour ajouter des points" /></div>
-          <div className="absolute left-3 top-3 flex max-w-[calc(100%-4.75rem)] flex-wrap items-center gap-1 rounded-2xl glass p-1">
-            <div className="flex rounded-lg bg-ink-100 p-0.5 text-xs font-semibold" role="group" aria-label="Mode de tracé">
-              <button aria-pressed={auto} onClick={() => setAuto(true)} className={clsx("flex items-center gap-1 rounded-md px-2 py-1.5", auto && "bg-white shadow")} title="Le tracé suit les chemins"><RouteIcon className="size-3.5" />Chemins</button>
-              <button aria-pressed={!auto} onClick={() => setAuto(false)} className={clsx("flex items-center gap-1 rounded-md px-2 py-1.5", !auto && "bg-white shadow")} title="Ligne droite entre les points"><MousePointer2 className="size-3.5" />Libre</button>
-            </div>
-            <button className={tb} onClick={undo} disabled={hi === 0 || busy} aria-label="Annuler" title="Annuler (Ctrl+Z)"><Undo2 className="size-4" /></button>
-            <button className={tb} onClick={redo} disabled={hi >= hist.length - 1 || busy} aria-label="Rétablir" title="Rétablir (Ctrl+Y)"><Redo2 className="size-4" /></button>
-            <button className={tb} onClick={() => commit(E.reverse(st))} disabled={st.waypoints.length < 2 || busy} aria-label="Inverser le sens" title="Inverser le sens"><ArrowLeftRight className="size-4" /></button>
-            <button className={clsx(tb, "!flex !w-auto items-center gap-1.5 px-2.5 text-xs font-semibold")} onClick={closeRoute} disabled={!canClose} aria-label="Clôturer le parcours" title={closed ? "Le parcours est déjà une boucle" : "Clôturer le parcours : retour au départ par les chemins"}><Repeat className="size-4" /><span className="hidden sm:inline">Clôturer</span></button>
-            <button className={clsx(tb, cutMode && "!bg-ember-500 !text-white")} aria-pressed={cutMode} onClick={() => { setCutMode((v) => !v); setPoiMode(null); }} disabled={st.segs.length === 0} aria-label="Mode découpe" title="Découper le parcours : cliquez sur le tracé"><Scissors className="size-4" /></button>
-            <button className={tb} onClick={locate} aria-label="Me localiser" title="Me localiser"><LocateFixed className="size-4" /></button>
-            <button className={tb} onClick={reset} aria-label="Nouveau parcours" title="Nouveau / effacer"><Trash2 className="size-4" /></button>
+          {/* Barre d'outils : petites bulles, libellés au survol */}
+          <div role="toolbar" aria-label="Outils du tracé" className="absolute left-3 top-3 z-20 flex max-w-[calc(100%-4.75rem)] flex-wrap items-center gap-1.5 lg:max-w-[calc(100%-26rem)]" data-editor-toolbar>
+            <span className="glass flex rounded-full p-0.5 shadow-md ring-1 ring-black/10" role="group" aria-label="Mode de tracé">
+              {([[true, "Suivre les chemins", RouteIcon], [false, "Tracé libre (ligne droite)", MousePointer2]] as const).map(([v, l, I]) => (
+                <span key={String(v)} className="group/tool relative"><button type="button" data-tool={v ? "chemins" : "libre"} aria-pressed={auto === v} aria-label={l} onClick={() => setAuto(v)} className={clsx("grid size-9 place-items-center rounded-full transition lg:size-8", auto === v ? "bg-pine-700 text-white" : "text-ink-700 hover:bg-white")}><I className="size-4" /></button>
+                  <span role="tooltip" className="pointer-events-none absolute left-1/2 top-full z-40 mt-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-ink-950/90 px-2 py-1 text-[11px] font-semibold text-white opacity-0 shadow transition group-hover/tool:opacity-100 group-focus-within/tool:opacity-100">{l}</span></span>))}
+            </span>
+            <Tool id="annuler" label="Annuler (Ctrl+Z)" onClick={undo} disabled={hi === 0 || busy}><Undo2 className="size-4" /></Tool>
+            <Tool id="retablir" label="Rétablir (Ctrl+Y)" onClick={redo} disabled={hi >= hist.length - 1 || busy}><Redo2 className="size-4" /></Tool>
+            <Tool id="inverser" label="Inverser le sens" onClick={() => commit(E.reverse(st))} disabled={st.waypoints.length < 2 || busy}><ArrowLeftRight className="size-4" /></Tool>
+            <Tool id="cloturer" label={closed ? "Déjà une boucle" : "Clôturer : retour au départ"} onClick={closeRoute} disabled={!canClose}><Repeat className="size-4" /></Tool>
+            <Tool id="section" label="Ciseaux : extraire une section" tone="brand" on={sectMode} onClick={() => { setSectMode((v) => !v); setPoiMode(null); if (!sectMode) openSection(); }} disabled={coords.length < 2}><Scissors className="size-4" /></Tool>
+            <Tool id="localiser" label="Me localiser" onClick={locate}><LocateFixed className="size-4" /></Tool>
+            <Tool id="effacer" label="Nouveau parcours / effacer" onClick={reset}><Trash2 className="size-4" /></Tool>
           </div>
           <LayerControl map={map} ready={ready} />
-          {refRoute && <div role="group" aria-label="Calque de référence" className="glass absolute left-3 top-[4.25rem] z-10 flex max-w-[calc(100%-4.75rem)] items-center gap-1.5 rounded-2xl py-1 pl-2.5 pr-1 text-xs">
+          {refRoute && <div role="group" aria-label="Calque de référence" className="glass absolute left-3 top-[3.75rem] z-10 flex max-w-[calc(100%-4.75rem)] items-center gap-1.5 rounded-full py-1 pl-3 pr-1 text-xs shadow-md lg:max-w-[calc(100%-26rem)]">
             <span className="inline-block h-1.5 w-5 shrink-0 rounded-full bg-[#1f7594]/60" aria-hidden="true" /><span className="min-w-0 truncate font-semibold">Référence : {refRoute.name}</span>
-            <button type="button" onClick={() => setRefShown((v) => !v)} aria-pressed={!refShown} aria-label={refShown ? "Masquer le calque de référence" : "Afficher le calque de référence"} title={refShown ? "Masquer" : "Afficher"} className="grid size-7 shrink-0 place-items-center rounded-lg hover:bg-ink-100">{refShown ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}</button>
-            <button type="button" onClick={() => setRefId(null)} aria-label="Retirer le calque de référence" title="Retirer" className="grid size-7 shrink-0 place-items-center rounded-lg hover:bg-ink-100"><X className="size-3.5" /></button>
+            <button type="button" onClick={() => setRefShown((v) => !v)} aria-pressed={!refShown} aria-label={refShown ? "Masquer le calque de référence" : "Afficher le calque de référence"} title={refShown ? "Masquer" : "Afficher"} className="grid size-7 shrink-0 place-items-center rounded-full hover:bg-ink-100">{refShown ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}</button>
+            <button type="button" onClick={() => setRefId(null)} aria-label="Retirer le calque de référence" title="Retirer" className="grid size-7 shrink-0 place-items-center rounded-full hover:bg-ink-100"><X className="size-3.5" /></button>
           </div>}
-          <div className="pointer-events-none absolute bottom-8 left-3 flex flex-col gap-1.5">
-            {busy && <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/95 px-2.5 py-1 text-xs shadow"><Loader2 className="size-3.5 animate-spin" />Calcul du tracé…</span>}
-            {cutMode && <span className="rounded-lg bg-ember-500 px-2.5 py-1 text-xs font-semibold text-white shadow">Découpe : cliquez sur le tracé aux endroits de coupe (Échap pour quitter)</span>}
-            {sectMode && <span className="rounded-lg bg-pine-700 px-2.5 py-1 text-xs font-semibold text-white shadow">Section : cliquez sur le tracé pour placer {sect.a == null || sect.b != null ? "le point A" : "le point B"} (Échap pour quitter)</span>}
-            {poiMode && <span className="rounded-lg bg-ember-500 px-2.5 py-1 text-xs font-semibold text-white shadow">Cliquez sur la carte pour placer : {POI_TYPES[poiMode].label} (Échap pour annuler)</span>}
-            {msg && <span role="status" className={clsx("pointer-events-auto max-w-sm rounded-lg px-2.5 py-1.5 text-xs shadow", msg.kind === "err" ? "bg-danger text-white" : msg.kind === "warn" ? "bg-warn text-white" : "bg-pine-600 text-white")}>{msg.text}</span>}
-            {!st.waypoints.length && loaded && <span className="rounded-lg bg-white/95 px-2.5 py-1.5 text-xs shadow">Cliquez sur la carte pour poser le départ, puis les points suivants.</span>}
+          <div className="pointer-events-none absolute bottom-8 left-3 z-10 flex flex-col gap-1.5 lg:max-w-[calc(100%-26rem)]">
+            {busy && <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-white/95 px-3 py-1 text-xs shadow"><Loader2 className="size-3.5 animate-spin" />Calcul du tracé…</span>}
+            {sectMode && <span className="w-fit rounded-full bg-pine-700 px-3 py-1 text-xs font-semibold text-white shadow">Ciseaux : cliquez sur le tracé pour placer {sect.a == null || sect.b != null ? "le point A" : "le point B"} (Échap pour quitter)</span>}
+            {poiMode && <span className="w-fit rounded-full bg-ember-500 px-3 py-1 text-xs font-semibold text-white shadow">Cliquez sur la carte pour placer : {POI_TYPES[poiMode].label} (Échap pour annuler)</span>}
+            {msg && <span role="status" className={clsx("pointer-events-auto w-fit max-w-sm rounded-xl px-3 py-1.5 text-xs shadow", msg.kind === "err" ? "bg-danger text-white" : msg.kind === "warn" ? "bg-warn text-white" : "bg-pine-600 text-white")}>{msg.text}</span>}
+            {!st.waypoints.length && loaded && <span className="w-fit rounded-full bg-white/95 px-3 py-1.5 text-xs shadow">Cliquez sur la carte pour poser le départ, puis les points suivants.</span>}
           </div>
           {ctx && (
             <div role="menu" aria-label={`Actions du point ${ctx.wi + 1}`} className="glass absolute z-30 w-56 rounded-xl p-1 text-sm" style={{ left: Math.max(8, ctx.x), top: Math.max(8, ctx.y) }} onClick={(e) => e.stopPropagation()}>
@@ -624,65 +604,63 @@ export function Editor({ routeId }: { routeId?: string }) {
               <div className="mt-3 flex flex-wrap gap-2"><Button size="sm" onClick={() => newStart(confirmStart.wi, true)}>Retirer le début et partir d'ici</Button><Button size="sm" variant="secondary" onClick={() => setConfirmStart(null)}>Garder le tracé</Button></div>
             </div>)}
         </MapFrame>
-        <div className="hidden border-t border-ink-100 bg-white p-3 lg:block">
-          <div className="mb-1 flex items-center justify-between text-xs text-ink-500">
-            <span className="font-semibold text-ink-700">Profil altimétrique</span>
-            <span aria-live="polite">{elev === "loading" ? "Altitudes en cours de calcul…" : elev === "error" ? "Altitudes IGN indisponibles : profil à plat" : "Altitudes IGN (RGE ALTI)"}</span>
-          </div>
-          <ElevationChart ref={chartRef} points={profile} markers={chartMarkers} onHover={chartHover} activeIndex={hoverIdx} height={170} coords={coords} selection={zone} onSelect={onZone} selectionActions={zoneActions} />
+      </div>
+      <div className="hidden border-t border-ink-100 bg-white px-3 pb-2 pt-2 lg:col-start-1 lg:row-start-2 lg:block" data-editor-profile>
+        <div className="mb-1 flex items-center justify-between text-xs text-ink-500">
+          <span className="flex items-center gap-3"><span className="font-semibold text-ink-700">Profil altimétrique</span>{chartMarkers.length > 0 && <span className="text-[11px]">Ravitaillements et points d&apos;eau</span>}</span>
+          <span aria-live="polite">{elev === "loading" ? "Altitudes en cours de calcul…" : elev === "error" ? "Altitudes IGN indisponibles : profil à plat" : "Altitudes IGN (RGE ALTI)"}</span>
         </div>
+        <ElevationChart ref={chartRef} points={profile} markers={chartMarkers} onHover={chartHover} activeIndex={hoverIdx} height={150} coords={coords} selection={zone} onSelect={onZone} selectionActions={zoneActions} />
       </div>
 
-      <Sheet state={sheet} onState={setSheet} side="right" label="Propriétés du parcours" header={<div className="border-b border-ink-100 bg-white">
-          <div className="flex items-center justify-between px-3 pt-0.5 text-xs lg:pt-2">
-            <span className="font-semibold text-ink-700">{meta.name || "Nouveau parcours"}</span>
-            <span className="flex items-center gap-2">
+      <Sheet floating state={sheet} onState={setSheet} side="right" label="Propriétés du parcours" className="lg:relative lg:col-start-1 lg:row-start-1 lg:m-3 lg:w-[21rem] lg:justify-self-end" header={<div className="border-b border-ink-100">
+          <div className="flex items-center justify-between gap-2 px-3 pt-0.5 lg:pt-3">
+            <span className="min-w-0 truncate text-sm font-bold text-ink-900">{meta.name || "Nouveau parcours"}</span>
+            <span className="flex shrink-0 items-center gap-2 text-xs">
               <span className={clsx("inline-flex items-center gap-1", dirty ? "font-semibold text-ember-600" : "text-ink-500")} aria-live="polite" data-save-state={dirty ? "dirty" : rid.current ? "saved" : "new"}>
                 {saved === "saving" ? <><Loader2 className="size-3 animate-spin" />Enregistrement…</> : dirty ? <><AlertTriangle className="size-3" />Non enregistré</> : rid.current ? <><Check className="size-3 text-pine-600" />Enregistré</> : null}
               </span>
-              <Button size="sm" variant={dirty ? "primary" : "secondary"} className="!h-8 !px-3 !text-xs" disabled={!canSave} onClick={() => save()} title={hasTrack ? "Enregistrer le parcours dans la bibliothèque (Ctrl+S)" : "Tracez au moins deux points"}><SaveIcon className="size-3.5" />Enregistrer</Button>
+              <Button size="sm" variant={dirty ? "primary" : "secondary"} className="!h-8 !rounded-full !px-3 !text-xs" disabled={!canSave} onClick={() => save()} title={hasTrack ? "Enregistrer le parcours dans la bibliothèque (Ctrl+S)" : "Tracez au moins deux points"}><SaveIcon className="size-3.5" />Enregistrer</Button>
             </span>
           </div>
           <p className="px-3 pb-1 pt-0.5 font-display text-sm font-bold lg:hidden" aria-label="Résumé du parcours">{stats ? `${fmtKm(stats.distanceM)} · +${fmtM(stats.gainM)} · −${fmtM(stats.lossM)} · ${fmtDuration(durationMin)}` : "Posez des points sur la carte"}</p>
-          <div className="flex text-sm font-semibold" role="tablist">
+          {/* Sport : bulles d'icônes, libellé au survol */}
+          <div className="flex items-center gap-2 px-3 pt-2" role="group" aria-label="Type de sport">
+            {([["velo", "Vélo de route", Bike], ["vtt", "VTT", MountainSnow], ["trail", "Trail", Zap], ["rando", "Randonnée", Footprints]] as const).map(([k, l, I]) => (
+              <span key={k} className="group/tool relative"><button type="button" data-sport={k} aria-pressed={meta.sport === k} aria-label={l} onClick={() => setMeta({ ...meta, sport: k })} className={clsx("grid size-9 place-items-center rounded-full ring-1 transition", meta.sport === k ? "bg-pine-700 text-white ring-pine-800" : "bg-white text-ink-600 ring-ink-200 hover:text-ink-900")}><I className="size-4" /></button>
+                <span role="tooltip" className="pointer-events-none absolute left-1/2 top-full z-40 mt-1.5 -translate-x-1/2 whitespace-nowrap rounded-md bg-ink-950/90 px-2 py-1 text-[11px] font-semibold text-white opacity-0 shadow transition group-hover/tool:opacity-100 group-focus-within/tool:opacity-100">{l}</span></span>))}
+            <span className="min-w-0 truncate text-xs text-ink-500" title={`Le tracé privilégie les ${PROFILE_HINT[routeProfile]}`}>{SPORTS[meta.sport].label}</span>
+          </div>
+          <div className="mx-3 mb-2 mt-2 flex rounded-full bg-ink-100 p-0.5 text-xs font-semibold" role="tablist">
             {([["trace", "Tracé"], ["props", "Infos"], ["poi", "POI"], ["fichiers", "Fichiers"]] as const).map(([k, l]) => (
-              <button key={k} role="tab" aria-selected={tab === k} onClick={() => { setTab(k); setSheet((x) => (x === "peek" ? "half" : x)); }} className={clsx("flex-1 py-2.5", tab === k ? "border-b-2 border-pine-600 text-pine-700" : "text-ink-500")}>{l}</button>
+              <button key={k} role="tab" aria-selected={tab === k} onClick={() => { setTab(k); setSheet((x) => (x === "peek" ? "half" : x)); }} className={clsx("flex-1 rounded-full py-1.5 transition", tab === k ? "bg-white text-pine-700 shadow-sm" : "text-ink-500 hover:text-ink-800")}>{l}</button>
             ))}
           </div>
         </div>}>
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 p-4">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
           {tab === "trace" && (<>
-            <div className="rounded-xl border border-ink-100 p-3" aria-labelledby="ref-title">
-              <p id="ref-title" className="mb-1.5 text-xs font-bold uppercase tracking-wider text-ink-400">Calque de référence</p>
-              {others.length ? <>
-                <select aria-label="Parcours à afficher en arrière-plan" className={field} value={refId ?? ""} onChange={(e) => { setRefId(e.target.value || null); if (e.target.value) setTimeout(() => { const r = others.find((x) => x.id === e.target.value); if (r && r.coords.length > 1 && !stRef.current.waypoints.length) { const b = bboxOf(r.coords); map.current?.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 70, maxZoom: 15 }); } }, 0); }}><option value="">Aucun</option>{others.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select>
-                {refRoute ? <div className="mt-2 flex flex-wrap gap-2"><Button size="sm" variant="secondary" className="!h-8 !px-3 !text-xs" onClick={() => setRefShown((v) => !v)}>{refShown ? <><EyeOff className="size-3.5" />Masquer</> : <><Eye className="size-3.5" />Afficher</>}</Button><Button size="sm" variant="secondary" className="!h-8 !px-3 !text-xs" onClick={fitRef}>Centrer</Button><Button size="sm" variant="ghost" className="!h-8 !px-3 !text-xs" onClick={() => setRefId(null)}><X className="size-3.5" />Retirer</Button></div> : null}
-                <p className="mt-1.5 text-xs text-ink-500">Affiché en bleu transparent sous votre tracé, jamais modifié. Pour suivre sa ligne exactement : mode « Libre ».</p>
-              </> : <p className="text-xs text-ink-500">Enregistrez d&apos;abord un autre parcours pour pouvoir l&apos;afficher en arrière-plan.</p>}
-            </div>
-            <div>
-              <div role="group" aria-label="Type de sport" className="grid grid-cols-4 gap-1 rounded-xl bg-ink-100 p-1">
-                {([["velo", "Vélo de route", Bike], ["vtt", "VTT", MountainSnow], ["trail", "Trail", Zap], ["rando", "Randonnée", Footprints]] as const).map(([k, l, I]) => (
-                  <button key={k} type="button" aria-pressed={meta.sport === k} onClick={() => setMeta({ ...meta, sport: k })} className={clsx("flex flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 text-[11px] font-semibold leading-tight transition-colors", meta.sport === k ? "bg-white text-pine-700 shadow" : "text-ink-600 hover:text-ink-900")}><I className="size-4" />{l}</button>))}
-              </div>
-              <p className="mt-1.5 text-xs text-ink-500">{SPORTS[meta.sport].label} : le tracé privilégie les <b>{PROFILE_HINT[routeProfile]}</b>. S'applique aux prochains tronçons tracés{st.segs.length ? " ; les tronçons existants ne changent pas" : ""}.</p>
-            </div>
-            <div className="lg:hidden"><ElevationChart points={profile} markers={chartMarkers} onHover={chartHover} activeIndex={hoverIdx} height={150} coords={coords} selection={zone} onSelect={onZone} /></div>
-            <dl className="grid grid-cols-2 gap-3">
-              {[["Distance", stats ? fmtKm(stats.distanceM) : "—"], ["Durée estimée", stats ? fmtDuration(durationMin) : "—"], ["D+", stats ? fmtM(stats.gainM) : "—"], ["D−", stats ? fmtM(stats.lossM) : "—"], ["Altitude min", stats ? fmtM(stats.minEle) : "—"], ["Altitude max", stats ? fmtM(stats.maxEle) : "—"]].map(([l, v]) => (
-                <div key={l} className="rounded-xl bg-ink-50 p-3"><dt className="text-[11px] font-medium uppercase tracking-wide text-ink-400">{l}</dt><dd className="font-display text-lg font-bold">{v}</dd></div>
+            <dl className="grid grid-cols-3 gap-1.5" data-editor-stats>
+              {[["Distance", stats ? fmtKm(stats.distanceM) : "—"], ["D+", stats ? fmtM(stats.gainM) : "—"], ["D−", stats ? fmtM(stats.lossM) : "—"], ["Durée", stats ? fmtDuration(durationMin) : "—"], ["Alt. min", stats ? fmtM(stats.minEle) : "—"], ["Alt. max", stats ? fmtM(stats.maxEle) : "—"]].map(([l, v]) => (
+                <div key={l} className="rounded-xl bg-ink-50 px-2 py-1.5"><dt className="text-[10px] font-medium uppercase tracking-wide text-ink-400">{l}</dt><dd className="font-display text-sm font-bold">{v}</dd></div>
               ))}
             </dl>
-            {stats && <p className="text-sm text-ink-600">Difficulté : <b>{DIFFICULTY_LABEL[difficultyOf(stats.distanceM, stats.gainM)]}</b> · {closed ? "Boucle" : "Parcours linéaire"} · Terrain : {meta.terrain.length ? meta.terrain.join(", ") : <i>à renseigner dans Infos</i>}</p>}
-            <p className="text-xs text-ink-400">La durée est une estimation selon la discipline, la distance et le dénivelé.</p>
-            <div className="rounded-xl border border-ink-100 p-3">
-              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-400">Calcul du tracé</p>
-              <label className="grid gap-1 text-sm font-medium">Source des chemins<select className={field} value={engine} onChange={(e) => setEnginePref(e.target.value as Engine)}>{(Object.keys(ENGINE_LABEL) as Engine[]).map((k) => <option key={k} value={k}>{ENGINE_LABEL[k]}</option>)}</select></label>
-              <p className="mt-1.5 text-xs text-ink-500">Indépendant du fond de carte affiché. En mode automatique, un chemin absent d'une source est cherché dans l'autre.{lastSource && <> Dernier tronçon : <b>{SOURCE_LABEL[lastSource]}</b>.</>}</p>
-              <Button size="sm" variant="secondary" className="mt-2" disabled={busy || !!aligning || st.segs.length === 0} onClick={align}><Route className="size-4" />{aligning ?? "Aligner sur les chemins"}</Button>
-            </div>
-            <div className="rounded-xl border border-ink-100 p-3">
-              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-400">Baguette magique · simplifier le tracé</p>
+            {stats && <p className="-mt-1 text-xs text-ink-500">{DIFFICULTY_LABEL[difficultyOf(stats.distanceM, stats.gainM)]} · {closed ? "Boucle" : "Linéaire"} · durée estimée selon le sport</p>}
+            <div className="lg:hidden"><ElevationChart points={profile} markers={chartMarkers} onHover={chartHover} activeIndex={hoverIdx} height={140} coords={coords} selection={zone} onSelect={onZone} /></div>
+
+            <section className={card} aria-label="Points de passage" data-panel="points">
+              <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-ink-500"><MapPin className="size-3.5" />{sel != null ? `Point ${sel + 1} sélectionné` : `Points de passage · ${st.waypoints.length}`}</p>
+              {sel != null ? (
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="secondary" disabled={busy} onClick={() => { const i = sel; setSel(null); run(() => E.removeWaypoint(st, i, routerRef.current)); }}><Trash2 className="size-4" />Supprimer</Button>
+                  <Button size="sm" variant="secondary" disabled={!closed || sel === 0 || sel === st.waypoints.length - 1} title={closed ? "" : "Disponible sur une boucle"} onClick={() => { commit(E.setStart(st, sel)); setSel(null); }}><Flag className="size-4" />Départ ici</Button>
+                  <Button size="sm" variant="secondary" disabled={busy || sel === 0 || sel === st.waypoints.length - 1} onClick={split}><Scissors className="size-4" />Diviser ici</Button>
+                </div>
+              ) : <><Button size="sm" variant={closed ? "secondary" : "brand"} className="mb-2" disabled={!canClose} onClick={closeRoute}><Repeat className="size-4" />{closed ? "Parcours en boucle" : "Clôturer le parcours"}</Button><p className="text-xs text-ink-500">Clic sur un point : le sélectionner · glisser : le déplacer · clic sur le tracé : insérer un point.</p></>}
+            </section>
+
+            <details className={fold} data-panel="baguette">
+              <summary className={summary}><Wand2 className="size-4 text-pine-600" />Baguette magique<span className="text-xs font-normal text-ink-500">· simplifier</span>{chev}</summary>
+              <div className="px-3 pb-3">
               {(() => { const total = track.length, r = simpPreview?.result; const kept = r ? r.after : total, removed = total - kept; return (<>
                 <label className="grid gap-1 text-sm font-medium"><span className="flex justify-between">Points à supprimer<b className="font-display">{simpPct} %</b></span>
                   <input type="range" min={0} max={90} step={5} value={simpPct} disabled={busy || total < 3} onChange={(e) => setSimpPct(+e.target.value)} list="simp-ticks" aria-label="Pourcentage de points à supprimer" aria-valuetext={`${simpPct} % : ${kept} points conservés sur ${total}`} className="h-8 w-full" />
@@ -693,22 +671,14 @@ export function Editor({ routeId }: { routeId?: string }) {
                 {r?.exceeded && <div role="alert" className="mt-2 rounded-lg bg-warn/10 p-2.5 text-xs text-ink-700"><p className="flex gap-1.5"><AlertTriangle className="mt-0.5 size-4 shrink-0 text-warn" />À {simpPct} %, le tracé s'écarte de plus de {r.limitM} m de l'original : des virages sont coupés. {r.safePct > 0 ? `Réglage conseillé : ${r.safePct} % au plus.` : "Ce tracé ne peut pas être allégé sans le déformer."}</p>{r.safePct > 0 && <Button size="sm" variant="secondary" className="mt-2" onClick={() => setSimpPct(Math.floor(r.safePct / 5) * 5 || r.safePct)}>Régler sur {Math.floor(r.safePct / 5) * 5 || r.safePct} %</Button>}</div>}
                 <div className="mt-2 flex flex-wrap gap-2"><Button size="sm" variant="brand" disabled={busy || !!aligning || !r || removed <= 0} onClick={() => applySimplify()}><Wand2 className="size-4" />Appliquer ({kept} points)</Button>{simpPct > 0 && <Button size="sm" variant="ghost" onClick={() => setSimpPct(0)}>Annuler l'aperçu</Button>}</div>
               </>); })()}
-            </div>
-            <div className="rounded-xl border border-ink-100 p-3">
-              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-400">{sel != null ? `Point ${sel + 1} sélectionné` : "Points de passage"}</p>
-              {sel != null ? (
-                <div className="flex flex-wrap gap-2">
-                  <Button size="sm" variant="secondary" disabled={busy} onClick={() => { const i = sel; setSel(null); run(() => E.removeWaypoint(st, i, routerRef.current)); }}><Trash2 className="size-4" />Supprimer</Button>
-                  <Button size="sm" variant="secondary" disabled={!closed || sel === 0 || sel === st.waypoints.length - 1} title={closed ? "" : "Disponible sur une boucle"} onClick={() => { commit(E.setStart(st, sel)); setSel(null); }}><Flag className="size-4" />Départ ici</Button>
-                  <Button size="sm" variant="secondary" disabled={busy || sel === 0 || sel === st.waypoints.length - 1} onClick={split}><Scissors className="size-4" />Diviser ici</Button>
-                </div>
-              ) : <><Button size="sm" variant={closed ? "secondary" : "brand"} className="mb-2" disabled={!canClose} onClick={closeRoute}><Repeat className="size-4" />{closed ? "Parcours en boucle" : "Clôturer le parcours"}</Button><p className="text-sm text-ink-500">{st.waypoints.length} point(s). Cliquez sur un marqueur pour le sélectionner, glissez-le pour le déplacer, cliquez sur le tracé pour insérer un point.</p></>}
-            </div>
-            <div id="sect-tool" className="rounded-xl border border-ink-100 p-3">
-              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-400">Extraire une section (étape)</p>
-              <p className="text-xs text-ink-500">Placez A puis B sur le tracé : la portion devient une trace exportable. Le parcours ne change pas.</p>
+              </div>
+            </details>
+
+            <section id="sect-tool" className={clsx(card, sectMode && "ring-2 ring-pine-600")} aria-label="Extraire une section" data-panel="section">
+              <p className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-ink-500"><Scissors className="size-3.5" />Extraire une section</p>
+              <p className="text-xs text-ink-500">Ciseaux, puis A et B sur le tracé : la portion devient une trace exportable. Le parcours ne change pas.</p>
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <Button size="sm" variant={sectMode ? "brand" : "secondary"} aria-pressed={sectMode} disabled={coords.length < 2} onClick={() => { setSectMode((v) => !v); setCutMode(false); setPoiMode(null); }}><Scissors className="size-4" />{sectMode ? "Sélection active" : "Choisir A et B"}</Button>
+                <Button size="sm" variant={sectMode ? "brand" : "secondary"} aria-pressed={sectMode} disabled={coords.length < 2} onClick={() => { setSectMode((v) => !v); setPoiMode(null); }}><Scissors className="size-4" />{sectMode ? "Sélection active" : "Choisir A et B"}</Button>
                 {(sect.a != null || sect.b != null) && <Button size="sm" variant="ghost" onClick={() => { setSect({ a: null, b: null }); setSectName(""); }}>Recommencer</Button>}
               </div>
               {sect.a != null && sect.b == null && <p className="mt-2 text-xs text-ink-600">Point A au km {(sect.a / 1000).toFixed(2).replace(".", ",")}. Cliquez maintenant le point B sur le tracé.</p>}
@@ -719,18 +689,29 @@ export function Editor({ routeId }: { routeId?: string }) {
                 <label className="grid gap-1 text-sm font-medium">Nom de la section<input className={field} value={sectName} onChange={(e) => setSectName(e.target.value)} placeholder={sectDefaultName} maxLength={120} /></label>
                 <div className="flex flex-wrap gap-2"><Button size="sm" onClick={sectGpx}><Download className="size-4" />Exporter en GPX</Button><Button size="sm" variant="secondary" onClick={sectSave}><Check className="size-4" />Enregistrer dans la bibliothèque</Button><Button size="sm" variant="ghost" onClick={sectNext} title="Le point B devient le point A de l'étape suivante">Étape suivante (A = B)</Button></div>
               </div>)}
-            </div>
-            <div className="rounded-xl border border-ink-100 p-3">
-              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-400">Découper en plusieurs parcours</p>
-              <p className="text-xs text-ink-500">Mode découpe (ciseaux), cliquez sur le tracé aux points de coupe, puis créez les parcours. L'original ne change pas.</p>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <Button size="sm" variant={cutMode ? "primary" : "secondary"} aria-pressed={cutMode} disabled={st.segs.length === 0} onClick={() => setCutMode((v) => !v)}><Scissors className="size-4" />{cutMode ? "Découpe active" : "Mode découpe"}</Button>
-                <Button size="sm" variant="brand" disabled={busy || cutKeys.length === 0} onClick={cutAll}>Créer {cutKeys.length + 1} parcours</Button>
-                {cutKeys.length > 0 && <Button size="sm" variant="ghost" onClick={() => setCutKeys([])}>Annuler les coupes</Button>}
+            </section>
+
+            <details className={fold} data-panel="reference">
+              <summary className={summary}><Layers className="size-4 text-pine-600" />Calque de référence{refRoute && <span className="truncate text-xs font-normal text-ink-500">· {refRoute.name}</span>}{chev}</summary>
+              <div className="px-3 pb-3">
+              {others.length ? <>
+                <select aria-label="Parcours à afficher en arrière-plan" className={field} value={refId ?? ""} onChange={(e) => { setRefId(e.target.value || null); if (e.target.value) setTimeout(() => { const r = others.find((x) => x.id === e.target.value); if (r && r.coords.length > 1 && !stRef.current.waypoints.length) { const b = bboxOf(r.coords); map.current?.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 70, maxZoom: 15 }); } }, 0); }}><option value="">Aucun</option>{others.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select>
+                {refRoute ? <div className="mt-2 flex flex-wrap gap-2"><Button size="sm" variant="secondary" className="!h-8 !px-3 !text-xs" onClick={() => setRefShown((v) => !v)}>{refShown ? <><EyeOff className="size-3.5" />Masquer</> : <><Eye className="size-3.5" />Afficher</>}</Button><Button size="sm" variant="secondary" className="!h-8 !px-3 !text-xs" onClick={fitRef}>Centrer</Button><Button size="sm" variant="ghost" className="!h-8 !px-3 !text-xs" onClick={() => setRefId(null)}><X className="size-3.5" />Retirer</Button></div> : null}
+                <p className="mt-1.5 text-xs text-ink-500">Affiché en bleu transparent sous votre tracé, jamais modifié. Pour suivre sa ligne exactement : mode « Libre ».</p>
+              </> : <p className="text-xs text-ink-500">Enregistrez d&apos;abord un autre parcours pour l&apos;afficher en arrière-plan.</p>}
               </div>
-              {madeParts.length > 0 && <ul className="mt-2 grid gap-1 text-sm">{madeParts.map((m2) => <li key={m2.id}><a className="font-semibold text-pine-700 underline" href={withBase(editorHref(m2.id))}>{m2.name}</a></li>)}</ul>}
-            </div>
-            <div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" disabled={busy || st.waypoints.length < 2} onClick={duplicate}><Copy className="size-4" />Dupliquer</Button></div>
+            </details>
+
+            <details className={fold} data-panel="calcul">
+              <summary className={summary}><Route className="size-4 text-pine-600" />Calcul du tracé{chev}</summary>
+              <div className="px-3 pb-3">
+                <p className="mb-2 text-xs text-ink-500">{SPORTS[meta.sport].label} : le tracé privilégie les <b>{PROFILE_HINT[routeProfile]}</b> (prochains tronçons).</p>
+              <label className="grid gap-1 text-sm font-medium">Source des chemins<select className={field} value={engine} onChange={(e) => setEnginePref(e.target.value as Engine)}>{(Object.keys(ENGINE_LABEL) as Engine[]).map((k) => <option key={k} value={k}>{ENGINE_LABEL[k]}</option>)}</select></label>
+              <p className="mt-1.5 text-xs text-ink-500">Indépendant du fond de carte affiché. En mode automatique, un chemin absent d'une source est cherché dans l'autre.{lastSource && <> Dernier tronçon : <b>{SOURCE_LABEL[lastSource]}</b>.</>}</p>
+              <Button size="sm" variant="secondary" className="mt-2" disabled={busy || !!aligning || st.segs.length === 0} onClick={align}><Route className="size-4" />{aligning ?? "Aligner sur les chemins"}</Button>
+              </div>
+            </details>
+            <div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" className="!rounded-full" disabled={busy || st.waypoints.length < 2} onClick={duplicate}><Copy className="size-4" />Dupliquer</Button></div>
           </>)}
 
           {tab === "props" && (<>
@@ -779,5 +760,15 @@ export function Editor({ routeId }: { routeId?: string }) {
         </div>
       </Sheet>
     </div>
+  );
+}
+
+/** Bulle d'outil : icône seule, libellé affiché au survol (et au focus clavier). */
+function Tool({ label, onClick, disabled, on, children, tone = "default", id: tid }: { label: string; onClick: () => void; disabled?: boolean; on?: boolean; children: React.ReactNode; tone?: "default" | "brand"; id?: string }) {
+  return (
+    <span className="group/tool relative">
+      <button type="button" data-tool={tid} onClick={onClick} disabled={disabled} aria-label={label} aria-pressed={on} className={clsx("grid size-10 place-items-center rounded-full shadow-md ring-1 transition disabled:cursor-not-allowed disabled:text-ink-300 lg:size-9", on ? (tone === "brand" ? "bg-pine-700 text-white ring-pine-800" : "bg-ink-900 text-white ring-ink-900") : "glass text-ink-800 ring-black/10 hover:bg-white enabled:hover:-translate-y-px")}>{children}</button>
+      <span role="tooltip" className="pointer-events-none absolute left-1/2 top-full z-40 mt-1.5 -translate-x-1/2 whitespace-nowrap rounded-md bg-ink-950/90 px-2 py-1 text-[11px] font-semibold text-white opacity-0 shadow transition group-hover/tool:opacity-100 group-focus-within/tool:opacity-100">{label}</span>
+    </span>
   );
 }

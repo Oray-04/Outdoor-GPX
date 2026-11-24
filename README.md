@@ -367,3 +367,10 @@ Sur les cartes de parcours (fiche parcours, page événement, éditeur), un rep�
 ### Réglages par défaut de la page événement
 
 Dans « Page de l'événement » : enregistrer la page comme réglages par défaut, les appliquer à une autre page, les appliquer d'office aux nouveaux événements, les effacer. Une nouvelle personnalisation part de ces réglages.
+
+### Onglet Parcours (éditeur) — interface épurée
+
+- Carte pleine largeur ; panneau flottant à droite en bulle (sur mobile : feuille coulissante) regroupant enregistrement, choix du sport (bulles d'icônes), onglets Tracé / Infos / POI / Fichiers, points de passage, baguette magique, extraction de section, calque de référence et calcul du tracé (rubriques repliables).
+- Barre d'outils en petites bulles d'icônes en haut de la carte, libellé au survol ou au focus clavier : chemins / libre, annuler, rétablir, inverser, clôturer, ciseaux (extraire une section), me localiser, effacer. Les commandes de la carte sont décalées à gauche du panneau.
+- L'outil « Découper en plusieurs parcours » est retiré ; les ciseaux servent à extraire une section (A → B). « Diviser ici » reste disponible sur un point sélectionné.
+- Profil altimétrique : seuls les ravitaillements et les points d'eau y sont repérés.
