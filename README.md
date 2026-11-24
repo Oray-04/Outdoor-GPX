@@ -374,3 +374,10 @@ Dans « Page de l'événement » : enregistrer la page comme réglages par défa
 - Barre d'outils en petites bulles d'icônes en haut de la carte, libellé au survol ou au focus clavier : chemins / libre, annuler, rétablir, inverser, clôturer, ciseaux (extraire une section), me localiser, effacer. Les commandes de la carte sont décalées à gauche du panneau.
 - L'outil « Découper en plusieurs parcours » est retiré ; les ciseaux servent à extraire une section (A → B). « Diviser ici » reste disponible sur un point sélectionné.
 - Profil altimétrique : seuls les ravitaillements et les points d'eau y sont repérés.
+
+### Explorer et Générer une boucle — même interface que l'éditeur
+
+- Carte pleine largeur, panneau flottant à droite en bulle (feuille coulissante sur mobile), commandes de la carte décalées à gauche du panneau (`PANEL_OFFSET`, `FLOAT_RIGHT`).
+- Barre d'outils en bulles avec libellés au survol (`ToolBubble`, `SearchBubble` dans `components/map/tool-bubble.tsx`, partagés avec l'éditeur).
+- Explorer : recherche, géolocalisation, itinéraires (GR…) et « zone visible » en bulles ; onglets Parcours / Itinéraires / Calques / POI en pilule.
+- Générer : recherche du départ et « ma position » en bulles ; panneau avec le bouton « Générer 4 propositions » toujours visible, pratiques en bulles d'icônes, distance, dénivelé maximisé, propositions et profil.

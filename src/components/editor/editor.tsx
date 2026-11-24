@@ -5,6 +5,7 @@ import { Eye, EyeOff, X, Undo2, Redo2, Route, Route as RouteIcon, MousePointer2,
 import clsx from "clsx";
 import { useMap } from "@/components/map/use-map";
 import { LayerControl } from "@/components/map/layer-control";
+import { ToolBubble, PANEL_OFFSET } from "@/components/map/tool-bubble";
 import { Sheet, type SheetState } from "@/components/layout/sheet";
 import { MapFrame, StatBanner } from "@/components/map/map-frame";
 import { ElevationChart, type ChartMarker } from "@/components/route/elevation-chart";
@@ -560,7 +561,7 @@ export function Editor({ routeId }: { routeId?: string }) {
   return (
     <div data-workspace className={clsx("relative h-[calc(100dvh-4rem-var(--bnav))] overflow-hidden lg:grid lg:min-h-[36rem] lg:grid-cols-[minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)_auto]",
       // commandes de la carte (zoom, nord, calques, plein écran, attributions) décalées à gauche du panneau flottant
-      "lg:[&_.maplibregl-ctrl-top-right]:!right-[22.5rem] lg:[&_.maplibregl-ctrl-bottom-right]:!right-[22.5rem] lg:[&_[data-fs-btn]]:!right-[22.75rem]")}>
+      PANEL_OFFSET)}>
       <div className="absolute inset-x-0 top-0 bottom-[8rem] flex flex-col lg:static lg:col-start-1 lg:row-start-1 lg:min-h-0">
         <MapFrame className="min-h-[18rem] flex-1" banner={<StatBanner title={meta.name || "Parcours en cours"} items={[{ label: "Distance", value: stats ? fmtKm(stats.distanceM) : "—" }, { label: "D+", value: stats ? fmtM(stats.gainM) : "—" }, { label: "D−", value: stats ? fmtM(stats.lossM) : "—" }, { label: "Alt. min", value: stats ? fmtM(stats.minEle) : "—" }, { label: "Alt. max", value: stats ? fmtM(stats.maxEle) : "—" }, { label: "Durée est.", value: stats ? fmtDuration(durationMin) : "—" }]} />}>
           <div className="absolute inset-0"><div ref={el} className="size-full" role="application" aria-label="Carte de l'éditeur : cliquez pour ajouter des points" /></div>
@@ -571,13 +572,13 @@ export function Editor({ routeId }: { routeId?: string }) {
                 <span key={String(v)} className="group/tool relative"><button type="button" data-tool={v ? "chemins" : "libre"} aria-pressed={auto === v} aria-label={l} onClick={() => setAuto(v)} className={clsx("grid size-9 place-items-center rounded-full transition lg:size-8", auto === v ? "bg-pine-700 text-white" : "text-ink-700 hover:bg-white")}><I className="size-4" /></button>
                   <span role="tooltip" className="pointer-events-none absolute left-1/2 top-full z-40 mt-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-ink-950/90 px-2 py-1 text-[11px] font-semibold text-white opacity-0 shadow transition group-hover/tool:opacity-100 group-focus-within/tool:opacity-100">{l}</span></span>))}
             </span>
-            <Tool id="annuler" label="Annuler (Ctrl+Z)" onClick={undo} disabled={hi === 0 || busy}><Undo2 className="size-4" /></Tool>
-            <Tool id="retablir" label="Rétablir (Ctrl+Y)" onClick={redo} disabled={hi >= hist.length - 1 || busy}><Redo2 className="size-4" /></Tool>
-            <Tool id="inverser" label="Inverser le sens" onClick={() => commit(E.reverse(st))} disabled={st.waypoints.length < 2 || busy}><ArrowLeftRight className="size-4" /></Tool>
-            <Tool id="cloturer" label={closed ? "Déjà une boucle" : "Clôturer : retour au départ"} onClick={closeRoute} disabled={!canClose}><Repeat className="size-4" /></Tool>
-            <Tool id="section" label="Ciseaux : extraire une section" tone="brand" on={sectMode} onClick={() => { setSectMode((v) => !v); setPoiMode(null); if (!sectMode) openSection(); }} disabled={coords.length < 2}><Scissors className="size-4" /></Tool>
-            <Tool id="localiser" label="Me localiser" onClick={locate}><LocateFixed className="size-4" /></Tool>
-            <Tool id="effacer" label="Nouveau parcours / effacer" onClick={reset}><Trash2 className="size-4" /></Tool>
+            <ToolBubble id="annuler" label="Annuler (Ctrl+Z)" onClick={undo} disabled={hi === 0 || busy}><Undo2 className="size-4" /></ToolBubble>
+            <ToolBubble id="retablir" label="Rétablir (Ctrl+Y)" onClick={redo} disabled={hi >= hist.length - 1 || busy}><Redo2 className="size-4" /></ToolBubble>
+            <ToolBubble id="inverser" label="Inverser le sens" onClick={() => commit(E.reverse(st))} disabled={st.waypoints.length < 2 || busy}><ArrowLeftRight className="size-4" /></ToolBubble>
+            <ToolBubble id="cloturer" label={closed ? "Déjà une boucle" : "Clôturer : retour au départ"} onClick={closeRoute} disabled={!canClose}><Repeat className="size-4" /></ToolBubble>
+            <ToolBubble id="section" label="Ciseaux : extraire une section" tone="brand" on={sectMode} onClick={() => { setSectMode((v) => !v); setPoiMode(null); if (!sectMode) openSection(); }} disabled={coords.length < 2}><Scissors className="size-4" /></ToolBubble>
+            <ToolBubble id="localiser" label="Me localiser" onClick={locate}><LocateFixed className="size-4" /></ToolBubble>
+            <ToolBubble id="effacer" label="Nouveau parcours / effacer" onClick={reset}><Trash2 className="size-4" /></ToolBubble>
           </div>
           <LayerControl map={map} ready={ready} />
           {refRoute && <div role="group" aria-label="Calque de référence" className="glass absolute left-3 top-[3.75rem] z-10 flex max-w-[calc(100%-4.75rem)] items-center gap-1.5 rounded-full py-1 pl-3 pr-1 text-xs shadow-md lg:max-w-[calc(100%-26rem)]">
@@ -760,15 +761,5 @@ export function Editor({ routeId }: { routeId?: string }) {
         </div>
       </Sheet>
     </div>
-  );
-}
-
-/** Bulle d'outil : icône seule, libellé affiché au survol (et au focus clavier). */
-function Tool({ label, onClick, disabled, on, children, tone = "default", id: tid }: { label: string; onClick: () => void; disabled?: boolean; on?: boolean; children: React.ReactNode; tone?: "default" | "brand"; id?: string }) {
-  return (
-    <span className="group/tool relative">
-      <button type="button" data-tool={tid} onClick={onClick} disabled={disabled} aria-label={label} aria-pressed={on} className={clsx("grid size-10 place-items-center rounded-full shadow-md ring-1 transition disabled:cursor-not-allowed disabled:text-ink-300 lg:size-9", on ? (tone === "brand" ? "bg-pine-700 text-white ring-pine-800" : "bg-ink-900 text-white ring-ink-900") : "glass text-ink-800 ring-black/10 hover:bg-white enabled:hover:-translate-y-px")}>{children}</button>
-      <span role="tooltip" className="pointer-events-none absolute left-1/2 top-full z-40 mt-1.5 -translate-x-1/2 whitespace-nowrap rounded-md bg-ink-950/90 px-2 py-1 text-[11px] font-semibold text-white opacity-0 shadow transition group-hover/tool:opacity-100 group-focus-within/tool:opacity-100">{label}</span>
-    </span>
   );
 }

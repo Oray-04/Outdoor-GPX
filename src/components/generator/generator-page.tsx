@@ -1,10 +1,12 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { GeoJSONSource, Marker } from "maplibre-gl";
-import { Sparkles, LocateFixed, Search, Loader2, Square, Download, Pencil, Save, TriangleAlert, Mountain, Check, Route as RouteIcon } from "lucide-react";
+import { Sparkles, LocateFixed, Search, Loader2, Square, Download, Pencil, Save, TriangleAlert, Mountain, Check, Route as RouteIcon, Footprints, Bike, MountainSnow, Zap } from "lucide-react";
 import clsx from "clsx";
 import { useMap } from "@/components/map/use-map";
 import { LayerControl } from "@/components/map/layer-control";
+import { ToolBubble, ToolTip, SearchBubble, PANEL_OFFSET, FLOAT_RIGHT } from "@/components/map/tool-bubble";
+import { Sheet, type SheetState } from "@/components/layout/sheet";
 import { MapFrame, StatBanner } from "@/components/map/map-frame";
 import { ElevationChart } from "@/components/route/elevation-chart";
 import { Button } from "@/components/ui/button";
@@ -23,6 +25,7 @@ import type { Sport } from "@/lib/sports";
 
 type Practice = "trail" | "rando" | "vtt" | "velo";
 /** Plages de distance et de D+ par pratique (une sortie route est bien plus longue qu'un trail). */
+const PRACTICE_ICON: Record<string, typeof Zap> = { trail: Zap, rando: Footprints, vtt: MountainSnow, velo: Bike };
 const PRACTICES: { id: Practice; label: string; sport: Sport; maxKm: number; stepKm: number; defKm: number }[] = [
   { id: "trail", label: "Trail", sport: "trail", maxKm: 80, stepKm: 1, defKm: 12 },
   { id: "rando", label: "Randonnée", sport: "rando", maxKm: 60, stepKm: 1, defKm: 12 },
@@ -40,6 +43,7 @@ export function GeneratorPage() {
   const [km, setKm] = useState(12);
   const [maxGain, setMaxGain] = useState(false);
   const [q, setQ] = useState("");
+  const [sheet, setSheet] = useState<SheetState>("half");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [props, setProps] = useState<Proposal[]>([]);
@@ -149,44 +153,44 @@ export function GeneratorPage() {
   const banner = <StatBanner title={selected ? `Proposition ${idx(selected) + 1}` : "Générateur de parcours"} items={selected ? [{ label: "Distance", value: fmtKm(selected.distanceM) }, { label: "D+", value: fmtM(selected.gainM) }, { label: "D−", value: fmtM(selected.lossM) }] : [{ label: "Cible", value: `${km} km` }, { label: "Dénivelé", value: maxGain ? "maximisé" : "libre" }]} />;
 
   return (
-    <div data-workspace="scroll" className="grid min-h-[calc(100dvh-4rem)] md:h-[calc(100dvh-4rem)] md:grid-cols-[21rem_1fr] lg:grid-cols-[25rem_1fr]">
-      <aside className="order-2 min-h-0 overflow-y-auto border-ink-100 bg-white p-4 md:order-1 md:border-r">
-        <h1 className="flex items-center gap-2 text-xl font-extrabold"><Sparkles className="size-5 text-ember-500" />Générer des parcours</h1>
-        <p className="mt-1 text-sm text-ink-500">Un départ, une distance : plusieurs boucles proposées, dénivelé mesuré, chemins et sentiers privilégiés.</p>
+    <div data-workspace className={clsx("relative h-[calc(100dvh-4rem-var(--bnav))] overflow-hidden lg:min-h-[34rem]", PANEL_OFFSET)}>
+      <MapFrame className="absolute inset-x-0 top-0 bottom-[8rem] lg:bottom-0" banner={banner}>
+        <div className="absolute inset-0"><div ref={el} className="size-full" role="application" aria-label="Carte : cliquez pour choisir le départ" /></div>
+        <div role="toolbar" aria-label="Outils de la carte" className="absolute left-3 top-3 z-20 flex max-w-[calc(100%-4.75rem)] flex-wrap items-center gap-1.5 lg:max-w-[calc(100%-26rem)]" data-generator-toolbar>
+          <SearchBubble value={q} onChange={setQ} onSubmit={search} placeholder="Départ : adresse, village, parking…" />
+          <ToolBubble id="localiser" label="Partir de ma position" onClick={locate}><LocateFixed className="size-4" /></ToolBubble>
+        </div>
+        {!start && ready && <p className="pointer-events-none absolute left-3 top-[3.75rem] z-10 rounded-full bg-white/95 px-3 py-1.5 text-xs shadow">Cliquez sur la carte pour choisir le départ.</p>}
+        <LayerControl map={map} ready={ready} />
+      </MapFrame>
 
-        <section className="mt-4 grid gap-2" aria-label="Point de départ">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-ink-400">1 · Départ</h2>
-          <form onSubmit={search} role="search" className="flex gap-2">
-            <label className="relative min-w-0 flex-1"><span className="sr-only">Adresse ou lieu</span><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-400" /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Adresse, village, parking…" className={clsx(inp, "pl-9")} /></label>
-            <Button type="submit" variant="brand" size="sm" className="h-10" aria-label="Chercher"><Search className="size-4" /></Button>
-            <Button type="button" variant="secondary" size="sm" className="h-10" onClick={locate} aria-label="Ma position"><LocateFixed className="size-4" /></Button>
-          </form>
-          <p className="text-xs text-ink-500">{start ? `Départ : ${start[1].toFixed(4)}, ${start[0].toFixed(4)} (glissez le marqueur pour l'ajuster)` : "Ou cliquez sur la carte."}</p>
-        </section>
-
-        <section className="mt-4 grid gap-3" aria-label="Critères">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-ink-400">2 · Critères</h2>
-          <div role="group" aria-label="Pratique" className="grid grid-cols-2 gap-1 rounded-xl bg-ink-100 p-1 sm:grid-cols-4">{PRACTICES.map((x) => <button key={x.id} type="button" aria-pressed={practice === x.id} onClick={() => { setPractice(x.id); setKm(x.defKm); setProps([]); setSel(null); }} className={clsx("rounded-lg px-1 py-2 text-[13px] font-semibold leading-tight", practice === x.id ? "bg-white shadow" : "text-ink-600")}>{x.label}</button>)}</div>
+      <Sheet floating state={sheet} onState={setSheet} side="right" label="Générer une boucle" className={FLOAT_RIGHT} header={<div className="border-b border-ink-100 px-3 pb-2.5 pt-0.5 lg:pt-3">
+          <div className="flex items-center justify-between gap-2"><h1 className="flex items-center gap-1.5 text-sm font-bold text-ink-900"><Sparkles className="size-4 text-ember-500" />Générer une boucle</h1><span className="text-xs text-ink-500">{km} km{maxGain ? " · D+ max" : ""}</span></div>
+          <p className="mt-0.5 truncate text-xs text-ink-500" data-start>{start ? `Départ : ${start[1].toFixed(4)}, ${start[0].toFixed(4)} · glissez le marqueur pour l'ajuster` : "Départ : recherchez un lieu ou cliquez sur la carte"}</p>
+          <div className="mt-2">{busy ? <Button variant="secondary" className="w-full !rounded-full" onClick={() => ctrl.current?.abort()}><Square className="size-4" />Arrêter</Button> : <Button className="w-full !rounded-full" onClick={() => { run(); setSheet((x) => (x === "peek" ? "half" : x)); }} data-action="generer"><Sparkles className="size-4" />Générer 4 propositions</Button>}</div>
+        </div>}>
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
+        <section className="grid gap-3" aria-label="Critères">
+          <div role="group" aria-label="Pratique" className="flex items-center gap-2">{PRACTICES.map((x) => { const I = PRACTICE_ICON[x.id] ?? Footprints; return <span key={x.id} className="group/tool relative"><button type="button" data-practice={x.id} aria-pressed={practice === x.id} aria-label={x.label} onClick={() => { setPractice(x.id); setKm(x.defKm); setProps([]); setSel(null); }} className={clsx("grid size-9 place-items-center rounded-full ring-1 transition", practice === x.id ? "bg-pine-700 text-white ring-pine-800" : "bg-white text-ink-600 ring-ink-200 hover:text-ink-900")}><I className="size-4" /></button><ToolTip label={x.label} /></span>; })}<span className="min-w-0 truncate text-xs text-ink-500">{prac.label}</span></div>
           <p className="-mt-1 text-xs text-ink-500">Le moteur privilégie les <b>{PROFILE_HINT[profileForSport(prac.sport)]}</b>.</p>
           <label className="grid gap-1 text-sm font-medium"><span className="flex justify-between"><span className="flex items-center gap-1.5"><RouteIcon className="size-4" />Distance</span><b className="font-display">{km} km</b></span>
             <input type="range" min={prac.id === "velo" ? 10 : 3} max={prac.maxKm} step={prac.stepKm} value={km} onChange={(e) => setKm(+e.target.value)} className="h-8 w-full accent-[var(--color-pine-600)]" aria-label="Distance cible en kilomètres" /></label>
-          <label className={clsx("flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors", maxGain ? "border-pine-600 bg-pine-50" : "border-ink-200 hover:border-ink-300")}>
+          <label className={clsx("flex cursor-pointer items-start gap-3 rounded-2xl p-3 ring-1 transition-colors", maxGain ? "bg-pine-50 ring-pine-600" : "bg-ink-50/70 ring-ink-100 hover:ring-ink-300")}>
             <input type="checkbox" checked={maxGain} onChange={(e) => { setMaxGain(e.target.checked); setProps([]); setSel(null); }} className="mt-0.5 size-4 accent-[var(--color-pine-600)]" aria-describedby="maxgain-note" />
             <span><span className="flex items-center gap-1.5 text-sm font-semibold"><Mountain className="size-4" />Maximiser le dénivelé</span>
               <span id="maxgain-note" className="mt-0.5 block text-xs text-ink-500">Les boucles qui montent le plus pour cette distance (relief sondé dans 24 directions, allers-retours déclassés). Distance : −15 % à +10 %.</span></span>
           </label>
-          {busy ? <Button variant="secondary" size="lg" onClick={() => ctrl.current?.abort()}><Square className="size-4" />Arrêter</Button> : <Button size="lg" onClick={run}><Sparkles className="size-5" />Générer 4 propositions</Button>}
           {busy && progress && <div role="status" aria-live="polite"><div className="flex justify-between text-xs text-ink-500"><span className="inline-flex items-center gap-1.5"><Loader2 className="size-3.5 animate-spin" />{PHASE[progress.phase]}…</span><span>{progress.done}/{progress.total}</span></div><div className="mt-1 h-1.5 overflow-hidden rounded-full bg-ink-100"><div className="h-full rounded-full bg-pine-500 transition-all" style={{ width: `${(progress.done / Math.max(1, progress.total)) * 100}%` }} /></div></div>}
           {msg && <p role={msg.kind === "err" ? "alert" : "status"} className={clsx("rounded-lg px-3 py-2 text-sm", msg.kind === "err" ? "bg-danger/10 text-danger" : msg.kind === "warn" ? "bg-warn/10 text-ink-700" : "bg-pine-50 text-pine-700")}>{msg.text}</p>}
         </section>
 
         {props.length > 0 && (
-          <section className="mt-5 grid gap-2" aria-label="Propositions">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-ink-400">3 · Propositions</h2>
+          <section className="grid gap-2" aria-label="Propositions">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-ink-500">Propositions</h2>
             <ul className="grid gap-2">{props.map((p, i) => {
               const dk = p.distanceM / 1000 - km; const on = p.id === sel;
               return (
-                <li key={p.id}><button type="button" aria-pressed={on} onClick={() => setSel(p.id)} className={clsx("w-full rounded-xl border p-3 text-left transition", on ? "border-ink-300 bg-ink-50" : "border-ink-100 hover:border-ink-200")} style={on ? { borderLeft: `4px solid ${COLORS[i % COLORS.length]}` } : undefined}>
+                <li key={p.id}><button type="button" aria-pressed={on} onClick={() => setSel(p.id)} className={clsx("w-full rounded-2xl p-3 text-left ring-1 transition", on ? "bg-white ring-ink-300 shadow-sm" : "bg-ink-50/70 ring-ink-100 hover:ring-ink-200")} style={on ? { borderLeft: `4px solid ${COLORS[i % COLORS.length]}` } : undefined}>
                   <span className="flex items-center gap-2 font-semibold"><span className="size-3 rounded-full" style={{ background: COLORS[i % COLORS.length] }} />Proposition {i + 1}</span>
                   <span className="mt-1 grid grid-cols-3 gap-2 text-sm"><span><b className="font-display">{fmtKm(p.distanceM)}</b><br /><small className="text-ink-400">{dk >= 0 ? "+" : ""}{dk.toFixed(1).replace(".", ",")} km</small></span>
                     <span><b className="font-display">{fmtM(p.gainM)}</b> D+<br /><small className="text-ink-400">{Math.round(p.gainM / Math.max(0.1, p.distanceM / 1000))} m/km</small></span>
@@ -205,12 +209,8 @@ export function GeneratorPage() {
             <p className="text-xs text-ink-500">L'aller-retour dépend du réseau de chemins : essayez un autre départ pour d'autres boucles. Données OpenStreetMap, rien n'est garanti : vérifiez le tracé (praticabilité, accès) avant de partir.</p>
           </section>
         )}
-      </aside>
-      <MapFrame className="order-1 h-[52vh] min-h-[20rem] md:order-2 md:h-auto" banner={banner}>
-        <div className="absolute inset-0"><div ref={el} className="size-full" role="application" aria-label="Carte : cliquez pour choisir le départ" /></div>
-        <LayerControl map={map} ready={ready} />
-        {!start && ready && <p className="pointer-events-none absolute left-3 top-3 max-w-[16rem] rounded-lg bg-white/95 px-3 py-2 text-sm shadow">Cliquez sur la carte pour choisir le départ.</p>}
-      </MapFrame>
+        </div>
+      </Sheet>
     </div>
   );
 }

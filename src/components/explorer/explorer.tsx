@@ -10,6 +10,7 @@ import { useAllRoutes } from "@/lib/route-vm";
 import { sparkOf, type RouteVM } from "@/lib/route-model";
 import { buildStyle } from "@/lib/basemaps";
 import { LayerControl } from "@/components/map/layer-control";
+import { ToolBubble, SearchBubble, PANEL_OFFSET, FLOAT_RIGHT } from "@/components/map/tool-bubble";
 import { Sheet, isMobileViewport, type SheetState } from "@/components/layout/sheet";
 import { POI_KINDS, fetchPois, type PoiKind, type PoiFeature } from "@/lib/poi";
 import { SPORTS, DIFFICULTY_LABEL, type Sport } from "@/lib/sports";
@@ -243,20 +244,12 @@ export function Explorer({ initial, initialRef }: { initial?: { lng: number; lat
 
   const chip = "rounded-full border px-3 py-1.5 text-sm font-medium transition";
   return (
-    <div data-workspace className="relative h-[calc(100dvh-4rem-var(--bnav))] overflow-hidden lg:flex lg:min-h-[34rem]">
-      <Sheet state={sheet} onState={setSheet} label="Parcours, calques et points d'intérêt" header={<>
-        <form onSubmit={search} role="search" className="flex gap-2 border-b border-ink-100 p-3">
-          <label className="relative flex-1"><span className="sr-only">Rechercher un lieu</span>
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-400" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Adresse, lieu, massif…" className="h-10 w-full rounded-lg border border-ink-200 pl-9 pr-2 text-sm" />
-          </label>
-          <button className="grid size-10 place-items-center rounded-lg bg-pine-600 text-white hover:bg-pine-700" aria-label="Lancer la recherche">{busy ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}</button>
-          <button type="button" onClick={locate} className="grid size-10 place-items-center rounded-lg border border-ink-200 hover:bg-ink-50" aria-label="Me géolocaliser" title="Me géolocaliser">{geo.status === "loading" ? <Loader2 className="size-4 animate-spin" /> : <LocateFixed className="size-4" />}</button>
-        </form>
-        {msg && <p className="border-b border-ink-100 px-3 py-2 text-xs text-ink-600" aria-live="polite">{msg}</p>}
-        <div className="m-2 grid grid-cols-4 gap-1 rounded-2xl bg-ink-100/70 p-1 text-xs font-semibold" role="tablist">
+    <div data-workspace className={clsx("relative h-[calc(100dvh-4rem-var(--bnav))] overflow-hidden lg:min-h-[34rem]", PANEL_OFFSET)}>
+      <Sheet floating state={sheet} onState={setSheet} label="Parcours, calques et points d'intérêt" className={FLOAT_RIGHT} header={<>
+        <div className="flex items-center justify-between gap-2 px-3 pt-0.5 lg:pt-3"><p className="text-sm font-bold text-ink-900">Explorer</p><p className="text-xs text-ink-500">{visibleRoutes.length} parcours</p></div>
+        <div className="mx-3 mb-2 mt-2 grid grid-cols-4 gap-0.5 rounded-full bg-ink-100 p-0.5 text-[11px] font-semibold" role="tablist">
           {([["routes", "Parcours", Filter], ["itineraires", "Itinéraires", Mountain], ["calques", "Calques", Layers3], ["layers", "POI", Layers]] as const).map(([id, l, I]) => (
-            <button key={id} role="tab" aria-selected={panel === id} onClick={() => { setPanel(id); if (id === "itineraires") setRefOn(true); setSheet((x) => (x === "peek" ? "half" : x)); }} className={clsx("flex flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 transition", panel === id ? "bg-white text-pine-700 shadow-sm" : "text-ink-600 hover:bg-white/60 hover:text-ink-900")}><I className="size-4" />{l}</button>
+            <button key={id} role="tab" aria-selected={panel === id} onClick={() => { setPanel(id); if (id === "itineraires") setRefOn(true); setSheet((x) => (x === "peek" ? "half" : x)); }} className={clsx("flex items-center justify-center gap-1 rounded-full px-1 py-1.5 transition", panel === id ? "bg-white text-pine-700 shadow-sm" : "text-ink-600 hover:text-ink-900")}><I className="size-3.5" />{l}</button>
           ))}
         </div>
       </>}>
@@ -326,11 +319,19 @@ export function Explorer({ initial, initialRef }: { initial?: { lng: number; lat
         </div>
       </Sheet>
 
-      <MapFrame className="absolute inset-x-0 top-0 bottom-[8rem] lg:static lg:flex-1" banner={banner}>
+      <MapFrame className="absolute inset-x-0 top-0 bottom-[8rem] lg:bottom-0" banner={banner}>
         <div className="absolute inset-0"><div ref={el} className="size-full" role="region" aria-label="Carte interactive" /></div>
+        {/* Barre d'outils : recherche et bulles d'icônes, libellés au survol */}
+        <div role="toolbar" aria-label="Outils de la carte" className="absolute left-3 top-3 z-20 flex max-w-[calc(100%-4.75rem)] flex-wrap items-center gap-1.5 lg:max-w-[calc(100%-26rem)]" data-explorer-toolbar>
+          <SearchBubble value={q} onChange={setQ} onSubmit={search} busy={busy} />
+          <ToolBubble id="localiser" label="Me géolocaliser" onClick={locate}>{geo.status === "loading" ? <Loader2 className="size-4 animate-spin" /> : <LocateFixed className="size-4" />}</ToolBubble>
+          <ToolBubble id="itineraires" label={refOn ? "Masquer les itinéraires (GR…)" : "Afficher les itinéraires (GR…)"} tone="brand" on={refOn} onClick={() => setRefOn((v) => !v)}><Mountain className="size-4" /></ToolBubble>
+          <ToolBubble id="zone" label="Seulement les parcours de la zone visible" tone="brand" on={inView} onClick={() => setInView((v) => !v)}><Filter className="size-4" /></ToolBubble>
+        </div>
+        {msg && <p className="absolute left-3 top-[3.75rem] z-10 max-w-[min(22rem,calc(100%-4.75rem))] rounded-full bg-white/95 px-3 py-1.5 text-xs text-ink-700 shadow" aria-live="polite">{msg}</p>}
         <LayerControl map={mapRef} ready={ready} scope="explorer" />
         {compared.length > 0 && (
-          <div className="absolute inset-x-2 bottom-8 z-10 max-h-[55%] overflow-auto rounded-xl bg-white/95 p-3 shadow-lift backdrop-blur lg:inset-x-auto lg:left-3 lg:w-[34rem]">
+          <div className="absolute inset-x-2 bottom-8 z-10 max-h-[55%] overflow-auto rounded-2xl bg-white/95 p-3 shadow-lift ring-1 ring-black/5 backdrop-blur lg:inset-x-auto lg:left-3 lg:w-[min(34rem,calc(100%-25rem))]">
             <div className="mb-2 flex items-center justify-between"><h2 className="font-display text-sm font-bold">{compared.length > 1 ? "Comparaison" : "Parcours sélectionné"}</h2>
               <button onClick={() => setSelected([])} className="grid size-7 place-items-center rounded-md hover:bg-ink-100" aria-label="Fermer la comparaison"><X className="size-4" /></button></div>
             <div className="overflow-x-auto"><table className="w-full min-w-[28rem] text-xs">
