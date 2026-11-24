@@ -62,7 +62,7 @@ export function SharedView({ embed }: { embed: boolean }) {
       <div className="relative min-h-0 flex-1"><div ref={el} className="absolute inset-0" role="region" aria-label={r ? `Carte du parcours ${r.name}` : "Carte"} />
         {bad && <p className="absolute inset-0 z-10 grid place-items-center bg-white/90 p-6 text-center text-sm text-ink-600">Ce code d'intégration est incomplet ou invalide.</p>}</div>
       {r && state.profile && <div className="border-t border-ink-100 px-1 pt-1"><ElevationChart points={profile} onHover={setHover} height={120} /></div>}
-      <a href={`${BASE}/`} target="_blank" rel="noopener" className="flex items-center justify-end gap-1.5 border-t border-ink-100 px-3 py-1 text-[11px] text-ink-500 hover:text-ink-900"><LogoMark className="size-4" />Carte créée avec Crête</a>
+      <p className="flex items-center justify-end gap-3 border-t border-ink-100 px-3 py-1 text-[11px] text-ink-500"><a href={`${BASE}/mentions-legales/`} target="_blank" rel="noopener" className="hover:text-ink-900">Mentions légales</a><a href={`${BASE}/confidentialite/`} target="_blank" rel="noopener" className="hover:text-ink-900">Confidentialité</a><a href={`${BASE}/`} target="_blank" rel="noopener" className="inline-flex items-center gap-1.5 hover:text-ink-900"><LogoMark className="size-4" />Carte créée avec Crête</a></p>
     </div>
   );
   return (

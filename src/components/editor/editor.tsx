@@ -562,6 +562,7 @@ export function Editor({ routeId }: { routeId?: string }) {
     <div data-workspace className={clsx("relative h-[calc(100dvh-4rem-var(--bnav))] overflow-hidden lg:grid lg:min-h-[36rem] lg:grid-cols-[minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)_auto]",
       // commandes de la carte (zoom, nord, calques, plein écran, attributions) décalées à gauche du panneau flottant
       PANEL_OFFSET)}>
+      <h1 className="sr-only">Créer ou modifier un parcours</h1>
       <div className="absolute inset-x-0 top-0 bottom-[8rem] flex flex-col lg:static lg:col-start-1 lg:row-start-1 lg:min-h-0">
         <MapFrame className="min-h-[18rem] flex-1" banner={<StatBanner title={meta.name || "Parcours en cours"} items={[{ label: "Distance", value: stats ? fmtKm(stats.distanceM) : "—" }, { label: "D+", value: stats ? fmtM(stats.gainM) : "—" }, { label: "D−", value: stats ? fmtM(stats.lossM) : "—" }, { label: "Alt. min", value: stats ? fmtM(stats.minEle) : "—" }, { label: "Alt. max", value: stats ? fmtM(stats.maxEle) : "—" }, { label: "Durée est.", value: stats ? fmtDuration(durationMin) : "—" }]} />}>
           <div className="absolute inset-0"><div ref={el} className="size-full" role="application" aria-label="Carte de l'éditeur : cliquez pour ajouter des points" /></div>

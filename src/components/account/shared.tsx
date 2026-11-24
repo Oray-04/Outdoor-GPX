@@ -16,7 +16,7 @@ export function ProfileForm() {
       <label className="grid gap-1 text-sm font-medium">Objectif mensuel (km)<input type="number" min={0} className={inp} value={p.goalKmMonth} onChange={(e) => upd({ goalKmMonth: Math.max(0, +e.target.value || 0) })} /></label>
       <label className="grid gap-1 text-sm font-medium sm:col-span-2">Présentation<textarea rows={2} className="rounded-lg border border-ink-200 p-2 text-sm" value={p.bio} onChange={(e) => upd({ bio: e.target.value })} maxLength={300} /></label>
       <fieldset className="sm:col-span-2"><legend className="mb-1 text-sm font-medium">Disciplines pratiquées</legend><div className="flex flex-wrap gap-1.5">{Object.entries(SPORTS).map(([k, v]) => { const on = p.sports.includes(k); return <button key={k} type="button" aria-pressed={on} onClick={() => upd({ sports: on ? p.sports.filter((x) => x !== k) : [...p.sports, k] })} className={`rounded-full border px-3 py-1 text-xs font-medium ${on ? "border-pine-600 bg-pine-600 text-white" : "border-ink-200"}`}>{v.label}</button>; })}</div></fieldset>
-      <p className="text-xs text-ink-500 sm:col-span-2" aria-live="polite">{saved ? "Enregistré sur cet appareil." : "Profil enregistré automatiquement sur cet appareil. Un profil public nécessitera les comptes (étape 2)."}</p>
+      <p className="text-xs text-ink-500 sm:col-span-2" aria-live="polite">{saved ? "Enregistré sur cet appareil." : "Profil enregistré automatiquement sur cet appareil. Avec un compte, il est aussi conservé dans votre espace privé de synchronisation ; il n&apos;est pas publié."}</p>
     </div>
   );
 }

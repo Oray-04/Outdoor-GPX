@@ -14,6 +14,8 @@ Supabase a une offre gratuite suffisante pour un usage personnel. (Un projet gra
 1. Dans le menu de gauche, ouvrez **SQL Editor** > **New query**.
 2. Ouvrez le fichier `supabase/migrations/20261103000000_init.sql` de ce dépôt, copiez **tout** son contenu, collez-le dans l'éditeur et cliquez sur **Run** (message attendu : « Success. No rows returned »).
 3. Faites de même, **dans cet ordre**, avec `supabase/migrations/20261104000000_public_content.sql` (nouvelle requête, coller, Run).
+   Puis, toujours dans l'ordre : `20261112000000_profiles_columns.sql`, `20261123000000_event_page.sql`, `20261124000000_runner_map.sql`, `20261125000000_privacy_account_deletion.sql`.
+   **Région** : à la création du projet, choisissez une région européenne (Paris, `eu-west-3`), conformément à la politique de confidentialité.
 
 Ces scripts créent : les profils, les documents privés synchronisés, les parcours publiés (avec PostGIS), les événements et collections publics, et toutes les règles d'accès (RLS) : chaque utilisateur ne voit que ses données ; seuls les contenus explicitement publiés sont lisibles par tous.
 
@@ -74,3 +76,6 @@ Limite connue : le code n'a pas encore été essayé contre un vrai projet Supab
 ## Migration du 12/11 (audit)
 
 `20261112000000_profiles_columns.sql` : la colonne `is_admin` des profils n'est plus lisible publiquement (lecture limitée à `id`, `display_name`, `bio`, `created_at`) ; l'application lit le statut de l'utilisateur connecté par `rpc("is_admin")`. Aucune donnée modifiée. Retour arrière : `grant select on public.profiles to anon, authenticated;`. À appliquer après les deux premières. Tests : `bash supabase/tests/rls.sh` (48 vérifications).
+
+
+`20261125000000_privacy_account_deletion.sql` (conformité RGPD) : le profil public ne reprend plus la partie de l'adresse e-mail avant « @ » (nom affiché vide par défaut, vidé pour les profils qui l'avaient reçu automatiquement) ; fonction `delete_my_account()` appelée par le bouton « Supprimer mon compte » de Mon espace : supprime l'utilisateur, et en cascade son profil, ses documents synchronisés et ses contenus publiés. Exécutable uniquement par un utilisateur connecté, pour son propre compte.

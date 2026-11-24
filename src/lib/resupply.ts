@@ -31,7 +31,7 @@ export interface ResupplyPlace {
 }
 
 /** Serveurs Overpass publics couvrant le monde entier, essayés dans l'ordre (celui qui a répondu en dernier passe en tête). */
-export const OVERPASS_MIRRORS = ["https://overpass-api.de/api/interpreter", "https://overpass.private.coffee/api/interpreter", "https://maps.mail.ru/osm/tools/overpass/api/interpreter", "https://overpass.kumi.systems/api/interpreter"];
+export const OVERPASS_MIRRORS = ["https://overpass-api.de/api/interpreter", "https://overpass.private.coffee/api/interpreter", "https://overpass.kumi.systems/api/interpreter"];
 export type ResupplyErrorKind = "rate" | "server" | "timeout" | "network" | "offline" | "too-long";
 export class ResupplyError extends Error { constructor(public kind: ResupplyErrorKind, public status?: number, public tried: string[] = []) { super(`Recherche de lieux : ${kind}${status ? ` (${status})` : ""}`); } }
 

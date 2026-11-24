@@ -52,7 +52,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     enabled: cloudEnabled, ready, user, isAdmin,
     signIn: (email, password) => wrap(() => cloud()!.auth.signInWithPassword({ email, password })),
     signUp: (email, password) => wrap(() => cloud()!.auth.signUp({ email, password, options: { emailRedirectTo: redirect() } })),
-    magicLink: (email) => wrap(() => cloud()!.auth.signInWithOtp({ email, options: { emailRedirectTo: redirect() } })),
+    // lien de connexion : comptes existants uniquement (la création passe par l'inscription, où les CGU sont acceptées)
+    magicLink: (email) => wrap(() => cloud()!.auth.signInWithOtp({ email, options: { emailRedirectTo: redirect(), shouldCreateUser: false } })),
     resetPassword: (email) => wrap(() => cloud()!.auth.resetPasswordForEmail(email, { redirectTo: redirect() })),
     signOut: async () => { await cloud()?.auth.signOut(); },
   }), [ready, user, isAdmin, wrap]);

@@ -44,7 +44,7 @@ export function Choice<T extends string>({ label, value, options, onChange, hint
   );
 }
 const err = (errors: FieldError[], field: string) => errors.find((e) => e.field === field)?.text;
-const Card = ({ title, children, hint }: { title: string; hint?: string; children: React.ReactNode }) => <section className="frost-panel grid gap-4 p-4 sm:p-5"><div><h3 className="text-base font-bold">{title}</h3>{hint && <p className="text-sm text-ink-500">{hint}</p>}</div>{children}</section>;
+const Card = ({ title, children, hint }: { title: string; hint?: string; children: React.ReactNode }) => <section className="frost-panel grid gap-4 p-4 sm:p-5"><div><h2 className="text-base font-bold">{title}</h2>{hint && <p className="text-sm text-ink-500">{hint}</p>}</div>{children}</section>;
 
 export function StepProfile({ v, set, errors }: { v: V; set: SetV; errors: FieldError[] }) {
   const a = v.athlete, up = (p: Partial<V["athlete"]>) => set((x) => ({ ...x, athlete: { ...x.athlete, ...p } }));

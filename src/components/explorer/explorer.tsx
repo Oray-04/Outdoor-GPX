@@ -245,6 +245,7 @@ export function Explorer({ initial, initialRef }: { initial?: { lng: number; lat
   const chip = "rounded-full border px-3 py-1.5 text-sm font-medium transition";
   return (
     <div data-workspace className={clsx("relative h-[calc(100dvh-4rem-var(--bnav))] overflow-hidden lg:min-h-[34rem]", PANEL_OFFSET)}>
+      <h1 className="sr-only">Explorer la carte des parcours</h1>
       <Sheet floating state={sheet} onState={setSheet} label="Parcours, calques et points d'intérêt" className={FLOAT_RIGHT} header={<>
         <div className="flex items-center justify-between gap-2 px-3 pt-0.5 lg:pt-3"><p className="text-sm font-bold text-ink-900">Explorer</p><p className="text-xs text-ink-500">{visibleRoutes.length} parcours</p></div>
         <div className="mx-3 mb-2 mt-2 grid grid-cols-4 gap-0.5 rounded-full bg-ink-100 p-0.5 text-[11px] font-semibold" role="tablist">

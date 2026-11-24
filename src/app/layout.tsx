@@ -9,10 +9,15 @@ import { CSP } from "@/lib/csp";
 import { GeoProvider } from "@/components/home/geo-context";
 import { AuthProvider } from "@/lib/auth";
 import { SyncProvider } from "@/lib/sync";
+import { LEGAL } from "@/lib/legal";
 
 export const metadata: Metadata = {
   title: { default: "Crête — Plateforme outdoor : parcours GPS, trail, randonnée, vélo", template: "%s · Crête" },
   description: "Créez, explorez et partagez vos parcours de trail, running, randonnée et vélo. Outils de cartographie et de gestion d'événements.",
+  metadataBase: new URL(`${LEGAL.siteUrl}/`),
+  applicationName: "Crête",
+  openGraph: { type: "website", siteName: "Crête", locale: "fr_FR", title: "Crête — parcours GPS, trail, randonnée, vélo", description: "Créez, explorez et partagez vos parcours ; préparez votre nutrition ; organisez votre trail. Gratuit, sans publicité." },
+  twitter: { card: "summary", title: "Crête — parcours GPS, trail, randonnée, vélo", description: "Créez, explorez et partagez vos parcours ; organisez votre trail. Gratuit, sans publicité." },
 };
 export const viewport: Viewport = { themeColor: "#0d1b17", width: "device-width", initialScale: 1 };
 

@@ -16,7 +16,7 @@ insert into auth.users (id, email) values
 update public.profiles set is_admin = true where id = 'cccccccc-0000-0000-0000-000000000003';
 
 select chk('profils créés automatiquement à l''inscription', (select count(*) from public.profiles) = 3);
-select chk('nom d''affichage par défaut tiré de l''e-mail', (select display_name from public.profiles where id = 'aaaaaaaa-0000-0000-0000-000000000001') = 'alice');
+select chk('nom d''affichage par défaut vide (l''e-mail n''est jamais rendu public)', (select display_name from public.profiles where id = 'aaaaaaaa-0000-0000-0000-000000000001') = '');
 
 -- ───── Alice ─────
 set role authenticated; select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-0000-0000-000000000001', false);
@@ -82,3 +82,14 @@ select chk('admin : supprime un parcours publié (modération)', public.t_rows($
 reset role;
 delete from auth.users where id = 'aaaaaaaa-0000-0000-0000-000000000001';
 select chk('suppression d''un compte supprime ses documents et parcours', (select count(*) from public.documents) = 0 and (select count(*) from public.public_routes) = 0);
+
+-- ───── Suppression de son compte (droit à l'effacement) ─────
+insert into auth.users (id, email) values ('dddddddd-0000-0000-0000-000000000004', 'dana@example.org');
+insert into public.documents (owner_id, kind, id, data) values ('dddddddd-0000-0000-0000-000000000004', 'routes', 'd1', '{}');
+set role anon; select set_config('request.jwt.claim.sub', '', false);
+select chk('visiteur non connecté : suppression de compte refusée', public.t_try($$select public.delete_my_account()$$) in ('42501', '28000'));
+reset role; set role authenticated; select set_config('request.jwt.claim.sub', 'dddddddd-0000-0000-0000-000000000004', false);
+select chk('dana supprime son propre compte', public.t_try($$select public.delete_my_account()$$) = 'ok');
+reset role;
+select chk('compte de dana effacé, avec son profil et ses documents', not exists (select 1 from auth.users where id = 'dddddddd-0000-0000-0000-000000000004') and not exists (select 1 from public.profiles where id = 'dddddddd-0000-0000-0000-000000000004') and not exists (select 1 from public.documents where owner_id = 'dddddddd-0000-0000-0000-000000000004'));
+select chk('les autres comptes ne sont pas touchés', exists (select 1 from auth.users where id = 'bbbbbbbb-0000-0000-0000-000000000002'));
